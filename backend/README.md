@@ -38,6 +38,8 @@ TEST_DATABASE_URL=postgresql+psycopg://jeonse:jeonse@localhost:5432/jeonse_test 
 | `app/db.py` | DB 연결, 세션 |
 | `app/models.py` | 데이터 모델: 계약(`contracts`), 판정(`verdicts`), 할 일(`todos`), 경보(`alerts`) |
 | `app/schemas.py` | API 입출력 형식 |
+| `app/errors.py` | 오류 응답 형식 (`{"detail": {code, message, hint, fields}}`) |
+| `export_openapi.py` | `docs/api/openapi.json` 다시 만들기 |
 | `app/rules/loader.py` | 규칙 파일 불러오기 |
 | `app/rules/conditions.py` | 규칙의 조건(`when`) 계산 |
 | `app/engine/price.py` | 추정 주택가격, 내 보증금 비율 (alert.yaml) |
@@ -50,6 +52,8 @@ TEST_DATABASE_URL=postgresql+psycopg://jeonse:jeonse@localhost:5432/jeonse_test 
 | `tests/fixtures/registry/` | 등기부 요약 가상 샘플 (실제 샘플이 오면 추가) |
 
 ## API
+
+공통 규칙(주소, 상태 코드, 금액·날짜 표기, 오류 형식)과 전체 API 목록은 [`docs/api/API_명세.md`](../docs/api/API_명세.md). API를 바꾸면 `python export_openapi.py`로 `docs/api/openapi.json`을 다시 만든다 (`tests/test_openapi.py`가 검사).
 
 ### `POST /api/checks` 계약 전 확인
 

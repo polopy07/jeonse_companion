@@ -32,7 +32,9 @@ def test_create_and_get_check(client):
 def test_missing_official_price_is_422(client):
     r = client.post("/api/checks", json={"housing_type": "apartment", "deposit": EOK})
     assert r.status_code == 422
-    assert "공시가격" in r.json()["detail"]
+    detail = r.json()["detail"]
+    assert detail["code"] == "MISSING_OFFICIAL_PRICE"
+    assert "공시가격" in detail["message"]
 
 
 def test_not_applicable_needs_no_price(client):
@@ -42,4 +44,19 @@ def test_not_applicable_needs_no_price(client):
 
 
 def test_unknown_check_is_404(client):
-    assert client.get("/api/checks/999").status_code == 404
+    r = client.get("/api/checks/999")
+    assert r.status_code == 404
+    assert r.json()["detail"]["code"] == "NOT_FOUND"
+
+
+def test_invalid_input_lists_fields(client):
+    r = client.post("/api/checks", json={
+        "housing_type": "villa", "deposit": 100_000_000,
+        "registry": {"mortgage": True, "mortgage_amount": 0},
+    })
+    assert r.status_code == 422
+    detail = r.json()["detail"]
+    assert detail["code"] == "INVALID_INPUT"
+    fields = {f["field"]: f["message"] for f in detail["fields"]}
+    assert "housing_type" in fields
+    assert fields["registry"] == "근저당이 있으면 채권최고액 합계를 입력해야 합니다"
