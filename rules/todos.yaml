@@ -1,0 +1,124 @@
+# 날짜별 할 일 9종과 추가 할 일 (명세서 부속표 A, FR-015, FR-017~FR-021)
+# 기한은 규칙으로만 계산한다 (LLM 사용 안 함). 잔금일·만기일이 바뀌면 연결된 기한을 모두 다시 계산한다.
+version: "0.1"
+as_of: "2026-10-07"
+basis: "서비스 기획안 v4.33 '날짜별 할 일 9종', 요구사항 명세서 v0.3 부속표 A"
+
+# 임대차 신고 대상 기준 (FR-015)
+# 보증금 6천만 원 이하이면서 월세 30만 원 이하면 신고 비대상 → 신고 알림 대신 확정일자 알림
+report_rule:
+  exempt_when:
+    all:
+      - {field: deposit, op: "<=", value: 60000000}
+      - {field: monthly_rent, op: "<=", value: 300000}
+  basis: 부동산 거래신고 등에 관한 법률 (주택 임대차 계약 신고), 신고 대상 지역 기준은 출시 전 재확인
+  hypothesis: true
+
+# 화면 맨 위에 고정하는 할 일 (FR-019): 반환보증 가입, 만기 통보, 반환 확인
+pinned: [T5, T6, T7, T8, T9]
+
+todos:
+  - id: T1
+    title: 임대차 신고 (계약 후 30일 이내)
+    when_applies: {field: report_required, op: "==", value: true}
+    start: {anchor: contract_date}
+    due: {anchor: contract_date, offset_days: 30}
+    complete_with: 중개사가 대신 신고했으면 그 확인서로 완료
+    evidence: 임대차 신고필증
+
+  - id: T2
+    title: 보증 가입 여부 확정
+    detail_by_guarantor:
+      HUG: 전세보증 사전심사 신청
+      HF: 취급 은행 사전 상담
+      SGI: 취급 기관 사전 상담
+      none: 반환보증 가입 여부 결정
+    prerequisites: [T1]           # 신고 비대상이면 T1이 없으므로 계약 직후 바로 시작
+    start: {anchor: contract_date}
+    due: {anchor: balance_date, offset_days: -1}
+    variants:
+      - when: {field: brokered, op: "==", value: false}
+        detail: 직거래는 사전심사 대상이 아니므로 잔금 전 보증기관 상담으로 대체
+    move_to_top_when:
+      - {special_term: S-GUARANTEE-CANCEL, result: rejected}
+    evidence: 사전심사 결과 또는 상담 기록
+
+  - id: T3
+    title: 잔금일 아침 등기부 재비교
+    detail: 등기부 요약을 다시 올리면 계약 전과 자동 비교. 변동이 있으면 "잔금 보류 후 상담" 안내
+    start: {anchor: balance_date}
+    due: {anchor: balance_date}
+    required_checks_from: linkage   # 근저당이 있었으면 근저당 금액 비교가 필수 (L-MORTGAGE)
+    evidence: 잔금일 등기부 열람본
+
+  - id: T4
+    title: 전입신고
+    detail: 임대차 신고를 했으면 확정일자는 이미 부여됨. 신고하지 않은 계약이면 확정일자도 함께
+    start: {anchor: balance_date}
+    due: {anchor: balance_date}
+    move_to_top_when:
+      - {special_term: S-NO-MORTGAGE, result: rejected}
+    evidence: 확정일자 받은 계약서
+
+  - id: T5
+    title: 반환보증 가입
+    detail: 입력한 보증기관 기준 (guarantors.yaml)
+    start:
+      anchor: loan_execution_date
+      if_no_loan: {anchor: T4.done_date, offset_days: 1}   # 대출이 없으면 전입신고 다음 날
+    due: {from: guarantors.yaml, key: return_guarantee_deadline}
+    move_to_top_when:
+      - {alert_level_gte: caution}
+    evidence: 보증서
+
+  - id: T6
+    title: 반환보증 가입 마감 전 재알림
+    when_applies: {todo_not_done: T5}
+    remind: {from: guarantors.yaml, key: return_guarantee_deadline, offset_days: -30}
+    hypothesis: true   # 마감 30일 전 재알림은 팀 가설
+    evidence: null
+
+  - id: T7
+    title: 갱신 또는 이사 의사 통보 안내
+    detail: 갱신하면 대출·보증 연장 준비, 이사하면 갈아타기 시작
+    start: {anchor: end_date, offset_months: -6}
+    due: {anchor: end_date, offset_months: -2}   # 갱신요구·갱신거절 통지 기간: 만기 6개월 전 ~ 2개월 전
+    variants:
+      - when: {field: renewal_right_used, op: "==", value: true}
+        detail: 이미 계약갱신요구권을 쓴 계약이므로 다시 쓸 수 없음을 안내
+    choices:
+      renew: [대출 연장 준비, 보증 연장 준비]
+      move: [갈아타기 시작]
+    basis: 주택임대차보호법 제6조, 제6조의3
+    evidence: 통보 기록 (문자 화면)
+
+  - id: T8
+    title: 통보 마감 재알림
+    when_applies: {todo_not_done: T7}
+    remind: {anchor: end_date, offset_months: -2, offset_days: -14}
+    hypothesis: true   # 기획안은 "만기 2개월 전"이나, 그날이 통보 마감이라 2주 앞당겨 알림 (PO 확인 필요)
+    evidence: 통보 기록
+
+  - id: T9
+    title: 보증금 반환 확인
+    detail: '"보증금을 돌려받았나요?" 확인. 못 받았으면 반환 대응으로 전환 (FR-024, FR-034)'
+    start: {anchor: end_date}
+    due: {anchor: end_date}
+    on_answer:
+      not_returned: switch_to_return_response
+    evidence: 반환 이체 내역
+
+# 규칙이 추가하는 할 일 (9종 외)
+extra_todos:
+  - id: X-FIXED-DATE-STATUS
+    title: 확정일자 부여현황 열람 (임대인 동의)
+    added_by: [L-MULTI]
+    start: {anchor: contract_date, offset_days: -1}
+  - id: X-LANDLORD-PLAN
+    title: 임대인 반환 계획 서면 확인
+    added_by: [alert.warning]
+    start: {anchor: end_date, offset_months: -6}
+  - id: X-HUG-LANDLORD-RISK
+    title: HUG 안심전세앱 임대인 위험도 조회
+    added_by: [S-TAX-CERT.rejected]
+    start: {anchor: contract_date}

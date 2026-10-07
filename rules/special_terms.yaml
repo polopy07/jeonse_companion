@@ -1,0 +1,47 @@
+# 특약 예시와 특약 반영 분기 (명세서 부속표 E, FR-039, FR-049, FR-050)
+# 특약은 "추천"이 아니라 "이런 결과일 때 공공 자료가 안내하는 특약 예시"로 보여 준다.
+# 문구는 출시 전 법률 표현 검토가 필요하다 (기획안 "출시 전 확인 필요 항목").
+version: "0.1"
+as_of: "2026-10-07"
+basis: "서비스 기획안 v4.33 특약 반영 분기표, 요구사항 명세서 v0.3 부속표 E"
+
+terms:
+  - id: S-NO-MORTGAGE
+    label: 잔금일 다음 날까지 담보 설정 금지
+    shown_when: [L-MORTGAGE]
+    text: "임대인은 잔금 지급일 다음 날까지 이 주택에 저당권 등 담보권을 설정하지 않는다. 이를 위반하면 임차인은 계약을 해제할 수 있으며 임대인은 손해를 배상한다."
+    source: 주택임대차표준계약서 특약 예시, 공공기관 배포 자료 (출처 문구 확정 필요)
+    mvp: true
+    on_inserted:
+      - {action: require_document, document: 특약이 보이는 계약서 사진, note: 위반 시 계약 해제·손해배상 청구의 근거 서류로 표시}
+    on_rejected:
+      - {action: show_warning, text: 잔금 당일 설정되는 담보는 잔금일 등기부 재비교로 잡을 수 없습니다. 잔금일 당일 전입신고로 대항력을 확보하세요}
+      - {action: move_to_top, todo: T4}
+
+  - id: S-GUARANTEE-CANCEL
+    label: 보증·대출 거절 시 계약 해제 및 계약금 반환
+    shown_when: [L-RATIO90, L-VIOLATION]
+    text: "임차인의 전세자금대출 또는 전세보증금 반환보증이 거절되면 임차인은 계약을 해제할 수 있고, 임대인은 받은 계약금을 즉시 반환한다."
+    source: 주택임대차표준계약서 특약 예시, 공공기관 배포 자료 (출처 문구 확정 필요)
+    mvp: true
+    on_inserted:
+      - {action: require_document, document: 특약이 보이는 계약서 사진}
+      - {action: show_warning, text: 보증이 거절되면 계약 해제 절차를 안내합니다}
+    on_rejected:
+      - {action: move_next, todo: T2, note: 잔금 전 보증 사전심사·상담을 바로 다음 할 일로}
+      - {action: show_warning, text: 보증이 거절되면 계약금을 돌려받지 못할 수 있습니다}
+      - {action: link_counsel}
+
+  - id: S-TAX-CERT
+    label: 국세·지방세 완납증명 제출
+    shown_when: [L-TAX]
+    text: "임대인은 잔금 지급 전까지 국세·지방세 완납증명서를 임차인에게 제출한다."
+    source: 주택임대차표준계약서 특약 예시, 공공기관 배포 자료 (출처 문구 확정 필요)
+    mvp: false
+    on_inserted:
+      - {action: require_document, document: 국세·지방세 완납증명서}
+    on_rejected:
+      - {action: add_todo, todo: X-HUG-LANDLORD-RISK}
+
+# 범위 축소 규칙: 2주차 중간 점검에서 기준 미달이면 S-NO-MORTGAGE 하나만 남긴다 (기획안 4주 계획)
+scope_reduction_keep: [S-NO-MORTGAGE]
