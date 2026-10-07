@@ -90,3 +90,9 @@
 - `docs/<작업명>`: 문서 작성·수정 (예: `docs/srs-v0.2`)
 - `fix/<작업명>`: 버그 수정
 - 위 세 가지 외의 접두사(예: `claude/`)는 쓰지 않음
+
+## PR 규칙
+
+- 제목: `<종류>: <한국어 한 줄 요약>` (종류: `feat` / `fix` / `docs` / `refactor` / `test` / `chore`). 예: `feat: 등기부 요약 파서 뼈대 추가`
+- 본문: Summary / 변경 파일 / Test plan 세 절. PR을 열면 [템플릿](.github/pull_request_template.md)이 자동으로 채워짐
+- 병합: 팀원 리뷰 후 황웅재가 병합
