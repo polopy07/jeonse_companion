@@ -1,6 +1,9 @@
 @startuml
-' 전동기 Use Case Diagram — 요구사항 명세서 v0.2 5.1절 기준
+' 전동기 Use Case Diagram — 요구사항 명세서 v0.4 5.1절 기준
+' 그림: usecase_전동기.png (java -jar plantuml.jar -tpng 로 생성)
 left to right direction
+skinparam defaultFontName "Malgun Gothic"
+skinparam dpi 150
 skinparam packageStyle rectangle
 
 actor "세입자" as Tenant
