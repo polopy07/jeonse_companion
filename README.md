@@ -76,6 +76,8 @@
 | 서비스 기획안 | v4.32 | [`docs/plan/`](docs/plan/) |
 | 요구사항 명세서(SRS) | v0.2 (기획안 v4.32 기준) | [`docs/srs/`](docs/srs/) |
 | Use Case Diagram | SRS v0.2 5.1절 | [`docs/srs/usecase_전동기.puml`](docs/srs/usecase_전동기.puml) |
+| 4주 개발 계획 | 기획안 v4.32 + 계약 당일 체크·특약 분기 반영 | [`docs/plan/4주_개발계획.md`](docs/plan/4주_개발계획.md) |
+| 작업일지 | 날짜별 | [`worklog/`](worklog/) (`YYYY-MM-DD.md`) |
 
 각 문서는 원본(.docx)과 읽기용 마크다운 변환본(.md)을 함께 둡니다. 기획안과 명세서가 다르면 기획안을 먼저 고치고 명세서에 반영합니다.
 
