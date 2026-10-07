@@ -1,0 +1,63 @@
+# 추정 주택가격과 역전세 경보 (명세서 부속표 C, FR-003, FR-004, FR-036, FR-037)
+version: "0.1"
+as_of: "2026-10-07"
+basis: "서비스 기획안 v4.33 '③ 역전세 경보', 요구사항 명세서 v0.3 부속표 C"
+
+estimated_price:
+  # 추정 주택가격 = 공시가격 × 140%. 같은 단지·비슷한 면적의 매매 실거래가가 있으면 둘 중 낮은 값
+  official_price_multiplier: 1.4
+  basis: HUG 반환보증 주택가격 산정 방식 (공동주택 공시가격 × 140%)
+  hypothesis: true   # 출시 전 보증기관별 산정 기준 재확인 필요
+  use_trade_price: lower_of_two
+  similar_area_tolerance: 0.1   # 전용면적 ±10%를 "비슷한 면적"으로 봄 (팀 가설)
+
+deposit_ratio:
+  # 내 보증금 비율 = (보증금 + 선순위 채권) ÷ 추정 주택가격
+  numerator: [deposit, registry.mortgage_amount]
+  denominator: estimated_price
+  before_registry_upload:
+    senior_debt: 0
+    label: 최소 추정치   # 등기부를 올리기 전에는 선순위 채권을 0원으로 두고 이렇게 표시
+
+nearby_jeonse:
+  # 지표 2: 주변 전세 시세 (보조)
+  min_sample: 3        # 기준 건수 미만이면 "표본 부족" (팀 가설, 명세서 FR-004 비고)
+  hypothesis: true
+  low_sample_label: 표본 부족
+
+levels:
+  - id: caution
+    label: 주의
+    when:
+      any:
+        - {field: deposit_ratio, op: ">=", value: 0.8}
+        - {field: nearby_jeonse_median, op: "<", value_field: deposit}
+    basis: 시장에서 전세가율 80%를 넘으면 깡통전세 위험이 크다고 봄
+    before_contract: 보증금 조정이나 반환보증 가입 가능 여부 확인 권유
+    during_contract:
+      - {action: show_warning, text: 월간 리포트에 주의 단계 표시}
+      - {action: move_to_top, todo: T5, note: 반환보증 미가입이면 가입 권유}
+
+  - id: warning
+    label: 경고
+    when: {field: deposit_ratio, op: ">=", value: 0.9}
+    basis: HUG·HF 반환보증은 (보증금 + 선순위 채권)이 주택가격의 90% 이내여야 가입 가능
+    before_contract: "\"확인 필요\" 판정, 계약 해제 특약 예시 (verdict C-2)"
+    during_contract:
+      - {action: move_to_top, todo: T5, note: 반환보증 "지금 가입"}
+      - {action: add_todo, todo: X-LANDLORD-PLAN, when_days_to_end_lte: 183, note: 만기 6개월 전이면 임대인 반환 계획 서면 확인}
+
+  - id: danger
+    label: 위험
+    when: {field: deposit_ratio, op: ">=", value: 1.0}
+    basis: 보증금과 선순위 채권이 추정 집값을 넘어 집을 팔아도 보증금을 다 돌려받지 못할 수 있음
+    before_contract: "\"문제 항목\" 판정, 결제 전 멈춤 (verdict P-2)"
+    during_contract:
+      - {action: require_document, document: 임차권등기명령·보증 청구 서류 사전 점검}
+      - {action: link_counsel}
+
+recalculation:
+  # 계약 중 재계산 시점 (FR-037)
+  triggers: [공시가격 새 발표(연 1회), 같은 단지·주변 실거래 새 공개]
+  notify_when: 경보 단계가 올라갈 때
+  show_with_result: [계산에 쓴 공시가격, 실거래가, 기준일, 데이터 한계 안내]

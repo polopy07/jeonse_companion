@@ -1,0 +1,60 @@
+# 연동 규칙: "확인 필요" 결과 → 계약 당일에 생기는 것 / 계약 후 할 일에 생기는 것
+# (명세서 부속표 D, FR-022)
+version: "0.1"
+as_of: "2026-10-07"
+basis: "서비스 기획안 v4.33 연동 규칙표, 요구사항 명세서 v0.3 부속표 D"
+
+rules:
+  - id: L-MORTGAGE
+    label: 근저당 있음
+    mvp: true
+    contract_day:
+      - {action: show_special_term, term: S-NO-MORTGAGE}
+      - {action: show_warning, text: 선순위 채권(근저당 채권최고액)을 반영한 내 보증금 비율을 다시 계산했습니다}
+    after_contract:
+      - {action: require_check, todo: T3, check: 근저당 금액 변동 비교 (필수)}
+
+  - id: L-RATIO90
+    label: 내 보증금 비율 90% 이상
+    mvp: true
+    contract_day:
+      - {action: show_warning, text: 반환보증 가입이 어려울 수 있습니다}
+      - {action: show_special_term, term: S-GUARANTEE-CANCEL}
+    after_contract:
+      - {action: move_before, todo: T2, before: contract_date, note: 보증기관 상담을 계약금 전으로 앞당김}
+      - {action: show_warning, text: 보증이 거절되면 계약 해제 절차를 안내합니다}
+
+  - id: L-TRUST
+    label: 신탁등기 (동의서 확인 전)
+    mvp: true
+    contract_day:
+      - {action: require_check, check: 신탁사 동의서 확인}
+      - {action: escalate_verdict, to: problem, when: {field: trust_consent, op: "==", value: unavailable}}
+    after_contract:
+      - {action: require_document, document: 신탁사 동의서}
+
+  - id: L-VIOLATION
+    label: 위반건축물 (보증기관 상담 전)
+    mvp: false   # MVP 이후 (FR-022 비고)
+    contract_day:
+      - {action: show_warning, text: 위반건축물은 보증이 거절될 수 있습니다}
+      - {action: show_special_term, term: S-GUARANTEE-CANCEL}
+    after_contract:
+      - {action: move_before, todo: T2, before: contract_date, note: 보증기관 상담을 계약금 전으로 앞당김}
+      - {action: escalate_verdict, to: problem, when: {field: guarantor_consult, op: "==", value: impossible}}
+
+  - id: L-MULTI
+    label: 다가구·단독
+    mvp: false
+    contract_day:
+      - {action: show_warning, text: "다른 세대 보증금은 임대인 동의를 받아 확정일자 부여현황을 열람해 확인할 수 있습니다"}
+    after_contract:
+      - {action: add_todo, todo: X-FIXED-DATE-STATUS}
+
+  - id: L-TAX
+    label: 임대인 체납 (확인 못 한 항목)
+    mvp: false
+    contract_day:
+      - {action: show_special_term, term: S-TAX-CERT}
+    after_contract:
+      - {action: require_document, document: 국세·지방세 완납증명서}

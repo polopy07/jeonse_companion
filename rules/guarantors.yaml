@@ -1,0 +1,43 @@
+# 보증기관별 기준 (FR-018). HF·SGI는 기관 기준을 확인한 뒤 채운다.
+version: "0.1"
+as_of: "2026-10-07"
+basis: "서비스 기획안 v4.33 '보증기관 연계 포인트', '입력 조건에 따라 달라지는 것'"
+
+guarantors:
+  HUG:
+    label: 주택도시보증공사
+    pre_screening: true            # 전세보증 사전심사 (2026-10-30 시행 예정, 시행 후 실제 기준 확인)
+    pre_screening_requires_broker: true   # 공인중개사가 작성한 계약서 필요 → 직거래면 상담으로 대체
+    return_guarantee_deadline:
+      rule: 계약 기간의 절반이 지나기 전
+      anchor: contract_period_half      # (잔금일 ~ 만기일)의 절반 시점
+      hypothesis: true                  # 기산일(계약일/잔금일) 출시 전 확인
+    claim_channel: HUG 보증 이행 청구 창구
+  HF:
+    label: 한국주택금융공사
+    pre_screening: false
+    consult: 취급 은행 사전 상담
+    return_guarantee_deadline:
+      rule: 기관 기준 확인 후 적용
+      anchor: null
+      hypothesis: true
+    note: 일반전세지킴보증은 HF 보증 전세대출 이용자만 가입 가능
+    claim_channel: HF 보증 이행 청구 창구
+  SGI:
+    label: 서울보증보험
+    pre_screening: false
+    consult: 취급 기관 사전 상담
+    return_guarantee_deadline:
+      rule: 기관 기준 확인 후 적용
+      anchor: null
+      hypothesis: true
+    claim_channel: SGI 보험금 청구 창구
+  none:
+    label: 미가입
+    pre_screening: false
+    return_guarantee_deadline: null
+    claim_channel: null
+    note: 반환 사고 시 공공 상담 창구(대한법률구조공단 등)와 임차권등기명령 일반 절차 안내
+
+# 기관 이름·로고를 공식 서비스처럼 쓰지 않고 "제도 안내"로만 표기한다 (NFR-014)
+display_rule: 제도 안내로만 표기
