@@ -1,7 +1,7 @@
 # 추정 주택가격과 역전세 경보 (명세서 부속표 C, FR-003, FR-004, FR-036, FR-037)
-version: "0.1"
+version: "1.0"
 as_of: "2026-10-07"
-basis: "서비스 기획안 v4.33 '③ 역전세 경보', 요구사항 명세서 v0.3 부속표 C"
+basis: "서비스 기획안 v4.34 '③ 역전세 경보', 요구사항 명세서 v0.4 부속표 C"
 
 estimated_price:
   # 추정 주택가격 = 공시가격 × 140%. 같은 단지·비슷한 면적의 매매 실거래가가 있으면 둘 중 낮은 값
@@ -9,7 +9,7 @@ estimated_price:
   basis: HUG 반환보증 주택가격 산정 방식 (공동주택 공시가격 × 140%)
   hypothesis: true   # 출시 전 보증기관별 산정 기준 재확인 필요
   use_trade_price: lower_of_two
-  similar_area_tolerance: 0.1   # 전용면적 ±10%를 "비슷한 면적"으로 봄 (팀 가설)
+  similar_area_tolerance: 0.1   # 전용면적 ±10%를 "비슷한 면적"으로 봄 (PO 확정 2026-10-07)
 
 deposit_ratio:
   # 내 보증금 비율 = (보증금 + 선순위 채권) ÷ 추정 주택가격
@@ -21,8 +21,8 @@ deposit_ratio:
 
 nearby_jeonse:
   # 지표 2: 주변 전세 시세 (보조)
-  min_sample: 3        # 기준 건수 미만이면 "표본 부족" (팀 가설, 명세서 FR-004 비고)
-  hypothesis: true
+  min_sample: 3        # 3건 미만이면 "표본 부족" (PO 확정 2026-10-07, 명세서 FR-004)
+  hypothesis: false
   low_sample_label: 표본 부족
 
 levels:
