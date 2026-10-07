@@ -1,0 +1,54 @@
+@startuml
+' 전동기 Use Case Diagram — 요구사항 명세서 v0.2 5.1절 기준
+left to right direction
+skinparam packageStyle rectangle
+
+actor "세입자" as Tenant
+actor "공동 계약자" as CoTenant
+actor "관리자" as Admin
+actor "스케줄러" as Scheduler
+actor "LLM API" as LLM <<system>>
+actor "이메일 발송 서버" as Mail <<system>>
+
+rectangle "전동기" {
+  usecase "UC-001 계약 전 위험 확인" as UC1
+  usecase "UC-002 등기부 점검·판정" as UC2
+  usecase "UC-003 패키지 시작·계약 당일 체크" as UC3
+  usecase "UC-004 할 일 관리·증빙 기록" as UC4
+  usecase "UC-005 날짜 변경 재계산" as UC5
+  usecase "UC-006 등기부 재비교\n(계약 당일·잔금일)" as UC6
+  usecase "UC-007 역전세 경보 재계산" as UC7
+  usecase "UC-008 갈아타기" as UC8
+  usecase "UC-009 반환 대응" as UC9
+  usecase "UC-010 규칙·공공데이터 관리" as UC10
+  usecase "UC-011 기한 알림 수신" as UC11
+}
+
+Tenant --> UC1
+Tenant --> UC2
+Tenant --> UC3
+Tenant --> UC4
+Tenant --> UC5
+Tenant --> UC6
+Tenant --> UC8
+Tenant --> UC9
+Tenant --> UC11
+CoTenant --> UC11
+Scheduler --> UC7
+Scheduler --> UC11
+Admin --> UC7
+Admin --> UC10
+
+UC2 .> UC1 : <<extend>>\n등기부를 올릴 때
+UC6 .> UC3 : <<extend>>\n점검일 ≠ 계약일
+UC8 .> UC4 : <<extend>>
+UC9 .> UC4 : <<extend>>
+
+UC2 --> LLM
+UC11 --> Mail
+
+note right of UC3
+  전제: UC-002 판정이
+  "문제 항목"이 아닐 때만 시작
+end note
+@enduml
