@@ -411,7 +411,7 @@ Software Requirements Specification (SRS)
 | extend   | UC-008 갈아타기, UC-009 반환 대응 → UC-004 할 일 관리                                |
 | extend   | UC-006 등기부 재비교 → UC-003 패키지 시작·계약 당일 체크 (점검일과 계약일이 다를 때) |
 
-\[Use Case Diagram 삽입 위치 — 위 관계를 UML 도구로 작성해 삽입\]
+![Use Case Diagram](usecase_전동기.png)
 
 5.2 Use Case 명세
 
