@@ -89,3 +89,4 @@
 - `feature/<작업명>`: 기능 개발 (예: `feature/todo-engine`)
 - `docs/<작업명>`: 문서 작성·수정 (예: `docs/srs-v0.2`)
 - `fix/<작업명>`: 버그 수정
+- 위 세 가지 외의 접두사(예: `claude/`)는 쓰지 않음
