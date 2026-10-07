@@ -21,6 +21,38 @@ class RegistryInput(BaseModel):
         return self
 
 
+class RegistryEntryOut(BaseModel):
+    rank: str
+    purpose: str
+    text: str
+
+
+class RegistryMortgageOut(RegistryEntryOut):
+    amount: int | None
+    holder: str | None
+
+
+class RegistryFieldsOut(BaseModel):
+    """RegistryInput과 같은 이름. 채권최고액을 못 읽으면 mortgage=true, mortgage_amount=0으로 나갈 수 있어 검사는 하지 않는다."""
+
+    seizure: bool
+    mortgage: bool
+    mortgage_amount: int
+    trust: bool
+
+
+class RegistryParseResult(BaseModel):
+    """등기부 요약 추출 결과 (FR-005). 사용자가 확인·수정한 뒤 fields를 CheckInput.registry로 보낸다 (FR-006)."""
+
+    fields: RegistryFieldsOut
+    owners: list[str]
+    mortgages: list[RegistryMortgageOut]
+    seizures: list[RegistryEntryOut]
+    trusts: list[RegistryEntryOut]
+    others: list[RegistryEntryOut]
+    warnings: list[str]
+
+
 class CheckInput(BaseModel):
     """계약 전 확인 입력 (FR-001)."""
 
