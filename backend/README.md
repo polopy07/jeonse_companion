@@ -44,6 +44,10 @@ TEST_DATABASE_URL=postgresql+psycopg://jeonse:jeonse@localhost:5432/jeonse_test 
 | `app/engine/verdict.py` | 판정 4단계 (verdict.yaml) |
 | `app/engine/check.py` | 계약 전 확인: 입력 → 비율 → 판정 |
 | `app/api/checks.py` | `POST /api/checks`, `GET /api/checks/{id}` |
+| `app/registry/pdf.py` | 등기부 PDF → "주요 등기사항 요약" 페이지 글자 (pdfplumber) |
+| `app/registry/parser.py` | 요약 글자 → 소유자, 근저당 채권최고액, 압류 등, 신탁 (규칙 파서) |
+| `app/api/registry.py` | `POST /api/registry/parse` |
+| `tests/fixtures/registry/` | 등기부 요약 가상 샘플 (실제 샘플이 오면 추가) |
 
 ## API
 
@@ -64,3 +68,22 @@ TEST_DATABASE_URL=postgresql+psycopg://jeonse:jeonse@localhost:5432/jeonse_test 
 - 선택 입력: `trade_price`(같은 단지·비슷한 면적 매매 실거래가), `trust_consent`, `building_violation`, `guarantor_consult`
 
 응답: 판정 단계(`level`, `label`, `next_step`, `block_payment`), 추정 주택가격, 내 보증금 비율, 걸린 규칙(`matched`), 연동 규칙(`linkages`), 확인 못 한 항목(`unchecked`), 안내 문구(`disclaimer`), 규칙 버전.
+
+### `POST /api/registry/parse` 등기부 요약 추출 (FR-005·006)
+
+`multipart/form-data`로 `file`에 등기부 PDF(10MB까지)를 올린다. 결과는 저장하지 않는다.
+
+```json
+{
+  "fields": {"seizure": false, "mortgage": true, "mortgage_amount": 156000000, "trust": false},
+  "owners": ["홍길동"],
+  "mortgages": [{"rank": "1", "purpose": "근저당권설정", "amount": 120000000, "holder": "주식회사가상은행", "text": "..."}],
+  "seizures": [], "trusts": [], "others": [],
+  "warnings": []
+}
+```
+
+- 확인 화면은 `fields`를 고칠 수 있게 보여 주고, 확인한 값을 `POST /api/checks`의 `registry`로 보낸다
+- `others`·`warnings`: 변경 등기(예: 1-1), 전세권 등 자동으로 판단하지 않은 등기. 합계에 넣지 않았으니 사용자가 확인한다
+- 요약 페이지를 못 읽으면 422, `detail.hint`에 수동 입력 안내
+- 양식은 가상 샘플로 맞춘 것이다. 실제 샘플(개발용 3건)을 받으면 `parser.py`의 정규식을 맞춘다
