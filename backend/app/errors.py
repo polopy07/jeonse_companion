@@ -10,6 +10,8 @@
 처리하지 못한 예외(500)가 모두 이 모양으로 나간다.
 """
 import logging
+import re
+from http import HTTPStatus
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -57,9 +59,23 @@ def _field_name(error: dict) -> str:
     return ".".join(str(p) for p in loc) or BODY_FIELD
 
 
-def _quoted_list(expected: str) -> str:
-    # "'a', 'b' or 'c'" → "a, b, c"
-    return expected.replace("' or '", "', '").replace("'", "")
+def _choices(expected: str) -> str:
+    # "'a', 'b' or 'c'" → "a, b, c",  "1 or 2" → "1, 2"
+    parts = re.split(r", | or ", expected)
+    return ", ".join(p.strip().strip("'\"") for p in parts if p.strip())
+
+
+_HANGUL = re.compile(r"[가-힣]")
+
+
+def _value_error(msg: str) -> str:
+    """value_error는 우리 validator의 한국어 문장일 때만 그대로 쓴다. 프레임워크 문구는 바꿔 낸다."""
+    text = msg.removeprefix("Value error, ")
+    if "UploadFile" in text:
+        return "파일을 올려야 합니다"
+    if _HANGUL.search(text):
+        return text
+    return "값이 올바르지 않습니다"
 
 
 def _message(error: dict) -> str:
@@ -68,9 +84,11 @@ def _message(error: dict) -> str:
     match error["type"]:
         case "missing":
             return "필수 입력입니다"
-        case "literal_error" | "enum":
-            return f"다음 중 하나여야 합니다: {_quoted_list(str(ctx.get('expected', '')))}"
-        case "int_parsing" | "int_type" | "int_from_float" | "float_parsing" | "float_type":
+        case "literal_error" | "enum" if ctx.get("expected"):
+            return f"다음 중 하나여야 합니다: {_choices(str(ctx['expected']))}"
+        case "int_parsing" | "int_type" | "int_from_float":   # 금액 등 정수 필드. 1.5를 보내도 여기로 온다
+            return "정수로 입력하세요"
+        case "float_parsing" | "float_type":
             return "숫자로 입력하세요"
         case "bool_parsing" | "bool_type":
             return "true 또는 false로 입력하세요"
@@ -90,8 +108,8 @@ def _message(error: dict) -> str:
             return "객체 형태로 보내야 합니다"
         case "date_parsing" | "date_type" | "date_from_datetime_parsing":
             return "YYYY-MM-DD 형식으로 입력하세요"
-        case "value_error":   # 우리가 validator에서 직접 쓴 한국어 문장
-            return error["msg"].removeprefix("Value error, ")
+        case "value_error":
+            return _value_error(error["msg"])
         case _:
             return error["msg"]
 
@@ -106,6 +124,16 @@ async def _http_handler(request: Request, exc: StarletteHTTPException) -> JSONRe
         content = {"detail": exc.detail}
     else:
         code, message = _STATUS_ERRORS.get(exc.status_code, _DEFAULT_HTTP_ERROR)
+        reason = exc.detail if isinstance(exc.detail, str) else ""
+        try:
+            phrase = HTTPStatus(exc.status_code).phrase
+        except ValueError:
+            phrase = ""
+        if reason and reason != phrase:
+            # api_error 대신 HTTPException(상태, "이유")로 올린 것: 이유를 잃지 않게 문구로 쓰고 기록한다
+            logger.warning("api_error를 거치지 않은 HTTPException %s: %s (%s %s)", exc.status_code, reason, request.method, request.url.path)
+            if exc.status_code not in _STATUS_ERRORS:
+                message = reason
         content = {"detail": _detail(code, message)}
     return JSONResponse(status_code=exc.status_code, content=content, headers=getattr(exc, "headers", None))
 

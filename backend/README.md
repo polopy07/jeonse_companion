@@ -53,7 +53,7 @@ TEST_DATABASE_URL=postgresql+psycopg://jeonse:jeonse@localhost:5432/jeonse_test 
 
 ## API
 
-공통 규칙(주소, 상태 코드, 금액·날짜 표기, 오류 형식)과 전체 API 목록은 [`docs/api/API_명세.md`](../docs/api/API_명세.md). API를 바꾸면 `python export_openapi.py`로 `docs/api/openapi.json`을 다시 만든다 (`tests/test_openapi.py`가 검사).
+공통 규칙(주소, 상태 코드, 금액·날짜 표기, 오류 형식)과 전체 API 목록은 [`docs/api/API_명세.md`](../docs/api/API_명세.md). API를 바꾸면 `python export_openapi.py`로 `docs/api/openapi.json`을 다시 만든다. `tests/test_openapi.py`가 설명 문구(`description`)를 뺀 내용(주소, 요청·응답, 스키마 필드)이 서버 코드와 같은지 검사한다. 파일 서식은 검사하지 않는다.
 
 ### `POST /api/checks` 계약 전 확인
 
