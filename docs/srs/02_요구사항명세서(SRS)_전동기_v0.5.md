@@ -22,7 +22,7 @@ Software Requirements Specification (SRS)
 </tr>
 <tr class="even">
 <td><strong>팀명</strong></td>
-<td>[팀명 / 회사명 입력]</td>
+<td>전동기 (임시)</td>
 </tr>
 <tr class="odd">
 <td><strong>팀원</strong></td>
