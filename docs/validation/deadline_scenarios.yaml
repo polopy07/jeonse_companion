@@ -1,0 +1,655 @@
+# 기한 계산 시나리오 정답표 (기계용). 사람이 읽는 표: 기한계산_정답표.md
+version: '0.1'
+status: 초안 (PO 검토 전)
+doc: 기한계산_정답표.md
+conventions:
+- C1 N일 = 기준일 ± N일
+- C2 월 이동은 말일 보정
+- C3 월 먼저, 일 나중
+- C4 주말·공휴일 보정 없음
+- C5 HUG 마감 = 잔금일 + floor((만기일-잔금일)/2)일
+- C6 대출 없으면 T5 시작 = 전입신고 완료일(잔금일 가정) + 1일
+- 'C7 순서: 맨 위 규칙 → 고정(T5~T9) → 기한순'
+- C8 경보 단계 정상(시나리오 9만 경고)
+open_questions: 문서 마지막 절 Q1~Q8. 해당 칸은 'pending_po' 표시
+scenarios:
+- id: S1
+  title: '기본형: 신고 대상·중개·전세대출·HUG'
+  input:
+    contract_date: '2026-11-10'
+    balance_date: '2026-12-15'
+    end_date: '2028-12-14'
+    deposit: 250000000
+    monthly_rent: 0
+    brokered: true
+    guarantor: HUG
+    loan: true
+    renewal_right_used: false
+    loan_execution_date: '2026-12-15'
+  expected:
+    T1:
+      start: '2026-11-10'
+      due: '2026-12-10'
+    T2:
+      start: '2026-11-10'
+      due: '2026-12-14'
+    T3:
+      start: '2026-12-15'
+      due: '2026-12-15'
+    T4:
+      start: '2026-12-15'
+      due: '2026-12-15'
+    T5:
+      start: '2026-12-15'
+      due: '2027-12-15'
+    T6:
+      remind: '2027-11-15'
+    T7:
+      start: '2028-06-14'
+      due: '2028-10-14'
+    T8:
+      remind: '2028-09-30'
+    T9:
+      start: '2028-12-14'
+      due: '2028-12-14'
+  expected_order:
+  - T5
+  - T6
+  - T7
+  - T8
+  - T9
+  - T1
+  - T2
+  - T3
+  - T4
+- id: S2
+  title: 신고 비대상·대출 없음·보증 미가입
+  input:
+    contract_date: '2026-11-03'
+    balance_date: '2026-11-30'
+    end_date: '2028-11-29'
+    deposit: 50000000
+    monthly_rent: 0
+    brokered: true
+    guarantor: none
+    loan: false
+    renewal_right_used: false
+  expected:
+    T2:
+      start: '2026-11-03'
+      due: '2026-11-29'
+    T3:
+      start: '2026-11-30'
+      due: '2026-11-30'
+    T4:
+      start: '2026-11-30'
+      due: '2026-11-30'
+    T5: not_created
+    T6: not_created
+    T7:
+      start: '2028-05-29'
+      due: '2028-09-29'
+    T8:
+      remind: '2028-09-15'
+    T9:
+      start: '2028-11-29'
+      due: '2028-11-29'
+  expected_order:
+  - T7
+  - T8
+  - T9
+  - T2
+  - T3
+  - T4
+  expected_extra:
+    T4_detail: 확정일자 함께
+    T1: not_created (신고 비대상)
+- id: S3
+  title: 대출 없음·HUG (반환보증 시작일이 전입신고 다음 날)
+  input:
+    contract_date: '2026-10-20'
+    balance_date: '2026-11-20'
+    end_date: '2028-11-19'
+    deposit: 180000000
+    monthly_rent: 0
+    brokered: true
+    guarantor: HUG
+    loan: false
+    renewal_right_used: false
+  expected:
+    T1:
+      start: '2026-10-20'
+      due: '2026-11-19'
+    T2:
+      start: '2026-10-20'
+      due: '2026-11-19'
+    T3:
+      start: '2026-11-20'
+      due: '2026-11-20'
+    T4:
+      start: '2026-11-20'
+      due: '2026-11-20'
+    T5:
+      start: '2026-11-21'
+      due: '2027-11-20'
+    T6:
+      remind: '2027-10-21'
+    T7:
+      start: '2028-05-19'
+      due: '2028-09-19'
+    T8:
+      remind: '2028-09-05'
+    T9:
+      start: '2028-11-19'
+      due: '2028-11-19'
+  expected_order:
+  - T5
+  - T6
+  - T7
+  - T8
+  - T9
+  - T1
+  - T2
+  - T3
+  - T4
+- id: S4
+  title: 직거래·HUG
+  input:
+    contract_date: '2026-12-01'
+    balance_date: '2027-01-05'
+    end_date: '2029-01-04'
+    deposit: 150000000
+    monthly_rent: 0
+    brokered: false
+    guarantor: HUG
+    loan: true
+    renewal_right_used: false
+    loan_execution_date: '2027-01-05'
+  expected:
+    T1:
+      start: '2026-12-01'
+      due: '2026-12-31'
+    T2:
+      start: '2026-12-01'
+      due: '2027-01-04'
+    T3:
+      start: '2027-01-05'
+      due: '2027-01-05'
+    T4:
+      start: '2027-01-05'
+      due: '2027-01-05'
+    T5:
+      start: '2027-01-05'
+      due: '2028-01-05'
+    T6:
+      remind: '2027-12-06'
+    T7:
+      start: '2028-07-04'
+      due: '2028-11-04'
+    T8:
+      remind: '2028-10-21'
+    T9:
+      start: '2029-01-04'
+      due: '2029-01-04'
+  expected_order:
+  - T5
+  - T6
+  - T7
+  - T8
+  - T9
+  - T1
+  - T2
+  - T3
+  - T4
+  expected_extra:
+    T2_variant: '직거래: 잔금 전 보증기관 상담'
+- id: S5
+  title: 갱신 계약 (계약갱신요구권 사용) + 만기 8/31 월말·윤년 경계
+  input:
+    contract_date: '2026-08-20'
+    balance_date: '2026-09-01'
+    end_date: '2028-08-31'
+    deposit: 200000000
+    monthly_rent: 0
+    brokered: true
+    guarantor: HUG
+    loan: true
+    renewal_right_used: true
+    loan_execution_date: '2026-09-01'
+  expected:
+    T1:
+      start: '2026-08-20'
+      due: '2026-09-19'
+    T2:
+      start: '2026-08-20'
+      due: '2026-08-31'
+    T3:
+      start: '2026-09-01'
+      due: '2026-09-01'
+    T4:
+      start: '2026-09-01'
+      due: '2026-09-01'
+    T5:
+      start: '2026-09-01'
+      due: '2027-09-01'
+    T6:
+      remind: '2027-08-02'
+    T7:
+      start: '2028-02-29'
+      due: '2028-06-30'
+    T8:
+      remind: '2028-06-16'
+    T9:
+      start: '2028-08-31'
+      due: '2028-08-31'
+  expected_order:
+  - T5
+  - T6
+  - T7
+  - T8
+  - T9
+  - T2
+  - T3
+  - T4
+  - T1
+  expected_extra:
+    T7_variant: 이미 계약갱신요구권을 쓴 계약, 다시 쓸 수 없음 안내
+- id: S6
+  title: 근저당 있는 집 + 담보 설정 금지 특약 넣음 (연동 규칙 L-MORTGAGE)
+  input:
+    contract_date: '2026-10-14'
+    balance_date: '2026-11-25'
+    end_date: '2028-11-24'
+    deposit: 180000000
+    monthly_rent: 0
+    brokered: true
+    guarantor: HUG
+    loan: true
+    renewal_right_used: false
+    loan_execution_date: '2026-11-25'
+  linkage:
+  - L-MORTGAGE
+  special_terms:
+    S-NO-MORTGAGE: inserted
+  expected:
+    T1:
+      start: '2026-10-14'
+      due: '2026-11-13'
+    T2:
+      start: '2026-10-14'
+      due: '2026-11-24'
+    T3:
+      start: '2026-11-25'
+      due: '2026-11-25'
+    T4:
+      start: '2026-11-25'
+      due: '2026-11-25'
+    T5:
+      start: '2026-11-25'
+      due: '2027-11-25'
+    T6:
+      remind: '2027-10-26'
+    T7:
+      start: '2028-05-24'
+      due: '2028-09-24'
+    T8:
+      remind: '2028-09-10'
+    T9:
+      start: '2028-11-24'
+      due: '2028-11-24'
+  expected_order:
+  - T5
+  - T6
+  - T7
+  - T8
+  - T9
+  - T1
+  - T2
+  - T3
+  - T4
+  expected_extra:
+    T3_required_check: 근저당 금액 변동 비교
+    required_documents:
+    - 특약이 보이는 계약서 사진
+- id: S7
+  title: 근저당 있는 집 + 담보 설정 금지 특약 거절당함 (시연 장면)
+  input:
+    contract_date: '2026-10-14'
+    balance_date: '2026-11-25'
+    end_date: '2028-11-24'
+    deposit: 180000000
+    monthly_rent: 0
+    brokered: true
+    guarantor: HUG
+    loan: true
+    renewal_right_used: false
+    loan_execution_date: '2026-11-25'
+  linkage:
+  - L-MORTGAGE
+  special_terms:
+    S-NO-MORTGAGE: rejected
+  expected:
+    T1:
+      start: '2026-10-14'
+      due: '2026-11-13'
+    T2:
+      start: '2026-10-14'
+      due: '2026-11-24'
+    T3:
+      start: '2026-11-25'
+      due: '2026-11-25'
+    T4:
+      start: '2026-11-25'
+      due: '2026-11-25'
+    T5:
+      start: '2026-11-25'
+      due: '2027-11-25'
+    T6:
+      remind: '2027-10-26'
+    T7:
+      start: '2028-05-24'
+      due: '2028-09-24'
+    T8:
+      remind: '2028-09-10'
+    T9:
+      start: '2028-11-24'
+      due: '2028-11-24'
+  expected_order:
+  - T4
+  - T5
+  - T6
+  - T7
+  - T8
+  - T9
+  - T1
+  - T2
+  - T3
+  expected_extra:
+    T3_required_check: 근저당 금액 변동 비교
+    warnings:
+    - 잔금 당일 설정되는 담보는 잔금일 등기부 재비교로 잡을 수 없음, 잔금일 당일 전입신고로 대항력 확보
+    moved_to_top:
+    - T4
+- id: S8
+  title: 신탁등기 집 (동의서 확인됨) + HF
+  input:
+    contract_date: '2026-12-10'
+    balance_date: '2027-01-20'
+    end_date: '2029-01-19'
+    deposit: 220000000
+    monthly_rent: 0
+    brokered: true
+    guarantor: HF
+    loan: true
+    renewal_right_used: false
+    loan_execution_date: '2027-01-20'
+  linkage:
+  - L-TRUST
+  trust_consent: obtained
+  expected:
+    T1:
+      start: '2026-12-10'
+      due: '2027-01-09'
+    T2:
+      start: '2026-12-10'
+      due: '2027-01-19'
+    T3:
+      start: '2027-01-20'
+      due: '2027-01-20'
+    T4:
+      start: '2027-01-20'
+      due: '2027-01-20'
+    T5:
+      start: '2027-01-20'
+      due: null
+    T6: not_created
+    T7:
+      start: '2028-07-19'
+      due: '2028-11-19'
+    T8:
+      remind: '2028-11-05'
+    T9:
+      start: '2029-01-19'
+      due: '2029-01-19'
+  expected_order:
+  - T5
+  - T7
+  - T8
+  - T9
+  - T1
+  - T2
+  - T3
+  - T4
+  expected_extra:
+    required_documents:
+    - 신탁사 동의서
+    T5_due: none (HF 기준 미확인)
+- id: S9
+  title: 보증금 비율 92% + 보증·대출 거절 시 해제 특약 거절당함
+  input:
+    contract_date: '2026-11-17'
+    balance_date: '2026-12-30'
+    end_date: '2028-12-29'
+    deposit: 280000000
+    monthly_rent: 0
+    brokered: true
+    guarantor: HUG
+    loan: true
+    renewal_right_used: false
+    loan_execution_date: '2026-12-30'
+  linkage:
+  - L-RATIO90
+  special_terms:
+    S-GUARANTEE-CANCEL: rejected
+  deposit_ratio: 0.92
+  alert_level: warning
+  expected:
+    T1:
+      start: '2026-11-17'
+      due: '2026-12-17'
+    T2:
+      start: '2026-11-17'
+      due: '2026-11-17'
+    T3:
+      start: '2026-12-30'
+      due: '2026-12-30'
+    T4:
+      start: '2026-12-30'
+      due: '2026-12-30'
+    T5:
+      start: '2026-12-30'
+      due: '2027-12-30'
+    T6:
+      remind: '2027-11-30'
+    T7:
+      start: '2028-06-29'
+      due: '2028-10-29'
+    T8:
+      remind: '2028-10-15'
+    T9:
+      start: '2028-12-29'
+      due: '2028-12-29'
+  expected_order:
+  - T2
+  - T5
+  - T6
+  - T7
+  - T8
+  - T9
+  - T1
+  - T3
+  - T4
+  expected_extra:
+    moved_to_top:
+    - T2
+    - T5
+    T2_due: pending_po (Q3), 표의 값은 제안
+    warnings:
+    - 보증이 거절되면 계약금을 돌려받지 못할 수 있음
+- id: S10
+  title: 갈아타기
+  current_contract: S1
+  switch_decided_on: '2028-06-14'
+  next_contract:
+    contract_date: '2028-09-20'
+    balance_date: '2028-11-30'
+    end_date: '2030-11-29'
+    deposit: 320000000
+    monthly_rent: 0
+    brokered: true
+    guarantor: HUG
+    loan: true
+    renewal_right_used: false
+    loan_execution_date: '2028-11-30'
+    deposit_down_payment: 32000000
+    down_payment_date: '2028-09-20'
+    move_in_date: '2028-11-30'
+  expected:
+    gap_days: 14
+    gap_amount: 250000000 (pending_po Q5)
+    loan_order: new_loan_first
+    move_in_warning: true
+    next_contract_todos:
+      T1:
+        start: '2028-09-20'
+        due: '2028-10-20'
+      T2:
+        start: '2028-09-20'
+        due: '2028-11-29'
+      T3:
+        start: '2028-11-30'
+        due: '2028-11-30'
+      T4:
+        start: '2028-11-30'
+        due: '2028-11-30'
+      T5:
+        start: '2028-11-30'
+        due: '2029-11-29'
+      T6:
+        remind: '2029-10-30'
+      T7:
+        start: '2030-05-29'
+        due: '2030-09-29'
+      T8:
+        remind: '2030-09-15'
+      T9:
+        start: '2030-11-29'
+        due: '2030-11-29'
+- id: S10-b
+  title: 갈아타기 틈 없음
+  current_contract: S1
+  next_contract:
+    contract_date: '2028-09-20'
+    balance_date: '2028-12-20'
+    end_date: '2030-12-19'
+    deposit: 320000000
+    monthly_rent: 0
+    brokered: true
+    guarantor: HUG
+    loan: true
+    renewal_right_used: false
+    loan_execution_date: '2028-12-20'
+    down_payment_date: '2028-09-20'
+    move_in_date: '2028-12-20'
+  expected:
+    gap_days: 0
+    loan_order: old_repayment_first
+    move_in_warning: false
+    next_contract_todos:
+      T1:
+        start: '2028-09-20'
+        due: '2028-10-20'
+      T2:
+        start: '2028-09-20'
+        due: '2028-12-19'
+      T3:
+        start: '2028-12-20'
+        due: '2028-12-20'
+      T4:
+        start: '2028-12-20'
+        due: '2028-12-20'
+      T5:
+        start: '2028-12-20'
+        due: '2029-12-19'
+      T6:
+        remind: '2029-11-19'
+      T7:
+        start: '2030-06-19'
+        due: '2030-10-19'
+      T8:
+        remind: '2030-10-05'
+      T9:
+        start: '2030-12-19'
+        due: '2030-12-19'
+recalculation:
+- id: S1-R1
+  base: S1
+  change:
+    balance_date: '2026-12-22'
+    loan_execution_date: '2026-12-22'
+  expected:
+    T1:
+      start: '2026-11-10'
+      due: '2026-12-10'
+    T2:
+      start: '2026-11-10'
+      due: '2026-12-21'
+    T3:
+      start: '2026-12-22'
+      due: '2026-12-22'
+    T4:
+      start: '2026-12-22'
+      due: '2026-12-22'
+    T5:
+      start: '2026-12-22'
+      due: '2027-12-18'
+    T6:
+      remind: '2027-11-18'
+    T7:
+      start: '2028-06-14'
+      due: '2028-10-14'
+    T8:
+      remind: '2028-09-30'
+    T9:
+      start: '2028-12-14'
+      due: '2028-12-14'
+  unchanged:
+  - T1
+  - T7
+  - T8
+  - T9
+- id: S1-R2
+  base: S1
+  change:
+    end_date: '2029-01-14'
+  expected:
+    T1:
+      start: '2026-11-10'
+      due: '2026-12-10'
+    T2:
+      start: '2026-11-10'
+      due: '2026-12-14'
+    T3:
+      start: '2026-12-15'
+      due: '2026-12-15'
+    T4:
+      start: '2026-12-15'
+      due: '2026-12-15'
+    T5:
+      start: '2026-12-15'
+      due: '2027-12-30'
+    T6:
+      remind: '2027-11-30'
+    T7:
+      start: '2028-07-14'
+      due: '2028-11-14'
+    T8:
+      remind: '2028-10-31'
+    T9:
+      start: '2029-01-14'
+      due: '2029-01-14'
+  unchanged:
+  - T1
+  - T2
+  - T3
+  - T4
