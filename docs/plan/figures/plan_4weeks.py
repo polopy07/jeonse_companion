@@ -1,9 +1,12 @@
 """기획서 "4주 개발 계획" 그림을 만든다.
 
 칸 내용은 아래 TITLE, ROWS, MILESTONES만 고치면 된다.
+행은 2개(ROW_Y), 행마다 칸은 WEEKS 수(4개)에 맞춰야 한다. 다르면 오류로 알려 준다.
 실행: python docs/plan/figures/plan_4weeks.py <저장할 png 경로>
-글꼴: Windows의 Noto Sans KR (C:/Windows/Fonts/NotoSansKR-VF.ttf)
+필요: pip install -r docs/plan/figures/requirements.txt
+글꼴: 환경 변수 PLAN_FONT가 있으면 그 파일, 없으면 FONT_CANDIDATES에서 처음 찾은 것
 """
+import os
 import sys
 
 from PIL import Image, ImageDraw, ImageFont
@@ -14,8 +17,8 @@ ROWS = [
     ("A · 백엔드·규칙", "파싱, 규칙, 계산", [
         ("등기부 요약 파싱", "샘플 3건 · 판정 기준 명세"),
         ("판정 규칙 · 실거래 API", "규칙 3개 · 주변 시세 수집"),
-        ("할 일 엔진 · 갈아타기", "9종 · 특약 분기 · 두 계약 연결"),
-        ("역전세 경보 · 통합", "경보 재계산 · 시나리오 10개"),
+        ("할 일 엔진 · 갈아타기", "9종 · 특약 분기 · 시나리오 10개"),
+        ("역전세 경보 · 통합", "경보 재계산 · 경보 정답표"),
     ]),
     ("B · 프론트·검증", "화면, 기록함, 사용성 테스트", [
         ("화면 설계", "동작 5개 · 정적 4개"),
@@ -32,7 +35,14 @@ MILESTONES = [
 
 S = 2                      # 2배로 그려 선명하게
 W, H = 1344, 600
-FONT = "C:/Windows/Fonts/NotoSansKR-VF.ttf"
+FONT_CANDIDATES = [
+    "C:/Windows/Fonts/NotoSansKR-VF.ttf",
+    "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+    "/Library/Fonts/NotoSansKR-Regular.otf",
+    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+]
 INK, SUB, LINE, BOX = "#1F1F1F", "#6B6B6B", "#C9C5BD", "#C9C5BD"
 GRAY_MARK, BLUE = "#D3CFC7", "#2F6FD6"
 
@@ -41,8 +51,29 @@ ROW_Y = [157, 287]
 BOX_H = 98
 
 
+def find_font():
+    paths = [os.environ["PLAN_FONT"]] if os.environ.get("PLAN_FONT") else FONT_CANDIDATES
+    for p in paths:
+        if os.path.exists(p):
+            return p
+    raise SystemExit("한글 글꼴을 찾지 못했다. PLAN_FONT=<글꼴 파일 경로>로 지정하세요.")
+
+
+FONT = find_font()
+
+
+def check_layout():
+    if len(ROWS) > len(ROW_Y):
+        raise SystemExit(f"행은 {len(ROW_Y)}개까지다. 더 넣으려면 ROW_Y와 H를 늘리세요.")
+    for label, _, cells in ROWS:
+        if len(cells) != len(WEEKS):
+            raise SystemExit(f"'{label}' 행의 칸이 {len(cells)}개다. WEEKS({len(WEEKS)}개)와 같아야 한다.")
+
+
 def font(size, weight=400):
-    f = ImageFont.truetype(FONT, size * S)
+    # Apple SD Gothic Neo는 굵기가 파일 안의 별도 글꼴(6번이 Bold)이라 따로 고른다
+    bold_index = 6 if weight >= 700 and FONT.endswith("AppleSDGothicNeo.ttc") else 0
+    f = ImageFont.truetype(FONT, size * S, index=bold_index)
     try:
         f.set_variation_by_axes([weight])
     except Exception:
@@ -73,6 +104,7 @@ def text(d, xy, s, f, fill, anchor="la"):
 
 
 def draw(path):
+    check_layout()
     img = Image.new("RGB", (W * S, H * S), "white")
     d = ImageDraw.Draw(img)
 
