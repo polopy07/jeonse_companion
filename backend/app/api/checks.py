@@ -1,11 +1,12 @@
 """계약 전 확인 API (UC-001, FR-001~FR-010)."""
 from dataclasses import asdict
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.engine.check import MissingInputError, run_check
+from app.errors import api_error, responses
 from app.models import Verdict
 from app.rules.loader import get_rules
 from app.schemas import CheckInput, CheckResult
@@ -36,12 +37,12 @@ def _to_result(row: Verdict, rules: dict) -> CheckResult:
     )
 
 
-@router.post("", response_model=CheckResult, status_code=201)
+@router.post("", response_model=CheckResult, status_code=201, responses=responses(422))
 def create_check(inp: CheckInput, db: Session = Depends(get_db), rules: dict = Depends(get_rules)):
     try:
         outcome = run_check(inp, rules)
     except MissingInputError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise api_error(422, e.code, str(e), e.hint)
 
     v = outcome.verdict
     row = Verdict(
@@ -60,9 +61,9 @@ def create_check(inp: CheckInput, db: Session = Depends(get_db), rules: dict = D
     return _to_result(row, rules)
 
 
-@router.get("/{check_id}", response_model=CheckResult)
+@router.get("/{check_id}", response_model=CheckResult, responses=responses(404, 422))
 def get_check(check_id: int, db: Session = Depends(get_db), rules: dict = Depends(get_rules)):
     row = db.get(Verdict, check_id)
     if row is None:
-        raise HTTPException(status_code=404, detail="판정 결과가 없습니다")
+        raise api_error(404, "NOT_FOUND", "판정 결과가 없습니다")
     return _to_result(row, rules)

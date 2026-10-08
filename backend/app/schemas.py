@@ -6,6 +6,24 @@ from pydantic import BaseModel, Field, model_validator
 HousingType = Literal["apartment", "row_house", "officetel", "multi_household", "detached"]
 
 
+class ErrorField(BaseModel):
+    field: str
+    message: str
+
+
+class ErrorDetail(BaseModel):
+    code: str = Field(description="화면 분기용 고정 코드 (docs/api/API_명세.md 1.5절)")
+    message: str = Field(description="사용자에게 보여 줄 문장")
+    hint: str | None = Field(None, description="다음에 할 일 안내")
+    fields: list[ErrorField] = Field(default_factory=list, description="입력 형식 오류일 때 필드별 문제")
+
+
+class ErrorResponse(BaseModel):
+    """모든 오류 응답의 형식."""
+
+    detail: ErrorDetail
+
+
 class RegistryInput(BaseModel):
     """등기부 "주요 등기사항 요약" 추출 결과 (사용자 확인값, FR-005)."""
 
