@@ -42,7 +42,7 @@ def create_check(inp: CheckInput, db: Session = Depends(get_db), rules: dict = D
     try:
         outcome = run_check(inp, rules)
     except MissingInputError as e:
-        raise api_error(422, "MISSING_OFFICIAL_PRICE", str(e), "공시가격 알리미에서 공동주택 공시가격을 찾아 입력하세요")
+        raise api_error(422, e.code, str(e), e.hint)
 
     v = outcome.verdict
     row = Verdict(

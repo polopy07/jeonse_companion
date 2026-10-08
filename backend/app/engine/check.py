@@ -7,7 +7,12 @@ from app.schemas import CheckInput
 
 
 class MissingInputError(ValueError):
-    pass
+    """계산에 꼭 필요한 입력이 빠졌다. code·hint는 API 오류 응답(docs/api/API_명세.md 1.5절)에 그대로 실린다."""
+
+    def __init__(self, code: str, message: str, hint: str | None = None):
+        super().__init__(message)
+        self.code = code
+        self.hint = hint
 
 
 @dataclass
@@ -52,6 +57,10 @@ def run_check(inp: CheckInput, rules: dict) -> CheckOutcome:
 
     # 비율 없이 판정하면 비율 규칙(P-2, C-2)이 빠져 "문제 항목 없음"이 잘못 나올 수 있다.
     if ratio is None and verdict.level != NOT_APPLICABLE:
-        raise MissingInputError("공시가격이 있어야 내 보증금 비율을 계산할 수 있습니다")
+        raise MissingInputError(
+            "MISSING_OFFICIAL_PRICE",
+            "공시가격이 있어야 내 보증금 비율을 계산할 수 있습니다",
+            "공시가격 알리미에서 공동주택 공시가격을 찾아 입력하세요",
+        )
 
     return CheckOutcome(values=values, ratio=ratio, verdict=verdict)
