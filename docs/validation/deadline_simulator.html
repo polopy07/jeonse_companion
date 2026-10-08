@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>전동기 할 일 기한 시뮬레이터</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 한 열 도구 화면: 위에 입력, 아래에 계산 결과(타임라인 → 할 일 표 → 안내). 등기부·계약서 서류 느낌의 차분한 청회색 */
+:root {
+  --bg: #f3f5f7;
+  --panel: #ffffff;
+  --ink: #17202b;
+  --muted: #5a6573;
+  --line: #d7dde4;
+  --accent: #1d5c8f;
+  --accent-soft: #e2edf6;
+  --warn: #8a5a00;
+  --warn-soft: #fbf0d9;
+  --danger: #a3261f;
+  --danger-soft: #f8e3e1;
+  --ok: #2f6b3a;
+  --font-display: "Gowun Batang", "Nanum Myeongjo", "AppleMyungjo", serif;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161c; --panel: #19212a; --ink: #e6ebf0; --muted: #9aa6b3; --line: #2c3743;
+    --accent: #7db4e3; --accent-soft: #1d3346; --warn: #e9b65a; --warn-soft: #3a2e17;
+    --danger: #f0938b; --danger-soft: #3d1f1d; --ok: #8fcf98; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161c; --panel: #19212a; --ink: #e6ebf0; --muted: #9aa6b3; --line: #2c3743;
+  --accent: #7db4e3; --accent-soft: #1d3346; --warn: #e9b65a; --warn-soft: #3a2e17;
+  --danger: #f0938b; --danger-soft: #3d1f1d; --ok: #8fcf98; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.6; margin: 0; }
+.wrap { max-width: 980px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 48px; display: grid; gap: 22px; }
+header { display: grid; gap: 6px; }
+.eyebrow { font-size: 12px; letter-spacing: 0.06em; color: var(--muted); }
+h1 { font-family: var(--font-display); font-size: clamp(24px, 4vw, 32px); line-height: 1.25; margin: 0; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 64ch; }
+h2 { font-size: 15px; font-weight: 600; margin: 0; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: grid; gap: 14px; min-width: 0; }
+.presets { display: flex; flex-wrap: wrap; gap: 8px; }
+button.preset { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+button.preset:hover { border-color: var(--accent); }
+button.preset[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.form { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px 14px; }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field label { font-size: 12px; color: var(--muted); }
+.field input, .field select { font: inherit; font-size: 14px; width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
+.field input[type="date"], .field input[type="number"] { font-family: var(--font-mono); font-size: 13px; }
+.field input:disabled { opacity: 0.5; }
+.group-label { grid-column: 1 / -1; font-size: 12px; font-weight: 600; color: var(--muted); border-top: 1px solid var(--line); padding-top: 10px; }
+.group-label:first-child { border-top: 0; padding-top: 0; }
+.error { margin: 0; color: var(--danger); background: var(--danger-soft); border-radius: 6px; padding: 8px 12px; font-size: 14px; }
+.summary { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--muted); }
+.summary b { color: var(--ink); font-weight: 600; font-family: var(--font-mono); font-size: 13px; }
+.timeline-scroll { overflow-x: auto; }
+.timeline { position: relative; min-width: 620px; height: 132px; }
+.track { position: absolute; left: 0; right: 0; top: 62px; height: 6px; border-radius: 3px; background: var(--line); }
+.span-live { position: absolute; top: 62px; height: 6px; border-radius: 3px; background: var(--accent); opacity: 0.35; }
+.mark { position: absolute; top: 54px; width: 2px; height: 22px; background: var(--ink); }
+.mark.key { background: var(--accent); width: 3px; }
+.mark.warn { background: var(--warn); }
+.tl-label { position: absolute; transform: translateX(-50%); font-size: 12px; line-height: 1.35; text-align: center; white-space: nowrap; }
+.tl-label .d { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); }
+.tl-label.up { top: 4px; }
+.tl-label.down { top: 84px; }
+.tl-label.edge-l { transform: none; text-align: left; }
+.tl-label.edge-r { transform: translateX(-100%); text-align: right; }
+.table-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 640px; }
+th { text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); padding: 8px; border-bottom: 1px solid var(--line); }
+td { padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+td.num { width: 34px; font-family: var(--font-mono); color: var(--muted); }
+td.date { font-family: var(--font-mono); font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+td.date strong { font-weight: 500; color: var(--ink); }
+td.note { color: var(--muted); font-size: 13px; }
+tr.off td { color: var(--muted); }
+tr.top td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.chip { display: inline-block; font-size: 11px; line-height: 1.5; padding: 0 7px; border-radius: 999px; margin-left: 6px; vertical-align: 1px; white-space: nowrap; }
+.chip.top { background: var(--accent-soft); color: var(--accent); }
+.chip.remind { background: var(--accent-soft); color: var(--accent); }
+.chip.assume { background: var(--warn-soft); color: var(--warn); }
+.notices { display: grid; gap: 8px; }
+.notice { border-radius: 6px; padding: 9px 12px; font-size: 14px; background: var(--warn-soft); color: var(--warn); }
+.rules { display: grid; gap: 6px; font-size: 13px; color: var(--muted); margin: 0; padding-left: 18px; }
+.rules code, .lede code { font-family: var(--font-mono); font-size: 12px; }
+footer { font-size: 12px; color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) { button.preset { transition: background 120ms, border-color 120ms; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">전동기 · 맞춤 할 일 · 규칙 파일 v1.0</div>
+    <h1>할 일 기한 시뮬레이터</h1>
+    <p class="lede">계약일·잔금일·만기일과 계약 조건을 바꾸면 날짜별 할 일 9종의 시작일, 기한, 알림일과 목록 순서를 바로 계산합니다. <code>docs/validation/기한계산_정답표.md</code>와 같은 계산 약속(C1~C8)을 씁니다.</p>
+  </header>
+
+  <section class="panel" aria-labelledby="in-title">
+    <h2 id="in-title">정답표 시나리오 불러오기</h2>
+    <div class="presets" id="presets"></div>
+
+    <div class="form">
+      <div class="group-label">계약 날짜</div>
+      <div class="field"><label for="c">계약일</label><input type="date" id="c"></div>
+      <div class="field"><label for="b">잔금일 (입주일)</label><input type="date" id="b"></div>
+      <div class="field"><label for="e">만기일</label><input type="date" id="e"></div>
+      <div class="field"><label for="dep">보증금 (원)</label><input type="number" id="dep" min="0" step="1000000"></div>
+
+      <div class="group-label">계약 조건</div>
+      <div class="field"><label for="br">거래 방식</label><select id="br"><option value="1">중개</option><option value="0">직거래</option></select></div>
+      <div class="field"><label for="gu">보증기관</label><select id="gu"><option value="HUG">HUG</option><option value="HF">HF</option><option value="SGI">SGI</option><option value="none">미가입</option></select></div>
+      <div class="field"><label for="ln">전세대출</label><select id="ln"><option value="1">있음</option><option value="0">없음</option></select></div>
+      <div class="field"><label for="le">대출 실행일</label><input type="date" id="le"></div>
+      <div class="field"><label for="rn">계약갱신요구권</label><select id="rn"><option value="0">쓰지 않음</option><option value="1">써서 갱신한 계약</option></select></div>
+
+      <div class="group-label">점검 결과와 특약</div>
+      <div class="field"><label for="ra">내 보증금 비율</label><select id="ra"><option value="0">80% 미만 (정상)</option><option value="1">80~90% (주의)</option><option value="2">90% 이상 (경고)</option></select></div>
+      <div class="field"><label for="mg">근저당</label><select id="mg"><option value="0">없음</option><option value="1">있음</option></select></div>
+      <div class="field"><label for="tr">신탁등기</label><select id="tr"><option value="0">없음</option><option value="1">있음 (동의서 확인)</option></select></div>
+      <div class="field"><label for="s1">특약: 잔금 다음 날까지 담보 설정 금지</label><select id="s1"><option value="n">해당 없음</option><option value="i">넣음</option><option value="r">거절당함</option></select></div>
+      <div class="field"><label for="s2">특약: 보증·대출 거절 시 해제</label><select id="s2"><option value="n">해당 없음</option><option value="i">넣음</option><option value="r">거절당함</option></select></div>
+    </div>
+    <p class="error" id="err" hidden></p>
+  </section>
+
+  <section class="panel" aria-labelledby="tl-title">
+    <h2 id="tl-title">계약 2년 타임라인</h2>
+    <div class="summary" id="summary"></div>
+    <div class="timeline-scroll"><div class="timeline" id="timeline"></div></div>
+  </section>
+
+  <section class="panel" aria-labelledby="out-title">
+    <h2 id="out-title">할 일 목록 (화면에 보이는 순서)</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>#</th><th>할 일</th><th>시작</th><th>기한 · 알림일</th><th>비고</th></tr></thead>
+        <tbody id="out"></tbody>
+      </table>
+    </div>
+    <div class="notices" id="notices"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="rule-title">
+    <h2 id="rule-title">계산 약속</h2>
+    <ul class="rules">
+      <li>N일 이내·N일 전은 기준일에 N일을 더하거나 뺍니다. 임대차 신고 기한 = 계약일 + 30일.</li>
+      <li>월 단위는 같은 날짜로 옮기고, 그 달에 없는 날이면 말일로 맞춥니다. 8/31의 6개월 전은 2월 말일.</li>
+      <li>통보 마감 재알림 = (만기일 − 2개월) − 14일. 월을 먼저 옮기고 일을 뺍니다.</li>
+      <li>주말·공휴일이어도 날짜를 옮기지 않습니다.</li>
+      <li>HUG 반환보증 마감 = 잔금일 + ⌊(만기일 − 잔금일) ÷ 2⌋일. 재알림은 30일 전. <span class="chip assume">가정 Q1</span></li>
+      <li>대출이 없으면 반환보증 시작 = 전입신고(잔금일 완료 가정) 다음 날.</li>
+      <li>순서: 맨 위로 올리는 규칙 → 고정 항목(5~9번) → 나머지는 기한 빠른 순. <span class="chip assume">가정 Q4</span></li>
+      <li>비율 90% 이상이면 2번 기한을 계약일로 당깁니다. <span class="chip assume">가정 Q3</span></li>
+    </ul>
+  </section>
+
+  <footer>노란 "가정" 표시는 PO 확인이 필요한 값입니다. 결정되면 규칙 파일·정답표와 함께 이 화면도 고칩니다. 시연·검증용이며 실제 법률 판단이 아닙니다.</footer>
+</div>
+
+<script id="engine">
+var Engine = (function () {
+  var DAY = 86400000;
+  function P(s) { var a = s.split("-"); return new Date(Date.UTC(+a[0], +a[1] - 1, +a[2])); }
+  function F(d) { return d.toISOString().slice(0, 10); }
+  function addDays(d, n) { return new Date(d.getTime() + n * DAY); }
+  function addMonths(d, m) {
+    var t = d.getUTCFullYear() * 12 + d.getUTCMonth() + m, y = Math.floor(t / 12), mo = ((t % 12) + 12) % 12;
+    var last = new Date(Date.UTC(y, mo + 1, 0)).getUTCDate();
+    return new Date(Date.UTC(y, mo, Math.min(d.getUTCDate(), last)));
+  }
+  function compute(i) {
+    var c = P(i.contract_date), b = P(i.balance_date), e = P(i.end_date);
+    var report = !(i.deposit <= 60000000 && (i.monthly_rent || 0) <= 300000);
+    var T = {}, notes = [];
+    if (report) T.T1 = { start: c, due: addDays(c, 30), note: "신고 대상" };
+    var n2 = [report ? "1번 완료 후 시작" : "신고 비대상이라 계약 직후 시작"];
+    if (!i.brokered) n2.push("직거래: 사전심사 대신 잔금 전 보증기관 상담");
+    var due2 = addDays(b, -1), assume2 = false;
+    if (i.ratio_level === 2) { due2 = c; assume2 = true; n2.push("비율 90% 이상: 계약일로 당김"); }
+    T.T2 = { start: c, due: due2, note: n2.join(" · "), assume: assume2 };
+    T.T3 = { start: b, due: b, note: i.mortgage ? "근저당 금액 변동 비교 필수" : "" };
+    T.T4 = { start: b, due: b, note: report ? "확정일자는 임대차 신고로 이미 부여" : "확정일자도 함께" };
+    var deadline = null, half = 0;
+    if (i.guarantor === "none") { T.T5 = null; T.T6 = null; }
+    else {
+      var st = i.loan ? P(i.loan_execution_date) : addDays(b, 1);
+      if (i.guarantor === "HUG") { half = Math.floor((e - b) / DAY / 2); deadline = addDays(b, half); }
+      T.T5 = { start: st, due: deadline, note: (i.loan ? "대출 실행일부터" : "대출 없음: 전입신고 다음 날부터") + (deadline ? "" : " · 기관 기준 확인 전이라 기한 없음"), assume: true };
+      T.T6 = deadline ? { remind: addDays(deadline, -30), note: "5번 미완료 시", assume: true } : null;
+    }
+    var notice = addMonths(e, -2);
+    T.T7 = { start: addMonths(e, -6), due: notice, note: i.renewal_right_used ? "갱신요구권을 이미 쓴 계약: 다시 쓸 수 없음 안내" : "갱신하면 대출·보증 연장, 이사하면 갈아타기" };
+    T.T8 = { remind: addDays(notice, -14), note: "7번 미완료 시" };
+    T.T9 = { start: e, due: e, note: "못 받으면 반환 대응으로 전환" };
+    var top = [], why = {};
+    if (i.s_guarantee === "r") { top.push("T2"); why.T2 = "특약 거절"; }
+    if (i.s_mortgage === "r") { top.push("T4"); why.T4 = "특약 거절"; }
+    if (i.ratio_level >= 1 && T.T5) { top.push("T5"); why.T5 = "경보 주의 이상"; }
+    top.sort();
+    var ids = Object.keys(T).filter(function (k) { return T[k]; });
+    var pinned = ["T5", "T6", "T7", "T8", "T9"].filter(function (k) { return ids.indexOf(k) >= 0 && top.indexOf(k) < 0; });
+    var rest = ids.filter(function (k) { return top.indexOf(k) < 0 && pinned.indexOf(k) < 0; })
+      .sort(function (x, y) { return (T[x].due - T[y].due) || (x < y ? -1 : 1); });
+    if (i.s_mortgage === "r") notes.push("담보 설정 금지 특약을 거절당했습니다. 잔금 당일 설정되는 담보는 잔금일 등기부 재비교로 잡을 수 없으니, 잔금일 당일 전입신고로 대항력을 확보하세요.");
+    if (i.s_mortgage === "i") notes.push("특약이 보이는 계약서 사진이 기록함 필수 서류가 됩니다 (위반 시 계약 해제·손해배상 청구 근거).");
+    if (i.s_guarantee === "r") notes.push("보증이 거절되면 계약금을 돌려받지 못할 수 있습니다. 공공 상담 창구를 안내합니다.");
+    if (i.s_guarantee === "i") notes.push("특약이 보이는 계약서 사진이 기록함 필수 서류가 됩니다. 보증이 거절되면 계약 해제 절차를 안내합니다.");
+    if (i.ratio_level === 2) notes.push("내 보증금 비율 90% 이상: 반환보증 가입이 어려울 수 있습니다.");
+    if (i.trust) notes.push("신탁등기: 신탁사 동의서를 계약 당일 확인하고 기록함 필수 서류로 남깁니다. 동의서를 받을 수 없으면 판정이 \"문제 항목\"으로 올라 할 일이 생성되지 않습니다.");
+    return { todos: T, order: top.concat(pinned).concat(rest), top: top, why: why, deadline: deadline, half: half, days: Math.round((e - b) / DAY), report: report, notes: notes };
+  }
+  return { compute: compute, P: P, F: F };
+})();
+if (typeof module !== "undefined") module.exports = Engine;
+</script>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var WD = ["일", "월", "화", "수", "목", "금", "토"];
+  function fw(d) { return d ? Engine.F(d) + " (" + WD[d.getUTCDay()] + ")" : "—"; }
+  var NAMES = { T1: "임대차 신고", T2: "보증 가입 여부 확정", T3: "잔금일 아침 등기부 재비교", T4: "전입신고", T5: "반환보증 가입", T6: "반환보증 마감 전 재알림", T7: "갱신·이사 의사 통보 안내", T8: "통보 마감 재알림", T9: "보증금 반환 확인" };
+  var PRESETS = [
+    ["S1 기본형", { c: "2026-11-10", b: "2026-12-15", e: "2028-12-14", dep: 250000000, br: "1", gu: "HUG", ln: "1", le: "2026-12-15", rn: "0", ra: "0", mg: "0", tr: "0", s1: "n", s2: "n" }],
+    ["S2 신고 비대상", { c: "2026-11-03", b: "2026-11-30", e: "2028-11-29", dep: 50000000, br: "1", gu: "none", ln: "0", le: "", rn: "0", ra: "0", mg: "0", tr: "0", s1: "n", s2: "n" }],
+    ["S3 대출 없음", { c: "2026-10-20", b: "2026-11-20", e: "2028-11-19", dep: 180000000, br: "1", gu: "HUG", ln: "0", le: "", rn: "0", ra: "0", mg: "0", tr: "0", s1: "n", s2: "n" }],
+    ["S4 직거래", { c: "2026-12-01", b: "2027-01-05", e: "2029-01-04", dep: 150000000, br: "0", gu: "HUG", ln: "1", le: "2027-01-05", rn: "0", ra: "0", mg: "0", tr: "0", s1: "n", s2: "n" }],
+    ["S5 갱신·월말", { c: "2026-08-20", b: "2026-09-01", e: "2028-08-31", dep: 200000000, br: "1", gu: "HUG", ln: "1", le: "2026-09-01", rn: "1", ra: "0", mg: "0", tr: "0", s1: "n", s2: "n" }],
+    ["S6 근저당·특약 넣음", { c: "2026-10-14", b: "2026-11-25", e: "2028-11-24", dep: 180000000, br: "1", gu: "HUG", ln: "1", le: "2026-11-25", rn: "0", ra: "0", mg: "1", tr: "0", s1: "i", s2: "n" }],
+    ["S7 근저당·특약 거절", { c: "2026-10-14", b: "2026-11-25", e: "2028-11-24", dep: 180000000, br: "1", gu: "HUG", ln: "1", le: "2026-11-25", rn: "0", ra: "0", mg: "1", tr: "0", s1: "r", s2: "n" }],
+    ["S8 신탁·HF", { c: "2026-12-10", b: "2027-01-20", e: "2029-01-19", dep: 220000000, br: "1", gu: "HF", ln: "1", le: "2027-01-20", rn: "0", ra: "0", mg: "0", tr: "1", s1: "n", s2: "n" }],
+    ["S9 비율 92%·해제 특약 거절", { c: "2026-11-17", b: "2026-12-30", e: "2028-12-29", dep: 280000000, br: "1", gu: "HUG", ln: "1", le: "2026-12-30", rn: "0", ra: "2", mg: "0", tr: "0", s1: "n", s2: "r" }]
+  ];
+  var IDS = ["c", "b", "e", "dep", "br", "gu", "ln", "le", "rn", "ra", "mg", "tr", "s1", "s2"];
+  var presetBox = $("presets");
+  PRESETS.forEach(function (p, idx) {
+    var bt = document.createElement("button");
+    bt.type = "button"; bt.className = "preset"; bt.textContent = p[0]; bt.setAttribute("aria-pressed", "false");
+    bt.addEventListener("click", function () { load(idx); });
+    presetBox.appendChild(bt);
+  });
+  function press(idx) { Array.prototype.forEach.call(presetBox.children, function (x, j) { x.setAttribute("aria-pressed", j === idx ? "true" : "false"); }); }
+  function load(idx) { var v = PRESETS[idx][1]; IDS.forEach(function (k) { $(k).value = v[k]; }); press(idx); run(); }
+  IDS.forEach(function (k) { $(k).addEventListener("input", function () { press(-1); run(); }); });
+
+  function fail(msg) {
+    $("err").textContent = msg; $("err").hidden = false;
+    $("out").innerHTML = ""; $("notices").innerHTML = ""; $("timeline").innerHTML = ""; $("summary").innerHTML = "";
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (ch) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]; }); }
+
+  function run() {
+    var loan = $("ln").value === "1";
+    $("le").disabled = !loan;
+    var c = $("c").value, b = $("b").value, e = $("e").value, dep = $("dep").value;
+    if (!c || !b || !e) return fail("계약일, 잔금일, 만기일을 모두 입력하세요.");
+    if (!(c <= b && b < e)) return fail("날짜 순서를 확인하세요. 계약일 ≤ 잔금일 < 만기일이어야 합니다.");
+    if (dep === "" || +dep < 0) return fail("보증금을 0원 이상으로 입력하세요.");
+    if (loan && !$("le").value) return fail("전세대출이 있으면 대출 실행일을 입력하세요.");
+    $("err").hidden = true;
+    var r = Engine.compute({
+      contract_date: c, balance_date: b, end_date: e, deposit: +dep, monthly_rent: 0,
+      brokered: $("br").value === "1", guarantor: $("gu").value, loan: loan, loan_execution_date: $("le").value,
+      renewal_right_used: $("rn").value === "1", ratio_level: +$("ra").value, mortgage: $("mg").value === "1",
+      trust: $("tr").value === "1", s_mortgage: $("s1").value, s_guarantee: $("s2").value
+    });
+    renderTable(r); renderTimeline(r, c, b, e);
+  }
+
+  function renderTable(r) {
+    var T = r.todos, html = "";
+    r.order.forEach(function (k) {
+      var v = T[k], isTop = r.top.indexOf(k) >= 0;
+      var when = v.remind ? "<strong>" + fw(v.remind) + "</strong><span class=\"chip remind\">알림</span>" : (v.due ? "<strong>" + fw(v.due) + "</strong>" : "기한 없음");
+      if (v.assume) when += "<span class=\"chip assume\">가정</span>";
+      html += "<tr" + (isTop ? " class=\"top\"" : "") + "><td class=\"num\">" + k.slice(1) + "</td><td>" + NAMES[k] +
+        (isTop ? "<span class=\"chip top\">맨 위 · " + esc(r.why[k]) + "</span>" : "") +
+        "</td><td class=\"date\">" + (v.start ? fw(v.start) : "—") + "</td><td class=\"date\">" + when + "</td><td class=\"note\">" + esc(v.note || "") + "</td></tr>";
+    });
+    ["T1", "T5", "T6"].forEach(function (k) {
+      if (!T[k]) html += "<tr class=\"off\"><td class=\"num\">" + k.slice(1) + "</td><td>" + NAMES[k] + "</td><td colspan=\"3\">생성 안 함 (" + (k === "T1" ? "신고 비대상" : (k === "T6" && T.T5 ? "마감 기한 없음" : "보증 미가입")) + ")</td></tr>";
+    });
+    $("out").innerHTML = html;
+    $("notices").innerHTML = r.notes.map(function (n) { return "<div class=\"notice\">" + esc(n) + "</div>"; }).join("");
+    var s = "<span>계약 기간 <b>" + r.days + "일</b></span><span>임대차 신고 <b>" + (r.report ? "대상" : "비대상") + "</b></span>";
+    if (r.deadline) s += "<span>반환보증 마감 <b>" + Engine.F(r.deadline) + "</b> (잔금일 + " + r.half + "일)</span>";
+    $("summary").innerHTML = s;
+  }
+
+  function renderTimeline(r, c, b, e) {
+    var T = r.todos, c0 = Engine.P(c).getTime(), e0 = Engine.P(e).getTime(), span = e0 - c0;
+    function pos(d) { return (d.getTime() - c0) / span * 100; }
+    var marks = [
+      { d: Engine.P(c), label: "계약일", cls: "" },
+      { d: Engine.P(b), label: "잔금·전입", cls: "key" }
+    ];
+    if (r.deadline) marks.push({ d: r.deadline, label: "반환보증 마감", cls: "warn" });
+    marks.push({ d: T.T7.start, label: "통보 안내 시작", cls: "" });
+    marks.push({ d: T.T7.due, label: "통보 마감", cls: "warn" });
+    marks.push({ d: Engine.P(e), label: "만기", cls: "key" });
+    var html = "<div class=\"track\"></div><div class=\"span-live\" style=\"left:" + pos(Engine.P(b)) + "%;width:" + (100 - pos(Engine.P(b))) + "%\"></div>";
+    marks.forEach(function (m, idx) {
+      var p = pos(m.d), side = idx % 2 === 0 ? "down" : "up", edge = p < 6 ? " edge-l" : (p > 94 ? " edge-r" : "");
+      html += "<div class=\"mark " + m.cls + "\" style=\"left:calc(" + p + "% - 1px)\"></div>";
+      html += "<div class=\"tl-label " + side + edge + "\" style=\"left:" + p + "%\">" + m.label + "<br><span class=\"d\">" + Engine.F(m.d) + "</span></div>";
+    });
+    $("timeline").innerHTML = html;
+  }
+
+  load(0);
+})();
+</script>
+</body>
+</html>
