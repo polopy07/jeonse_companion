@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>갈아타기 입력</title>
+<script src="../preview.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1D3B5C}a:hover{color:#0F2338}
+</style>
+</helmet>
+<div style="width: 390px; height: 1000px; box-sizing: border-box; background: #F4F2EC; font-family: 'IBM Plex Sans KR', sans-serif; color: #17202A; display: flex; flex-direction: column">
+  <div style="padding: 12px 8px 0; display: flex; align-items: center; gap: 4px">
+    <a href="Todos.dc.html" aria-label="뒤로" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #17202A">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg>
+    </a>
+    <div style="font-size: 16px; font-weight: 600">다음 집으로 갈아타기</div>
+  </div>
+  <div style="padding: 6px 20px 0; font-size: 13px; color: #55606B">지금 집 만기와 다음 집 잔금을 맞춰 볼게요</div>
+
+  <div style="margin: 14px 20px 0; padding: 16px; background: #FFFFFF; border-radius: 16px; border: 1px solid #E3DFD6; display: flex; flex-direction: column; gap: 12px">
+    <div style="font-size: 12px; font-weight: 700; color: #55606B">지금 집</div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #55606B">만기일
+        <input value="2028.11.19" style="height: 44px; border-radius: 10px; border: 1px solid #C9C3B6; padding: 0 12px; font-family: inherit; font-size: 15px; color: #17202A; background: #FFFFFF; min-width: 0">
+      </label>
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #55606B">돌려받을 보증금
+        <input value="1억 4,000만" style="height: 44px; border-radius: 10px; border: 1px solid #C9C3B6; padding: 0 12px; font-family: inherit; font-size: 15px; color: #17202A; background: #FFFFFF; min-width: 0">
+      </label>
+    </div>
+    <div style="font-size: 12px; font-weight: 700; color: #55606B; margin-top: 4px">다음 집</div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #55606B">잔금일
+        <input value="2028.11.15" style="height: 44px; border-radius: 10px; border: 1.5px solid #B85A0B; padding: 0 12px; font-family: inherit; font-size: 15px; color: #17202A; background: #FFFFFF; min-width: 0">
+      </label>
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #55606B">보증금
+        <input value="1억 6,000만" style="height: 44px; border-radius: 10px; border: 1px solid #C9C3B6; padding: 0 12px; font-family: inherit; font-size: 15px; color: #17202A; background: #FFFFFF; min-width: 0">
+      </label>
+    </div>
+  </div>
+
+  <div style="margin: 18px 20px 0; font-size: 14px; font-weight: 600; color: #55606B">날짜 맞춰 보기</div>
+  <div style="margin: 8px 20px 0; padding: 18px 16px; background: #FFFFFF; border-radius: 16px; border: 1px solid #E3DFD6">
+    <div style="display: flex; justify-content: space-between; font-size: 11px; color: #6B7580">
+      <span>11.10</span><span>11.15</span><span>11.19</span><span>11.25</span>
+    </div>
+    <div style="position: relative; height: 92px; margin-top: 8px">
+      <div style="position: absolute; left: 33%; width: 27%; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, #FBEEDF 0 6px, #F6DFC4 6px 12px); border-radius: 6px"></div>
+      <div style="position: absolute; left: 0; width: 60%; top: 14px; height: 24px; border-radius: 6px; background: #9FB3C8; display: flex; align-items: center; padding-left: 8px; font-size: 11px; font-weight: 600; color: #17202A">지금 집 · 11.19 반환</div>
+      <div style="position: absolute; left: 33%; right: 0; top: 54px; height: 24px; border-radius: 6px; background: #1D3B5C; display: flex; align-items: center; padding-left: 8px; font-size: 11px; font-weight: 600; color: #FFFFFF">다음 집 · 11.15 잔금</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px; margin-top: 12px">
+      <div style="width: 14px; height: 14px; border-radius: 3px; background: repeating-linear-gradient(135deg, #FBEEDF 0 3px, #F6DFC4 3px 6px)"></div>
+      <div style="font-size: 13px"><strong style="color: #8A4307">자금 틈 4일</strong> · 이 기간에 1억 6,000만 원이 먼저 필요해요</div>
+    </div>
+  </div>
+
+  <div style="margin: 12px 20px 0; padding: 16px; background: #FBEEDF; border-radius: 16px">
+    <div style="display: flex; gap: 10px; align-items: flex-start">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A4307" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px"><path d="M12 9v4M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path></svg>
+      <div>
+        <div style="font-size: 14px; font-weight: 700; color: #8A4307">전입신고 순서 주의</div>
+        <div style="font-size: 13px; color: #5C3A12; margin-top: 4px; line-height: 1.6">지금 집 보증금을 받기 전에 다음 집으로 전입을 옮기면 지금 집의 대항력이 사라질 수 있어요. 반환을 확인하거나 임차권등기가 끝난 뒤 옮기세요.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin: 12px 20px 0; padding: 14px 16px; background: #FFFFFF; border-radius: 14px; border: 1px solid #E3DFD6; display: flex; justify-content: space-between; align-items: center; gap: 12px">
+    <div style="font-size: 13px; line-height: 1.5">지금 집 기록을 다음 계약에도 남길까요?</div>
+    <div style="width: 48px; height: 28px; border-radius: 14px; background: #1D3B5C; position: relative; flex-shrink: 0">
+      <div style="position: absolute; right: 3px; top: 3px; width: 22px; height: 22px; border-radius: 11px; background: #FFFFFF"></div>
+    </div>
+  </div>
+
+  <div style="flex: 1"></div>
+  <div style="padding: 16px 20px 20px; background: #FFFFFF; border-top: 1px solid #E3DFD6">
+    <a href="Check.dc.html" style="height: 52px; border-radius: 14px; background: #1D3B5C; color: #FFFFFF; font-weight: 600; font-size: 16px; display: flex; align-items: center; justify-content: center; text-decoration: none">다음 집 계약 전 확인하기</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

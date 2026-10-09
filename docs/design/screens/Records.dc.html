@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>전세 기록함</title>
+<script src="../preview.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1D3B5C}a:hover{color:#0F2338}
+</style>
+</helmet>
+<div style="width: 390px; height: 900px; box-sizing: border-box; background: #F4F2EC; font-family: 'IBM Plex Sans KR', sans-serif; color: #17202A; display: flex; flex-direction: column">
+  <div style="padding: 20px 20px 0">
+    <div style="font-weight: 700; font-size: 22px; letter-spacing: -0.5px">전세 기록함</div>
+    <div style="font-size: 13px; color: #55606B; margin-top: 4px">할 일을 완료할 때 남긴 증빙이 여기 쌓여요</div>
+  </div>
+
+  <div style="margin: 16px 20px 0; padding: 4px; background: #E7E3DA; border-radius: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px">
+    <button onClick="{{ toNormal }}" style="{{ normalTab }}">평소 · 계약 기록</button>
+    <button onClick="{{ toEmergency }}" style="{{ emergencyTab }}">비상 · 못 돌려받을 때</button>
+  </div>
+
+  <sc-if value="{{ emergency }}" hint-placeholder-val="{{ false }}">
+    <div style="margin: 12px 20px 0; padding: 14px 16px; background: #F6E3E3; border-radius: 14px">
+      <div style="font-size: 14px; font-weight: 700; color: #7E1717">반환보증 청구에 빠진 서류 3개</div>
+      <div style="font-size: 13px; color: #5E1A1A; margin-top: 4px; line-height: 1.6">빨간 칸부터 채우세요. 반환 대응 안내에서 다음 단계를 볼 수 있어요.</div>
+    </div>
+  </sc-if>
+
+  <div style="margin: 14px 20px 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px">
+    <sc-for list="{{ docs }}" as="d" hint-placeholder-count="9">
+      <div style="{{ d.box }}">
+        <sc-if value="{{ d.filled }}" hint-placeholder-val="{{ true }}">
+          <div style="height: 72px; border-radius: 8px; background: #E8E4DA; display: flex; align-items: center; justify-content: center">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#6B7580" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><path d="M14 3v6h6M8 13h8M8 17h5"></path></svg>
+          </div>
+        </sc-if>
+        <sc-if value="{{ d.empty }}" hint-placeholder-val="{{ false }}">
+          <div style="{{ d.slot }}">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>
+          </div>
+        </sc-if>
+        <div style="font-size: 12px; font-weight: 600; margin-top: 8px; line-height: 1.35">{{ d.name }}</div>
+        <div style="{{ d.metaStyle }}">{{ d.meta }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="flex: 1"></div>
+  <div style="font-size: 11px; color: #6B7580; padding: 12px 20px 10px; line-height: 1.5">반환 확인 후 3개월 동안 보관해요. 주민등록번호는 가리고 올려 주세요.</div>
+  <nav style="height: 72px; border-top: 1px solid #E3DFD6; background: #FFFFFF; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr))">
+    <a href="Main.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-decoration: none; color: #6B7580; font-size: 11px">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg>홈</a>
+    <a href="Todos.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-decoration: none; color: #6B7580; font-size: 11px">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"></path><path d="m3 6 1.5 1.5L7 5M3 12l1.5 1.5L7 11"></path></svg>할 일</a>
+    <a href="Records.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-decoration: none; color: #1D3B5C; font-size: 11px; font-weight: 600">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>기록함</a>
+    <a href="Check.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-decoration: none; color: #6B7580; font-size: 11px">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"></path><path d="M15 7h6v6"></path></svg>경보</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":900}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { emergency: false };
+}
+renderVals() {
+var em = this.state.emergency;
+var list = [
+{ name: '계약서', meta: '10.20', filled: true, need: true },
+{ name: '계약금 이체 내역', meta: '10.20', filled: true, need: true },
+{ name: '계약 당일 등기부', meta: '10.20', filled: true, need: false },
+{ name: '임대차 신고 확인', meta: '10.21', filled: true, need: true },
+{ name: '잔금일 등기부', meta: '11.20 예정', filled: false, need: false },
+{ name: '잔금 이체 내역', meta: '11.20 예정', filled: false, need: true },
+{ name: '전입신고 확인', meta: '11.20 예정', filled: false, need: true },
+{ name: '반환보증 가입증서', meta: '가입 후', filled: false, need: false },
+{ name: '반환 요청 기록', meta: '만기 때', filled: false, need: true }
+];
+var tabOn = 'height: 44px; border: none; border-radius: 9px; background: #FFFFFF; font-family: inherit; font-size: 13px; font-weight: 700; color: #17202A; cursor: pointer';
+var tabOff = 'height: 44px; border: none; border-radius: 9px; background: transparent; font-family: inherit; font-size: 13px; font-weight: 500; color: #55606B; cursor: pointer';
+var docs = list.map(function (d) {
+var missing = em && d.need && !d.filled;
+var dim = em && !d.need;
+var box = 'padding: 8px; border-radius: 12px; background: #FFFFFF; border: 1px solid #E3DFD6; ' + (dim ? 'opacity: 0.4' : '');
+var slot = 'height: 72px; border-radius: 8px; display: flex; align-items: center; justify-content: center; ' +
+(missing ? 'border: 2px dashed #A61B1B; background: #FBEDED; color: #A61B1B' : 'border: 1.5px dashed #C9C3B6; color: #9C968A');
+return {
+name: d.name,
+meta: missing ? '청구에 필요' : d.meta,
+metaStyle: 'font-size: 11px; margin-top: 2px; ' + (missing ? 'color: #A61B1B; font-weight: 700' : 'color: #6B7580'),
+filled: d.filled,
+empty: !d.filled,
+box: box,
+slot: slot
+};
+});
+return {
+emergency: em,
+docs: docs,
+normalTab: em ? tabOff : tabOn,
+emergencyTab: em ? tabOn.replace('color: #17202A', 'color: #7E1717') : tabOff,
+toNormal: () => this.setState({ emergency: false }),
+toEmergency: () => this.setState({ emergency: true })
+};
+}
+}
+</script>
+</body>
+</html>
