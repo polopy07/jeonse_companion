@@ -20,6 +20,7 @@
 - 일정: 2026-10-07(수) 1주차 시작. 1주차 ~10/13, 2주차 ~10/20(중간 점검), 3주차 ~10/27, 4주차 ~11/3(최종 시연). 주차는 수요일 시작·화요일 끝
 - 규칙 설정 파일: `rules/*.yaml` (판정 verdict, 경보 alert, 연동 linkage, 특약 special_terms, 할 일 todos, 보증기관 guarantors, 필드 fields). 명세서 부속표 A~E를 데이터로 옮긴 것. 고친 뒤 `python3 rules/check_rules.py`로 검사. v1.0(2026-10-07 PO 확정). `hypothesis: true`로 남은 것은 외부 기준 확인이 필요한 값
 - 백엔드: `backend/` (FastAPI + SQLAlchemy, PostgreSQL 기본·SQLite도 동작, `DATABASE_URL`로 전환). 테스트는 `cd backend && pytest`. 배포 서버는 교수님이 나중에 열어 주실 예정
+- 화면 목업: `docs/design/` (UI-01~09 + 홈, 모바일 390px). 프론트 작업 시 이 목업의 화면 구성·문구·색을 기준으로 한다. 디자인 규칙과 컴포넌트 단위는 `docs/design/README.md`, 브라우저로 볼 때는 `docs/design/index.html`
 - 4주 개발 계획: `docs/plan/4주_개발계획.md` (기획서 그림에 빠져 있던 특약 반영 분기 → A 3주차, 계약 당일 체크 화면 UI-03 → B 2주차 반영)
 - PO는 황웅재(안), 개발 A(백엔드·규칙) 겸임. 배승환은 PM·개발 B(안)
 - 작업일지: `worklog/YYYY-MM-DD.md`에 하루 1개. 양식은 "오늘 한 일 / 다음에 할 일". 노션 작업일지에도 같은 내용을 기록

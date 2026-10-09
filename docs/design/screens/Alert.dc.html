@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>역전세 경보 리포트</title>
+<script src="../preview.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1D3B5C}a:hover{color:#0F2338}
+</style>
+</helmet>
+<div style="width: 390px; height: 1000px; box-sizing: border-box; background: #F4F2EC; font-family: 'IBM Plex Sans KR', sans-serif; color: #17202A; display: flex; flex-direction: column">
+  <div style="padding: 12px 8px 0; display: flex; align-items: center; gap: 4px">
+    <a href="Main.dc.html" aria-label="뒤로" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #17202A">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg>
+    </a>
+    <div style="font-size: 16px; font-weight: 600">역전세 경보 리포트</div>
+  </div>
+
+  <div style="margin: 8px 20px 0; padding: 18px; background: #FFFFFF; border-radius: 16px; border: 1px solid #E3DFD6">
+    <div style="display: flex; justify-content: space-between; align-items: center">
+      <div style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: #F9E1CC; color: #7A3A05; font-size: 12px; font-weight: 700">경고 단계</div>
+      <div style="font-size: 12px; color: #6B7580">2027.10.15 재계산</div>
+    </div>
+    <div style="display: flex; align-items: baseline; gap: 10px; margin-top: 10px">
+      <div style="font-size: 34px; font-weight: 700; color: #9A4A07">91%</div>
+      <div style="font-size: 14px; color: #55606B">지난번 88%에서 올랐어요</div>
+    </div>
+    <div style="font-size: 14px; line-height: 1.6; margin-top: 6px">같은 단지 실거래가가 추정 집값보다 낮게 신고돼 다시 계산했어요. 90%를 넘으면 반환보증 신규 가입이 어려운 구간이에요.</div>
+  </div>
+
+  <div style="margin: 12px 20px 0; padding: 16px 12px 12px; background: #FFFFFF; border-radius: 16px; border: 1px solid #E3DFD6">
+    <div style="font-size: 13px; font-weight: 600; padding: 0 4px">내 보증금 비율 변화</div>
+    <svg width="342" height="200" viewBox="0 0 342 200" role="img" aria-label="내 보증금 비율이 84%에서 91%로 오른 추이" style="display: block; margin-top: 8px">
+      <rect x="24" y="10" width="312" height="23" fill="#F6E3E3"></rect>
+      <rect x="24" y="33" width="312" height="46" fill="#FBEEDF"></rect>
+      <rect x="24" y="79" width="312" height="45" fill="#FDF7F0"></rect>
+      <line x1="24" y1="33" x2="336" y2="33" stroke="#A61B1B" stroke-width="1" stroke-dasharray="3 3"></line>
+      <line x1="24" y1="79" x2="336" y2="79" stroke="#B85A0B" stroke-width="1" stroke-dasharray="3 3"></line>
+      <line x1="24" y1="124" x2="336" y2="124" stroke="#C9C3B6" stroke-width="1" stroke-dasharray="3 3"></line>
+      <text x="20" y="37" font-size="10" fill="#6B7580" text-anchor="end">100</text>
+      <text x="20" y="83" font-size="10" fill="#6B7580" text-anchor="end">90</text>
+      <text x="20" y="128" font-size="10" fill="#6B7580" text-anchor="end">80</text>
+      <polyline points="40,106 96,106 152,88 208,88 264,74 320,74" fill="none" stroke="#1D3B5C" stroke-width="2.5" stroke-linejoin="round"></polyline>
+      <circle cx="40" cy="106" r="4" fill="#1D3B5C"></circle>
+      <circle cx="152" cy="88" r="4" fill="#1D3B5C"></circle>
+      <circle cx="264" cy="74" r="5" fill="#FFFFFF" stroke="#9A4A07" stroke-width="3"></circle>
+      <text x="40" y="122" font-size="11" fill="#17202A" text-anchor="middle">84</text>
+      <text x="152" y="104" font-size="11" fill="#17202A" text-anchor="middle">88</text>
+      <text x="264" y="64" font-size="11" font-weight="700" fill="#9A4A07" text-anchor="middle">91</text>
+      <text x="40" y="190" font-size="10" fill="#6B7580" text-anchor="middle">26.10</text>
+      <text x="96" y="190" font-size="10" fill="#6B7580" text-anchor="middle">27.01</text>
+      <text x="152" y="190" font-size="10" fill="#6B7580" text-anchor="middle">27.04</text>
+      <text x="208" y="190" font-size="10" fill="#6B7580" text-anchor="middle">27.07</text>
+      <text x="264" y="190" font-size="10" fill="#6B7580" text-anchor="middle">27.10</text>
+      <text x="320" y="190" font-size="10" fill="#6B7580" text-anchor="middle">28.01</text>
+    </svg>
+  </div>
+
+  <div style="margin: 18px 20px 0; font-size: 14px; font-weight: 600; color: #55606B">계산 근거</div>
+  <div style="margin: 8px 20px 0; background: #FFFFFF; border-radius: 14px; border: 1px solid #E3DFD6; overflow: hidden">
+    <div style="display: flex; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #EEEAE1; font-size: 13px"><span style="color: #55606B">보증금 + 근저당</span><span style="font-weight: 600">1억 7,600만</span></div>
+    <div style="display: flex; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #EEEAE1; font-size: 13px"><span style="color: #55606B">공시가격 × 140%<br><span style="font-size: 11px">2027.01.01 기준</span></span><span style="font-weight: 600; text-decoration: line-through; color: #6B7580">2억 20만</span></div>
+    <div style="display: flex; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #EEEAE1; font-size: 13px"><span style="color: #55606B">실거래가 · 전용 ±10%<br><span style="font-size: 11px">2027.09 신고 · 표본 3건</span></span><span style="font-weight: 600">1억 9,300만</span></div>
+    <div style="display: flex; justify-content: space-between; padding: 12px 16px; font-size: 13px; background: #F4F2EC"><span>추정 집값 (둘 중 낮은 값)</span><span style="font-weight: 700">1억 9,300만</span></div>
+  </div>
+
+  <div style="margin: 14px 20px 0; padding: 14px 16px; border-radius: 14px; border: 1.5px dashed #B9B3A6">
+    <div style="font-size: 13px; font-weight: 600">데이터 한계</div>
+    <div style="font-size: 12px; color: #55606B; margin-top: 4px; line-height: 1.6">공시가격은 1년에 한 번 바뀌고, 실거래가는 신고까지 최대 30일 늦을 수 있어요. 빌라는 같은 단지 거래가 적어 추정이 실제와 다를 수 있어요.</div>
+  </div>
+
+  <div style="flex: 1"></div>
+  <div style="font-size: 11px; color: #6B7580; padding: 16px 20px 20px; line-height: 1.5">시연용 가상 데이터 · 정보 제공이며 보증하지 않습니다.</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

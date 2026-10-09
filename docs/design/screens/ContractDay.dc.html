@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>계약 당일 체크</title>
+<script src="../preview.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1D3B5C}a:hover{color:#0F2338}
+</style>
+</helmet>
+<div style="width: 390px; height: 1000px; box-sizing: border-box; background: #F4F2EC; font-family: 'IBM Plex Sans KR', sans-serif; color: #17202A; display: flex; flex-direction: column">
+  <div style="padding: 12px 8px 0; display: flex; align-items: center; gap: 4px">
+    <a href="Check.dc.html" aria-label="뒤로" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #17202A">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg>
+    </a>
+    <div style="font-size: 16px; font-weight: 600">계약 당일 체크</div>
+  </div>
+
+  <div style="padding: 8px 20px 0">
+    <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px">
+      <div style="height: 4px; border-radius: 2px; background: #1D3B5C"></div>
+      <div style="height: 4px; border-radius: 2px; background: #1D3B5C"></div>
+      <div style="height: 4px; border-radius: 2px; background: #1D3B5C"></div>
+      <div style="height: 4px; border-radius: 2px; background: #1D3B5C"></div>
+      <div style="height: 4px; border-radius: 2px; background: #D5D0C4"></div>
+    </div>
+    <div style="font-size: 12px; color: #55606B; margin-top: 8px">4 / 5 · 특약 반영 기록</div>
+  </div>
+
+  <div style="margin: 14px 20px 0; padding: 14px 16px; background: #FFFFFF; border-radius: 14px; border: 1px solid #E3DFD6; display: flex; flex-direction: column; gap: 8px">
+    <div style="display: flex; align-items: center; gap: 10px; font-size: 14px">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2B5C8A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+      등기부 소유자 이름 = 계약서 임대인
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; font-size: 14px">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2B5C8A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+      대리인 없음 (임대인 본인 참석)
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; font-size: 14px">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2B5C8A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+      계약금 계좌 명의 = 소유자
+    </div>
+  </div>
+
+  <div style="margin: 18px 20px 0; font-size: 18px; font-weight: 700; letter-spacing: -0.3px">이 특약, 계약서에 넣었나요?</div>
+  <div style="margin: 4px 20px 0; font-size: 13px; color: #55606B">넣었는지에 따라 앞으로 할 일이 달라져요.</div>
+
+  <div style="margin: 12px 20px 0; padding: 18px; background: #FFFFFF; border-radius: 18px; border: 1px solid #E3DFD6">
+    <div style="display: flex; justify-content: space-between; align-items: center">
+      <div style="font-size: 15px; font-weight: 700">잔금일 다음 날까지 담보 설정 금지</div>
+    </div>
+    <div style="font-size: 12px; color: #55606B; margin-top: 2px">근저당 있음 항목과 연결</div>
+    <div style="margin-top: 12px; padding: 12px 14px; background: #F4F2EC; border-radius: 10px; font-size: 13px; line-height: 1.7">임대인은 잔금 지급일 다음 날까지 이 주택에 저당권 등 담보권을 설정하지 않는다. 이를 위반하면 임차인은 계약을 해제할 수 있으며 임대인은 손해를 배상한다.</div>
+    <button onClick="{{ copy }}" style="margin-top: 10px; height: 44px; width: 100%; border-radius: 10px; border: 1px solid #C9C3B6; background: #FFFFFF; font-family: inherit; font-size: 14px; font-weight: 600; color: #1D3B5C; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"></rect><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"></path></svg>
+      {{ copyLabel }}
+    </button>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px">
+      <button onClick="{{ pickIn }}" style="{{ inStyle }}">넣음</button>
+      <button onClick="{{ pickOut }}" style="{{ outStyle }}">거절당함</button>
+    </div>
+  </div>
+
+  <sc-if value="{{ isOut }}" hint-placeholder-val="{{ true }}">
+    <div style="margin: 12px 20px 0; padding: 16px; background: #FBEEDF; border-radius: 16px">
+      <div style="font-size: 14px; font-weight: 700; color: #8A4307">할 일이 이렇게 바뀌어요</div>
+      <div style="font-size: 13px; color: #5C3A12; margin-top: 6px; line-height: 1.6">잔금 당일 설정되는 담보는 잔금일 등기부 재비교로 잡을 수 없어요. 잔금일 당일 전입신고로 대항력을 확보하세요.</div>
+      <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 12px">
+        <div style="display: flex; gap: 8px; align-items: center; padding: 10px 12px; background: #FFFFFF; border-radius: 10px; font-size: 13px">
+          <span style="font-size: 11px; font-weight: 700; color: #FFFFFF; background: #B85A0B; padding: 2px 6px; border-radius: 4px">앞당김</span>
+          전입신고 · 잔금일 당일 필수
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center; padding: 10px 12px; background: #FFFFFF; border-radius: 10px; font-size: 13px">
+          <span style="font-size: 11px; font-weight: 700; color: #FFFFFF; background: #B85A0B; padding: 2px 6px; border-radius: 4px">강조</span>
+          잔금일 아침 등기부 재비교
+        </div>
+      </div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ isIn }}" hint-placeholder-val="{{ false }}">
+    <div style="margin: 12px 20px 0; padding: 16px; background: #E4ECF4; border-radius: 16px">
+      <div style="font-size: 14px; font-weight: 700; color: #1D3B5C">계약 기록에 남겼어요</div>
+      <div style="font-size: 13px; color: #2E4660; margin-top: 6px; line-height: 1.6">잔금일 아침 등기부 재비교에서 새 담보가 보이면, 이 특약으로 계약을 해제할 수 있다는 안내를 함께 보여 드려요.</div>
+    </div>
+  </sc-if>
+
+  <div style="flex: 1"></div>
+  <div style="padding: 16px 20px 20px; background: #FFFFFF; border-top: 1px solid #E3DFD6">
+    <div style="font-size: 11px; color: #6B7580; line-height: 1.5; margin-bottom: 12px">특약 예시는 공공 자료를 바탕으로 한 참고 문구이며 법률 자문이 아닙니다.</div>
+    <a href="Todos.dc.html" style="height: 52px; border-radius: 14px; background: #1D3B5C; color: #FFFFFF; font-weight: 600; font-size: 16px; display: flex; align-items: center; justify-content: center; text-decoration: none">다음 · 계약 날짜 입력</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1000}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { pick: 'out', copied: false };
+}
+renderVals() {
+var pick = this.state.pick;
+var base = 'height: 52px; border-radius: 12px; font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer; ';
+var off = base + 'background: #FFFFFF; color: #17202A; border: 1.5px solid #C9C3B6';
+return {
+isIn: pick === 'in',
+isOut: pick === 'out',
+inStyle: pick === 'in' ? base + 'background: #1D3B5C; color: #FFFFFF; border: 1.5px solid #1D3B5C' : off,
+outStyle: pick === 'out' ? base + 'background: #B85A0B; color: #FFFFFF; border: 1.5px solid #B85A0B' : off,
+pickIn: () => this.setState({ pick: 'in' }),
+pickOut: () => this.setState({ pick: 'out' }),
+copy: () => this.setState({ copied: true }),
+copyLabel: this.state.copied ? '복사했어요' : '특약 문구 복사'
+};
+}
+}
+</script>
+</body>
+</html>
