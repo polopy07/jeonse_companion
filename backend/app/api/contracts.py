@@ -55,7 +55,9 @@ def _todo_values(row: Contract) -> dict:
 
 
 def _create_todos(row: Contract, check: Verdict, rules: dict) -> None:
-    planned = build_todos(_todo_values(row), check.linkages, row.special_term_result, _alert_level(check, rules), rules)
+    row.report_required = report_required(_todo_values(row), rules["todos"])
+    row.alert_level = _alert_level(check, rules)
+    planned = build_todos(_todo_values(row), check.linkages, row.special_term_result, row.alert_level, rules)
     version = str(rules["todos"]["version"])
     for t in planned:
         row.todos.append(Todo(
@@ -67,7 +69,7 @@ def _create_todos(row: Contract, check: Verdict, rules: dict) -> None:
         ))
 
 
-def _to_out(row: Contract, db: Session, rules: dict) -> ContractOut:
+def _to_out(row: Contract, db: Session) -> ContractOut:
     check = db.get(Verdict, row.check_id)
     return ContractOut(
         id=row.id,
@@ -89,8 +91,8 @@ def _to_out(row: Contract, db: Session, rules: dict) -> ContractOut:
         co_tenant=row.co_tenant,
         email=row.email,
         special_term_result=row.special_term_result,
-        report_required=report_required(_todo_values(row), rules["todos"]),
-        alert_level=_alert_level(check, rules),
+        report_required=row.report_required,
+        alert_level=row.alert_level,
         todos=[TodoOut.model_validate(t, from_attributes=True) for t in row.todos],
     )
 
@@ -126,12 +128,12 @@ def create_contract(inp: ContractInput, db: Session = Depends(get_db), rules: di
         first = db.query(Contract).filter_by(check_id=inp.check_id).one()
         raise api_error(409, "CHECK_ALREADY_USED", "이미 계약을 만든 판정 결과입니다",
                         f"만든 계약은 GET /api/contracts/{first.id}로 볼 수 있습니다") from None
-    return _to_out(row, db, rules)
+    return _to_out(row, db)
 
 
 @router.get("/{contract_id}", response_model=ContractOut, responses=responses(404, 422))
-def get_contract(contract_id: int, db: Session = Depends(get_db), rules: dict = Depends(get_rules)):
+def get_contract(contract_id: int, db: Session = Depends(get_db)):
     row = db.get(Contract, contract_id)
     if row is None:
         raise api_error(404, "NOT_FOUND", "계약이 없습니다")
-    return _to_out(row, db, rules)
+    return _to_out(row, db)

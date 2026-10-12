@@ -241,3 +241,26 @@ def test_outdated_level_is_409(client):
     r = client.post("/api/contracts", json={"check_id": check["id"], **DATES})
     assert r.status_code == 409
     assert _detail(r)["code"] == "CHECK_OUTDATED"
+
+
+def test_get_keeps_values_from_creation(client, rules):
+    # 신고 대상·경보 단계는 만들 때 저장한 값을 돌려준다. 규칙이 바뀌어도 할 일과 어긋나지 않게
+    import copy
+
+    from app.main import app
+    from app.rules.loader import get_rules
+
+    check = _check(client, {"housing_type": "apartment", "deposit": 50_000_000, "official_price": 2 * EOK,
+                            "registry": {}})
+    created = client.post("/api/contracts", json={"check_id": check["id"], **DATES}).json()
+    assert created["report_required"] is False
+
+    changed = copy.deepcopy(rules)
+    changed["todos"]["report_rule"]["exempt_when"] = {"field": "deposit", "op": "<", "value": 0}
+    app.dependency_overrides[get_rules] = lambda: changed
+    try:
+        again = client.get(f"/api/contracts/{created['id']}").json()
+    finally:
+        app.dependency_overrides.pop(get_rules, None)
+    assert again["report_required"] is False
+    assert again == created
