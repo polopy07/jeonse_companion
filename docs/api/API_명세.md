@@ -118,13 +118,13 @@
 ### 1.7 가상 날짜 (FR-044, 시연용)
 
 - 요청 헤더 `X-Virtual-Today: 2027-08-01`을 보내면 서버는 그날을 "오늘"로 보고 할 일·알림·경보를 계산한다
-- 지금 쓰는 곳: `POST /api/checks`의 실거래 기준일(`as_of`). 할 일·알림·경보는 (예정)
+- 지금 쓰는 곳: `POST /api/checks`의 실거래 기준일(`as_of`). 할 일·알림·경보는 3주차 (#50)
 - 헤더가 없으면 실제 오늘 날짜
 
 ### 1.8 로그인 (결정 필요)
 
 - 계약 전 확인(`/api/checks`, `/api/registry/parse`)은 로그인 없이 쓴다 (UC-001)
-- 패키지 이후(계약·할 일·기록함)의 사용자 확인 방식은 아직 정하지 않았다. 회원 식별은 이메일로 한정한다 (NFR-011). 2주차에 정한다
+- 패키지 이후(계약·할 일·기록함)의 사용자 확인 방식은 아직 정하지 않았다. 회원 식별은 이메일로 한정한다 (NFR-011). 2주차에 정한다 (#39)
 - 출시 전: `GET /api/contracts/{id}`는 지금 인증이 없고 id가 순서대로 매겨져 번호만 바꾸면 남의 이메일·계약 날짜를 볼 수 있다. 로그인 방식을 정할 때 함께 막는다
 
 ## 2. API 목록
@@ -148,20 +148,43 @@ A = 개발 A(백엔드·규칙), B = 개발 B(화면). 주차는 노션 "할 일
 
 ### 2.2 만들 것 (안, 만들 때 확정해 2.1로 옮긴다)
 
-| 메서드·주소 | 하는 일 | FR | 화면 | 주차 |
-| --- | --- | --- | --- | --- |
-| `PATCH /api/contracts/{id}` | 날짜 변경 → 할 일 재계산, 특약 넣음/거절당함 기록 → 할 일 분기, 계약 무산 (`status: "cancelled"`) | FR-016, 021, 049~050 | UI-03, UI-04 | 2~3 |
-| `POST /api/contracts/{id}/registry-compare` | 계약 당일·잔금일 등기부를 다시 올려 점검 때와 비교, 바뀐 항목 표시 | FR-023, 048 | UI-03 | 3 |
-| `GET /api/contracts/{id}/todos` | 할 일 목록에 오늘 기준 상태(시작 전·진행 중·지남)를 더해서. 그 전까지는 `GET /api/contracts/{id}`의 `todos`를 쓴다 | FR-040 | UI-04 | 3 |
-| `PATCH /api/todos/{id}` | 완료 체크, "나중에 올리기" | FR-029~030 | UI-04 | 3 |
-| `POST /api/todos/{id}/evidence` | 증빙 사진 올리기 → 할 일 완료 | FR-029, 031 | UI-05 | 3 |
-| `DELETE /api/todos/{id}/evidence` | 증빙 삭제 | FR-033 | UI-05 | 3 |
-| `POST /api/contracts/{id}/documents` | 첫 계약 서류(계약서 등) 저장 | FR-051 | UI-03, UI-05 | 3 |
-| `GET /api/contracts/{id}/calendar.ics` | 할 일 기한을 캘린더 파일로 (`text/calendar`) | FR-042 | UI-04 | 3 |
-| `GET /api/contracts/{id}/timeline` | 계약 2년 기록을 날짜순으로 | FR-032 | UI-06 | 4 |
-| `POST /api/contracts/{id}/move` | 갈아타기: 다음 집 날짜 → 자금 틈, 전입 순서 경고 (저장) | FR-025~028 | UI-07 | 3 |
-| `GET /api/contracts/{id}/return-guide` | 반환 대응 단계, 청구 서류 대조 | FR-024, 034~035 | UI-08 | 4 |
-| `GET /api/contracts/{id}/alerts/latest` | 최근 역전세 경보 단계·계산 근거·기준일 | FR-036~038 | UI-09 | 4 |
-| `POST /api/admin/alerts/recalculate` | 경보 재계산 (관리자, 스케줄러는 서버 안에서 직접 실행) | FR-037 | | 4 |
+GitHub 이슈와 마일스톤(2주차·3주차·4주차)으로 진행을 관리한다.
+
+| 메서드·주소 | 하는 일 | FR | 화면 | 주차 | 이슈 |
+| --- | --- | --- | --- | --- | --- |
+| `PATCH /api/contracts/{id}` | 날짜 변경 → 할 일 재계산, 특약 넣음/거절당함 기록 → 할 일 분기, 계약 무산 (`status: "cancelled"`) | FR-016, 021, 049~050 | UI-03, UI-04 | 2 | #37 |
+| `GET /api/demo-houses` | 시연 집 2채(수영구 빌라·해운대구 아파트)의 계약 전 확인 입력값(단지·공시가격·등기부 예시)을 미리 채워 돌려줌 | FR-001, 046 | UI-01 | 2 | #38 |
+| `POST /api/contracts/{id}/registry-compare` | 계약 당일·잔금일 등기부를 다시 올려 점검 때와 비교, 바뀐 항목 표시 | FR-023, 048 | UI-03 | 3 | #41 |
+| `GET /api/contracts/{id}/todos` | 할 일 목록에 오늘 기준 상태(시작 전·진행 중·지남)를 더해서. 그 전까지는 `GET /api/contracts/{id}`의 `todos`를 쓴다 | FR-040 | UI-04 | 3 | #42 |
+| `PATCH /api/todos/{id}` | 완료 체크, "나중에 올리기". 선행 조건이 안 끝났으면 완료 불가 | FR-020, 029~030 | UI-04 | 3 | #43 |
+| `POST /api/todos/{id}/evidence` | 증빙 사진 올리기 → 할 일 완료, 기록함에 자동 기록 | FR-029, 031 | UI-05 | 3 | #44 |
+| `DELETE /api/todos/{id}/evidence` | 증빙 삭제 | FR-033 | UI-05 | 3 | #45 |
+| `POST /api/contracts/{id}/documents` | 첫 계약 서류(계약서·이체 내역) 저장 | FR-051 | UI-03, UI-05 | 3 | #46 |
+| `GET /api/contracts/{id}/calendar.ics` | 할 일 기한을 캘린더 파일로 (`text/calendar`) | FR-042 | UI-04 | 3 | #47 |
+| `POST /api/contracts/{id}/move` | 갈아타기: 다음 집 날짜·보증금·계약금 → 자금 틈, 전입 순서 경고 (저장) | FR-025~028 | UI-07 | 3 | #48 |
+| `POST /api/admin/notifications/run` | 알림 스케줄러를 지정한 날(가상 날짜)로 한 번 실행. 이메일 1종 실제 발송 (시연용, 평소에는 서버 안 스케줄러) | FR-041, 044 | | 3 | #49 |
+| (공통) | 가상 날짜(`X-Virtual-Today`)를 할 일 상태·알림·경보 계산에도 적용 (1.7) | FR-044 | UI-04, UI-09 | 3 | #50 |
+| (공통) | `/api/admin/*` 관리자 토큰 확인. 배포 전에 처리 | FR-046 | | 3 | #55 |
+| `GET /api/contracts/{id}/timeline` | 계약 2년 기록을 날짜순으로 | FR-032 | UI-06 | 4 | #51 |
+| `GET /api/contracts/{id}/return-guide` | 반환 대응 단계, 청구 서류 대조 | FR-024, 034~035 | UI-08 | 4 | #52 |
+| `GET /api/contracts/{id}/alerts/latest` | 최근 역전세 경보 단계·계산 근거·기준일 | FR-036~038 | UI-09 | 4 | #53 |
+| `POST /api/admin/alerts/recalculate` | 경보 재계산 (관리자, 스케줄러는 서버 안에서 직접 실행) | FR-037 | | 4 | #54 |
+
+### 2.3 정할 것 (2주차)
+
+| 무엇 | 안 | 이슈 |
+| --- | --- | --- |
+| 패키지 이후 로그인·사용자 확인 (1.8) | 이메일 매직링크 또는 계약별 접근 토큰. 정해지면 계약·할 일 API에 적용 | #39 |
+| 테스트 결제 (FR-013) | 서버에 기록(`POST /api/contracts/{id}/payment`) 또는 화면에서만 처리 | #40 |
+
+### 2.4 여유 있을 때 (Should)
+
+| 메서드·주소 | 하는 일 | FR | 이슈 |
+| --- | --- | --- | --- |
+| `GET /api/checks/{id}/todo-preview` | 결제 전에 생길 할 일 종류 미리보기. 화면이 규칙 파일로 그리면 생략 | FR-012 | #56 |
+| (`POST /api/registry/parse` 응답) | 등기 항목 쉬운 말 설명 (LLM) | FR-007 | #57 |
+| (`POST /api/contracts` 입력) | 공동 계약자 이메일, 같은 알림 발송 | FR-043 | #58 |
+
+이미 있는 API로 되는 것: 다음 집 계약 전 확인(FR-028)은 `POST /api/checks`, 위반건축물 확인(FR-008)은 `POST /api/checks` 입력, 규칙 데이터 관리(FR-045)는 `rules/*.yaml`과 `/health`.
 
 실거래가 API가 안 될 때 쓰는 내려받은 파일 적재(국토교통부 실거래가 공개시스템 파일)는 2주차 안에 API 연동이 끝나지 않을 때 만든다 (기획서 v4.35 범위 축소 규칙).
