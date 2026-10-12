@@ -74,8 +74,33 @@ def test_fetch_month_sends_params_and_pages(monkeypatch):
 
 def test_fetch_month_http_error():
     with httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(500))) as client:
-        with pytest.raises(TradeApiError, match="연결하지 못했습니다"):
+        with pytest.raises(TradeApiError, match="연결하지 못했습니다: HTTP 500"):
             fetch_month(client, "k", "row_house", "rent", "26500", "202609")
+
+
+def test_portal_error_does_not_leak_service_key(client, monkeypatch, caplog):
+    """포털이 오류를 돌려줘도 응답·로그에 인증키가 나가지 않는다."""
+    monkeypatch.setenv("DATA_GO_KR_SERVICE_KEY", "SECRET-KEY-123")
+
+    def boom(request):
+        if request.url.params["LAWD_CD"] == "26500":
+            raise httpx.ConnectTimeout("timed out", request=request)
+        return httpx.Response(500, request=request)
+
+    def override():
+        with httpx.Client(transport=httpx.MockTransport(boom)) as c:
+            yield c
+
+    app.dependency_overrides[get_http_client] = override
+    try:
+        for lawd_cd, expected in (("26350", "HTTP 500"), ("26500", "ConnectTimeout")):
+            r = client.post("/api/admin/trades", json={"lawd_cd": lawd_cd, "end_month": "2026-10", "months": 1})
+            assert r.status_code == 502
+            assert r.json()["detail"]["message"].endswith(expected)
+            assert "SECRET-KEY-123" not in r.text
+    finally:
+        app.dependency_overrides.pop(get_http_client, None)
+    assert "SECRET-KEY-123" not in caplog.text
 
 
 def test_months_back():

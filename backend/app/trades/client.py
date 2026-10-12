@@ -4,11 +4,14 @@
 - 응답: XML. header.resultCode가 정상 코드가 아니거나, 인증 오류 형식(OpenAPI_ServiceResponse)이면 TradeApiError
 - 금액은 만 원 단위 문자열("82,000")로 오므로 원 단위 정수로 바꾼다
 """
+import logging
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import date
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 BASE_URL = "https://apis.data.go.kr/1613000"
 
@@ -123,8 +126,13 @@ def fetch_month(client: httpx.Client, service_key: str, housing_type: str, kind:
         try:
             resp = client.get(url, params=params, timeout=20)
             resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            # httpx 오류 문구에는 serviceKey가 든 요청 주소가 들어가므로 응답·로그에 싣지 않는다
+            logger.warning("공공데이터포털 HTTP %s: %s", e.response.status_code, url)
+            raise TradeApiError(f"공공데이터포털에 연결하지 못했습니다: HTTP {e.response.status_code}") from None
         except httpx.HTTPError as e:
-            raise TradeApiError(f"공공데이터포털에 연결하지 못했습니다: {e}") from e
+            logger.warning("공공데이터포털 연결 오류 %s: %s", type(e).__name__, url)
+            raise TradeApiError(f"공공데이터포털에 연결하지 못했습니다: {type(e).__name__}") from None
         batch, total = parse_response(resp.text, housing_type, kind, lawd_cd)
         records.extend(batch)
         if not batch or page * PAGE_SIZE >= total:
