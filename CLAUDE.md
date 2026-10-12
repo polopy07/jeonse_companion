@@ -19,7 +19,7 @@
 - 브랜치 규칙: `main` 최상위(PR로만 병합), `feature/<작업명>`, `docs/<작업명>`, `fix/<작업명>`. **`claude/`로 시작하는 브랜치 이름은 쓰지 않는다** (세션이 기본으로 주는 작업 브랜치 이름이라도 위 규칙 이름으로 새로 만들어 작업)
 - 팀 노션: "전동기(전세동행기록)" 페이지 아래에 주차별 계획, 작업일지(팀원별), 문서, 백로그(FR-001~051), 회의록, 할 일·일정을 나눠 둠
 - 일정: 2026-10-07(수) 1주차 시작. 1주차 ~10/13, 2주차 ~10/20(중간 점검), 3주차 ~10/27, 4주차 ~11/3(최종 시연). 주차는 수요일 시작·화요일 끝
-- 규칙 설정 파일: `rules/*.yaml` (판정 verdict, 경보 alert, 연동 linkage, 특약 special_terms, 할 일 todos, 보증기관 guarantors, 필드 fields). 명세서 부속표 A~E를 데이터로 옮긴 것. 고친 뒤 `python3 rules/check_rules.py`로 검사. v1.0(2026-10-07 PO 확정). `hypothesis: true`로 남은 것은 외부 기준 확인이 필요한 값
+- 규칙 설정 파일: `rules/*.yaml` (판정 verdict, 경보 alert, 연동 linkage, 특약 special_terms, 할 일 todos, 보증기관 guarantors, 필드 fields). 명세서 부속표 A~E를 데이터로 옮긴 것. 고친 뒤 `python3 rules/check_rules.py`로 검사. v1.0(2026-10-07 PO 확정), 할 일·연동·특약·보증기관은 v1.1(2026-10-12, 기한 정답표 PO 결정 Q1~Q8). `hypothesis: true`로 남은 것은 외부 기준 확인이 필요한 값. 기한 정답표는 `docs/validation/기한계산_정답표.md`(+ `deadline_scenarios.yaml`, 시뮬레이터 `deadline_simulator.html`)
 - API 명세: `docs/api/API_명세.md` (공통 규칙·API 목록·오류 코드), 입출력 형식은 `docs/api/openapi.json`(서버 코드에서 생성, `cd backend && python export_openapi.py`. `tests/test_openapi.py`가 설명 문구를 뺀 내용이 코드와 같은지 검사)
 - 백엔드: `backend/` (FastAPI + SQLAlchemy, PostgreSQL 기본·SQLite도 동작, `DATABASE_URL`로 전환). 테스트는 `cd backend && pytest`. 배포 서버는 교수님이 나중에 열어 주실 예정
 - 4주 개발 계획: `docs/plan/4주_개발계획.md` (기획서 그림에 빠져 있던 특약 반영 분기 → A 3주차, 계약 당일 체크 화면 UI-03 → B 2주차 반영)

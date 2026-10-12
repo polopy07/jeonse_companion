@@ -1,7 +1,7 @@
 # 날짜별 할 일 9종과 추가 할 일 (명세서 부속표 A, FR-015, FR-017~FR-021)
 # 기한은 규칙으로만 계산한다 (LLM 사용 안 함). 잔금일·만기일이 바뀌면 연결된 기한을 모두 다시 계산한다.
-version: "1.0"
-as_of: "2026-10-07"
+version: "1.1"   # 1.1: 기한 정답표 PO 결정 반영 (2026-10-12)
+as_of: "2026-10-12"
 basis: "서비스 기획안 v4.34 '날짜별 할 일 9종', 요구사항 명세서 v0.4 부속표 A"
 
 # 임대차 신고 대상 기준 (FR-015)
@@ -15,7 +15,13 @@ report_rule:
   hypothesis: true
 
 # 화면 맨 위에 고정하는 할 일 (FR-019): 반환보증 가입, 만기 통보, 반환 확인
+# 시작일이 아직 안 온 것도 이 자리에 두고, 화면에서 흐리게 표시한다 (정답표 Q6)
 pinned: [T5, T6, T7, T8, T9]
+
+# 목록 순서 (정답표 Q4, 2026-10-12 PO 결정)
+# 1) 맨 위로 올리는 규칙(move_to_top, move_to_top_when)에 걸린 할 일 → 2) pinned → 3) 나머지는 기한 빠른 순
+# 같은 단계 안에서는 할 일 번호 순
+order: [move_to_top, pinned, due_date]
 
 todos:
   - id: T1
@@ -34,6 +40,8 @@ todos:
       SGI: 취급 기관 사전 상담
       none: 반환보증 가입 여부 결정
     prerequisites: [T1]           # 신고 비대상이면 T1이 없으므로 계약 직후 바로 시작
+    prerequisites_skip_when:      # 비율 90% 이상이면 기한이 계약일로 당겨지므로 T1을 기다리지 않음 (정답표 Q3)
+      - {linkage: L-RATIO90}
     start: {anchor: contract_date}
     due: {anchor: balance_date, offset_days: -1}
     variants:
@@ -65,7 +73,7 @@ todos:
     detail: 입력한 보증기관 기준 (guarantors.yaml)
     start:
       anchor: loan_execution_date
-      if_no_loan: {anchor: T4.done_date, offset_days: 1}   # 대출이 없으면 전입신고 다음 날
+      if_no_loan: {anchor: T4.done_date, offset_days: 1}   # 대출이 없으면 실제 전입신고 완료일 다음 날 (정답표 Q8)
     due: {from: guarantors.yaml, key: return_guarantee_deadline}
     move_to_top_when:
       - {alert_level_gte: caution}
