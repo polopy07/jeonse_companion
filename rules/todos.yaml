@@ -74,6 +74,7 @@ todos:
     detail: 입력한 보증기관 기준 (guarantors.yaml)
     start:
       anchor: loan_execution_date
+      if_later: {anchor: T4.done_date, offset_days: 1}   # 전입신고 완료일이 대출 실행일보다 늦으면 전입신고 다음 날 (정답표 Q9)
       if_no_loan: {anchor: T4.done_date, offset_days: 1}   # 대출이 없으면 실제 전입신고 완료일 다음 날 (정답표 Q8)
     due: {from: guarantors.yaml, key: return_guarantee_deadline}
     move_to_top_when:
