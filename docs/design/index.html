@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>전동기 화면 목업</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #D9D6CF; font-family: 'IBM Plex Sans KR', sans-serif; color: #17202A; }
+  header { padding: 32px 24px 8px; max-width: 1400px; margin: 0 auto; }
+  h1 { margin: 0; font-size: 28px; }
+  p { margin: 6px 0 0; color: #3A444E; font-size: 14px; }
+  .grid { display: flex; flex-wrap: wrap; gap: 32px; padding: 24px; max-width: 1400px; margin: 0 auto; }
+  figure { margin: 0; }
+  figcaption { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+  figcaption a { color: #1D3B5C; }
+  .frame { width: 234px; overflow: hidden; border-radius: 18px; box-shadow: 0 6px 20px rgba(0,0,0,0.15); background: #F4F2EC; }
+  iframe { border: 0; width: 390px; transform: scale(0.6); transform-origin: 0 0; display: block; }
+</style>
+</head>
+<body>
+<header>
+  <h1>전동기 화면 목업</h1>
+  <p>요구사항 명세서 6.1절 UI-01~09 + 홈. 화면을 누르면 크게 열립니다. 시연 집: 부산 근저당 빌라, 담보 설정 금지 특약 "거절당함".</p>
+</header>
+<div class="grid">
+  <figure><figcaption><a href="screens/Main.dc.html">홈 · 계약 타임라인</a></figcaption><div class="frame" style="height: 506px"><iframe src="screens/Main.dc.html" style="height: 844px" title="홈"></iframe></div></figure>
+  <figure><figcaption><a href="screens/Check.dc.html">UI-01 계약 전 확인 결과</a></figcaption><div class="frame" style="height: 648px"><iframe src="screens/Check.dc.html" style="height: 1080px" title="UI-01"></iframe></div></figure>
+  <figure><figcaption><a href="screens/Detail.dc.html">UI-02 판정 상세</a></figcaption><div class="frame" style="height: 660px"><iframe src="screens/Detail.dc.html" style="height: 1100px" title="UI-02"></iframe></div></figure>
+  <figure><figcaption><a href="screens/ContractDay.dc.html">UI-03 계약 당일 체크 (동작)</a></figcaption><div class="frame" style="height: 600px"><iframe src="screens/ContractDay.dc.html" style="height: 1000px" title="UI-03"></iframe></div></figure>
+  <figure><figcaption><a href="screens/Todos.dc.html">UI-04 할 일 목록</a></figcaption><div class="frame" style="height: 600px"><iframe src="screens/Todos.dc.html" style="height: 1000px" title="UI-04"></iframe></div></figure>
+  <figure><figcaption><a href="screens/Records.dc.html">UI-05 전세 기록함 (동작)</a></figcaption><div class="frame" style="height: 540px"><iframe src="screens/Records.dc.html" style="height: 900px" title="UI-05"></iframe></div></figure>
+  <figure><figcaption><a href="screens/Timeline.dc.html">UI-06 계약 타임라인</a></figcaption><div class="frame" style="height: 600px"><iframe src="screens/Timeline.dc.html" style="height: 1000px" title="UI-06"></iframe></div></figure>
+  <figure><figcaption><a href="screens/Switch.dc.html">UI-07 갈아타기 입력</a></figcaption><div class="frame" style="height: 600px"><iframe src="screens/Switch.dc.html" style="height: 1000px" title="UI-07"></iframe></div></figure>
+  <figure><figcaption><a href="screens/Return.dc.html">UI-08 반환 대응 안내</a></figcaption><div class="frame" style="height: 624px"><iframe src="screens/Return.dc.html" style="height: 1040px" title="UI-08"></iframe></div></figure>
+  <figure><figcaption><a href="screens/Alert.dc.html">UI-09 경보 리포트</a></figcaption><div class="frame" style="height: 600px"><iframe src="screens/Alert.dc.html" style="height: 1000px" title="UI-09"></iframe></div></figure>
+</div>
+</body>
+</html>
