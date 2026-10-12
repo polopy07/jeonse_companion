@@ -14,7 +14,7 @@ body{margin:0}
 a{color:#1D3B5C}a:hover{color:#0F2338}
 </style>
 </helmet>
-<div style="width: 390px; height: 900px; box-sizing: border-box; background: #F4F2EC; font-family: 'IBM Plex Sans KR', sans-serif; color: #17202A; display: flex; flex-direction: column">
+<div style="width: 100%; max-width: 390px; height: 900px; box-sizing: border-box; background: #F4F2EC; font-family: 'IBM Plex Sans KR', sans-serif; color: #17202A; display: flex; flex-direction: column">
   <div style="padding: 20px 20px 0">
     <div style="font-weight: 700; font-size: 22px; letter-spacing: -0.5px">전세 기록함</div>
     <div style="font-size: 13px; color: #55606B; margin-top: 4px">할 일을 완료할 때 남긴 증빙이 여기 쌓여요</div>
@@ -27,8 +27,8 @@ a{color:#1D3B5C}a:hover{color:#0F2338}
 
   <sc-if value="{{ emergency }}" hint-placeholder-val="{{ false }}">
     <div style="margin: 12px 20px 0; padding: 14px 16px; background: #F6E3E3; border-radius: 14px">
-      <div style="font-size: 14px; font-weight: 700; color: #7E1717">반환보증 청구에 빠진 서류 3개</div>
-      <div style="font-size: 13px; color: #5E1A1A; margin-top: 4px; line-height: 1.6">빨간 칸부터 채우세요. 반환 대응 안내에서 다음 단계를 볼 수 있어요.</div>
+      <div style="font-size: 14px; font-weight: 700; color: #7E1717">반환보증 청구에 빠진 서류 3개 · 오늘(11.10) 기준</div>
+      <div style="font-size: 13px; color: #5E1A1A; margin-top: 4px; line-height: 1.6">잔금·전입·만기 때 생길 서류라 지금은 비어 있는 게 정상이에요. 만기에 못 돌려받으면 반환 대응 안내에서 그때 빠진 서류를 다시 대조해요.</div>
     </div>
   </sc-if>
 
