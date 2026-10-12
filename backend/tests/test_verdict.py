@@ -89,8 +89,9 @@ def test_violation(rules):
 
 
 def test_missing_official_price(rules):
-    with pytest.raises(MissingInputError):
+    with pytest.raises(MissingInputError) as e:
         check(rules, official_price=None)
+    assert e.value.code == "MISSING_OFFICIAL_PRICE"
 
 
 def test_mortgage_without_amount_is_rejected():
