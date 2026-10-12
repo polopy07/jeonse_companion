@@ -6,10 +6,12 @@ import { AppText } from '@/components/AppText';
 import { Icon, type IconName } from '@/components/Icon';
 import { Card, DashedBox } from '@/components/layout';
 import { Colors, Radius, Touch } from '@/constants/theme';
-import type { MatchedRule, SpecialTerm, UncheckedItem, VerdictLevel } from '@/data/demo';
+import type { SpecialTerm } from '@/data/demo';
+import type { MatchedRule, UncheckedItem, VerdictLevel } from '@/lib/check';
 
 /** 판정 3단계. 색만으로 구분하지 않고 아이콘과 글자를 같이 쓴다. "안전합니다"는 쓰지 않는다. */
 export const verdictStyle: Record<VerdictLevel, { label: string; fg: string; bg: string; icon: IconName }> = {
+  na: { label: '대상 아님', fg: Colors.textSub, bg: Colors.muted, icon: 'info' },
   problem: { label: '문제 항목', fg: Colors.danger, bg: Colors.dangerBg, icon: 'stop' },
   check: { label: '확인 필요', fg: Colors.caution, bg: Colors.cautionBg, icon: 'warning' },
   ok: { label: '문제 항목 없음', fg: Colors.ok, bg: Colors.primarySoft, icon: 'check' },
@@ -50,15 +52,31 @@ export function VerdictCard({ level, title, summary }: { level: VerdictLevel; ti
 }
 
 /** 0~120% 막대에 80·90·100% 구간을 칠하고 내 비율을 세로 표시로 찍는다 */
-export function RatioGauge({ ratio, children }: { ratio: number; children?: React.ReactNode }) {
+export function RatioGauge({
+  ratio,
+  isMinimum,
+  children,
+}: {
+  ratio: number;
+  /** 등기부를 올리기 전이라 근저당을 0원으로 둔 최소 추정치 */
+  isMinimum?: boolean;
+  children?: React.ReactNode;
+}) {
   const band = ratioBand(ratio);
   const at = (r: number) => `${(r / 1.2) * 100}%` as const;
   return (
     <Card padding={20} style={{ borderRadius: Radius.lg }}>
       <View style={styles.rowBetween}>
-        <AppText size={14} weight="semibold">
-          내 보증금 비율
-        </AppText>
+        <View>
+          <AppText size={14} weight="semibold">
+            내 보증금 비율
+          </AppText>
+          {isMinimum ? (
+            <AppText size={12} color={Colors.textSub} style={{ marginTop: 2 }}>
+              최소 추정치 · 등기부를 올리면 정확해져요
+            </AppText>
+          ) : null}
+        </View>
         <AppText size={30} weight="bold" color={band.color}>
           {Math.round(ratio * 100)}%
         </AppText>

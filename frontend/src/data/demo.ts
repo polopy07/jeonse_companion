@@ -4,33 +4,7 @@
  * 특약 문구는 rules/special_terms.yaml과 같다. 백엔드 API가 붙으면 이 파일 대신 응답을 쓴다. 필드 이름은 백엔드 CheckResult와 맞췄다.
  */
 
-export type VerdictLevel = 'problem' | 'check' | 'ok';
-
-export type MatchedRule = {
-  key: string;
-  label: string;
-  level: VerdictLevel;
-  explanation: string;
-  specialTerm?: string;
-};
-
-export type UncheckedItem = {
-  label: string;
-  guide: string;
-};
-
-export type CheckResult = {
-  level: VerdictLevel;
-  label: string;
-  next_step: string;
-  summary: string;
-  block_payment: boolean;
-  deposit_ratio: number;
-  estimated_price: number;
-  matched: MatchedRule[];
-  unchecked: UncheckedItem[];
-  disclaimer: string;
-};
+import { runCheckLocal, type CheckInput, type CheckView, type HousingType, type VerdictLevel } from '@/lib/check';
 
 export const house = {
   name: '수영구 ○○동 빌라 201호',
@@ -46,30 +20,87 @@ export const house = {
 /** 시연 기준 가상 날짜 */
 export const today = { label: '11.10', full: '2026.11.10' };
 
-export const checkResult: CheckResult = {
-  level: 'check',
-  label: '확인 필요',
-  next_step: '특약을 넣고 진행하세요',
+/**
+ * 시연 집 2채. 공시가격·건축물대장은 미리 매칭해 둔 값이고(MVP 범위), 등기부는 올리면 이 값으로 추출된 것처럼 보여 준다.
+ * 아파트 값은 화면 확인용 가상 값이라 시연 데이터가 정해지면 바꾼다.
+ */
+export type DemoHouse = {
+  id: string;
+  chip: string;
+  label: string;
+  address: string;
+  housing_type: HousingType;
+  depositManwon: string;
+  area: string;
+  official_price: number;
+  officialBasis: string;
+  trade_price: number | null;
+  building_violation: boolean;
+  registry: { owner: string; seizure: boolean; mortgage: boolean; mortgage_amount: number; trust: boolean; source: string[] };
+};
+
+export const demoHouses: DemoHouse[] = [
+  {
+    id: 'villa',
+    chip: '수영구 빌라',
+    label: house.name,
+    address: '부산 수영구 ○○동 ○○빌라 201호',
+    housing_type: 'row_house',
+    depositManwon: '14000',
+    area: '49.5',
+    official_price: 150_000_000,
+    officialBasis: '2026.01.01 기준',
+    trade_price: null,
+    building_violation: false,
+    registry: {
+      owner: '김○○',
+      seizure: false,
+      mortgage: true,
+      mortgage_amount: 36_000_000,
+      trust: false,
+      source: ['갑구 1 · 소유권보존 · 소유자 김○○', '을구 1 · 근저당권설정 · 채권최고액 금36,000,000원 · 근저당권자 ○○은행'],
+    },
+  },
+  {
+    id: 'apt',
+    chip: '해운대구 아파트',
+    label: '해운대구 ○○아파트 101동 1203호',
+    address: '부산 해운대구 ○○동 ○○아파트 101동 1203호',
+    housing_type: 'apartment',
+    depositManwon: '25000',
+    area: '84.9',
+    official_price: 260_000_000,
+    officialBasis: '2026.01.01 기준',
+    trade_price: 340_000_000,
+    building_violation: false,
+    registry: {
+      owner: '이○○',
+      seizure: false,
+      mortgage: false,
+      mortgage_amount: 0,
+      trust: false,
+      source: ['갑구 1 · 소유권이전 · 소유자 이○○', '을구 · 기록사항 없음'],
+    },
+  },
+];
+
+const villa = demoHouses[0];
+const villaInput: CheckInput = {
+  housing_type: villa.housing_type,
+  deposit: house.deposit,
+  official_price: villa.official_price,
+  trade_price: villa.trade_price,
+  exclusive_area: Number(villa.area),
+  registry: { seizure: false, mortgage: true, mortgage_amount: house.mortgage, trust: false },
+  trust_consent: 'unknown',
+  building_violation: false,
+  guarantor_consult: 'not_yet',
+};
+
+/** 홈에서 "결과 다시 보기"로 여는 시연 집 결과 (계약 전 확인 2026.10.09) */
+export const checkResult: CheckView = {
+  ...runCheckLocal(villaInput, `${house.name} · ${house.type}`, '2026.10.09'),
   summary: '근저당이 있는 집이에요. 아래 확인 항목과 특약 예시를 계약 당일에 챙기면 돼요.',
-  block_payment: false,
-  deposit_ratio: 0.84,
-  estimated_price: 210_000_000,
-  matched: [
-    {
-      key: 'mortgage',
-      label: '근저당 있음',
-      level: 'check',
-      explanation: '채권최고액 3,600만 원. 집이 경매로 넘어가면 은행이 내 보증금보다 먼저 받아 가요.',
-      specialTerm: '잔금일 다음 날까지 담보 설정 금지',
-    },
-  ],
-  unchecked: [
-    {
-      label: '임대인 국세·지방세 체납',
-      guide:
-        '이 서비스로는 확인할 수 없어요. 임대인에게 완납증명서를 요청하고, HUG 안심전세앱에서 임대인 위험도도 함께 조회해 보세요.',
-    },
-  ],
   disclaimer: '조회 2026.10.09 · 공시가격 2026.01.01 기준. 정보 제공이며 보증하지 않습니다.',
 };
 

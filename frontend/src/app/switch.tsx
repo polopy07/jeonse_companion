@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
+import { TextField, Toggle } from '@/components/form';
 import { Icon } from '@/components/Icon';
 import { Button, Card, Screen, SectionLabel } from '@/components/layout';
-import { Colors, Font, Radius, Touch } from '@/constants/theme';
+import { Colors, Radius } from '@/constants/theme';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -31,7 +32,7 @@ export default function SwitchScreen() {
   const gapDays = end && bal ? Math.round((end.getTime() - bal.getTime()) / DAY) : null;
 
   return (
-    <Screen title="다음 집으로 갈아타기" footer={<Button label="다음 집 계약 전 확인하기" href="/check" />}>
+    <Screen title="다음 집으로 갈아타기" footer={<Button label="다음 집 계약 전 확인하기" href="/precheck" />}>
       <AppText size={13} color={Colors.textSub} style={{ marginTop: 6 }}>
         지금 집 만기와 다음 집 잔금을 맞춰 볼게요
       </AppText>
@@ -41,15 +42,15 @@ export default function SwitchScreen() {
           지금 집
         </AppText>
         <View style={styles.fields}>
-          <Field label="만기일" value={endDate} onChange={setEndDate} />
-          <Field label="돌려받을 보증금" value={refund} onChange={setRefund} />
+          <TextField label="만기일" value={endDate} onChange={setEndDate} />
+          <TextField label="돌려받을 보증금" value={refund} onChange={setRefund} />
         </View>
         <AppText size={12} weight="bold" color={Colors.textSub} style={{ marginTop: 4 }}>
           다음 집
         </AppText>
         <View style={styles.fields}>
-          <Field label="잔금일" value={balanceDate} onChange={setBalanceDate} warn={gapDays !== null && gapDays > 0} />
-          <Field label="보증금" value={nextDeposit} onChange={setNextDeposit} />
+          <TextField label="잔금일" value={balanceDate} onChange={setBalanceDate} warn={gapDays !== null && gapDays > 0} />
+          <TextField label="보증금" value={nextDeposit} onChange={setNextDeposit} />
         </View>
       </Card>
 
@@ -95,32 +96,9 @@ export default function SwitchScreen() {
         <AppText size={13} leading={1.5} style={{ flex: 1 }}>
           지금 집 기록을 다음 계약에도 남길까요?
         </AppText>
-        <Pressable
-          accessibilityRole="switch"
-          accessibilityState={{ checked: keepRecords }}
-          onPress={() => setKeepRecords((v) => !v)}
-          hitSlop={8}
-          style={[styles.toggle, { backgroundColor: keepRecords ? Colors.primary : Colors.inputBorder }]}>
-          <View style={[styles.knob, keepRecords ? { right: 3 } : { left: 3 }]} />
-        </Pressable>
+        <Toggle value={keepRecords} onChange={setKeepRecords} label="지금 집 기록을 다음 계약에도 남기기" />
       </Card>
     </Screen>
-  );
-}
-
-function Field({ label, value, onChange, warn }: { label: string; value: string; onChange: (v: string) => void; warn?: boolean }) {
-  return (
-    <View style={{ flex: 1, gap: 4 }}>
-      <AppText size={12} color={Colors.textSub}>
-        {label}
-      </AppText>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        accessibilityLabel={label}
-        style={[styles.input, warn && { borderWidth: 1.5, borderColor: Colors.cautionStrong }]}
-      />
-    </View>
   );
 }
 
@@ -166,18 +144,6 @@ function GapChart({ end, bal }: { end: Date; bal: Date }) {
 
 const styles = StyleSheet.create({
   fields: { flexDirection: 'row', gap: 8 },
-  input: {
-    height: Touch.min,
-    borderRadius: Radius.input,
-    borderWidth: 1,
-    borderColor: Colors.inputBorder,
-    paddingHorizontal: 12,
-    fontFamily: Font.regular,
-    fontSize: 15,
-    color: Colors.text,
-    backgroundColor: Colors.card,
-    minWidth: 0,
-  },
   gapArea: { position: 'absolute', top: 0, bottom: 0, backgroundColor: '#F6DFC4', borderRadius: 6 },
   bar: { position: 'absolute', height: 24, borderRadius: 6, justifyContent: 'center', paddingLeft: 8, overflow: 'hidden' },
   hatch: { width: 14, height: 14, borderRadius: 3, backgroundColor: '#F6DFC4' },
@@ -190,6 +156,4 @@ const styles = StyleSheet.create({
     gap: 12,
     borderRadius: Radius.sm,
   },
-  toggle: { width: 48, height: 28, borderRadius: 14 },
-  knob: { position: 'absolute', top: 3, width: 22, height: 22, borderRadius: 11, backgroundColor: '#FFFFFF' },
 });

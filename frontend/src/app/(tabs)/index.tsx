@@ -13,7 +13,7 @@ const currentStage = 2;
 
 /** 홈: "지금 할 일" 1개만 크게, 보증금 비율과 기록함 현황은 작은 카드로 */
 export default function HomeScreen() {
-  const ratio = checkResult.deposit_ratio;
+  const ratio = checkResult.deposit_ratio ?? 0;
   const band = ratioBand(ratio);
   const filled = recordDocs.filter((d) => d.filled).length;
 
@@ -142,11 +142,18 @@ export default function HomeScreen() {
         </Pressable>
       </View>
 
-      <Link href="/check" style={styles.textLink}>
-        <AppText size={13} weight="semibold" color={Colors.primary}>
-          계약 전 확인 결과 다시 보기 →
-        </AppText>
-      </Link>
+      <View style={{ flexDirection: 'row', gap: 16, marginTop: 8 }}>
+        <Link href="/precheck" style={styles.textLink}>
+          <AppText size={13} weight="semibold" color={Colors.primary}>
+            새 집 계약 전 확인 →
+          </AppText>
+        </Link>
+        <Link href="/check" style={styles.textLink}>
+          <AppText size={13} weight="semibold" color={Colors.textSub}>
+            지난 확인 결과
+          </AppText>
+        </Link>
+      </View>
 
       <View style={{ flex: 1 }} />
       <Disclaimer>정보 제공이며 보증하지 않습니다 · 조회 {today.full}</Disclaimer>
@@ -175,5 +182,5 @@ const styles = StyleSheet.create({
   bar: { height: 6, borderRadius: 3, backgroundColor: Colors.track, marginTop: 8, overflow: 'hidden' },
   barFill: { height: 6, borderRadius: 3 },
   segment: { flex: 1, height: 6, borderRadius: 3 },
-  textLink: { marginTop: 16, paddingVertical: 12 },
+  textLink: { paddingVertical: 12 },
 });
