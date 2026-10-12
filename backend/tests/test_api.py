@@ -32,7 +32,9 @@ def test_create_and_get_check(client):
 def test_missing_official_price_is_422(client):
     r = client.post("/api/checks", json={"housing_type": "apartment", "deposit": EOK})
     assert r.status_code == 422
-    assert "공시가격" in r.json()["detail"]
+    detail = r.json()["detail"]
+    assert detail["code"] == "MISSING_OFFICIAL_PRICE"
+    assert "공시가격" in detail["message"]
 
 
 def test_not_applicable_needs_no_price(client):
@@ -42,4 +44,119 @@ def test_not_applicable_needs_no_price(client):
 
 
 def test_unknown_check_is_404(client):
-    assert client.get("/api/checks/999").status_code == 404
+    r = client.get("/api/checks/999")
+    assert r.status_code == 404
+    assert r.json()["detail"]["code"] == "NOT_FOUND"
+
+
+def test_invalid_input_lists_fields(client):
+    r = client.post("/api/checks", json={
+        "housing_type": "villa", "deposit": 100_000_000,
+        "registry": {"mortgage": True, "mortgage_amount": 0},
+    })
+    assert r.status_code == 422
+    detail = r.json()["detail"]
+    assert detail["code"] == "INVALID_INPUT"
+    fields = {f["field"]: f["message"] for f in detail["fields"]}
+    assert "housing_type" in fields
+    assert fields["registry"] == "근저당이 있으면 채권최고액 합계를 입력해야 합니다"
+
+
+def _detail(r):
+    d = r.json()["detail"]
+    assert set(d) == {"code", "message", "hint", "fields"}, d   # 모든 오류가 같은 모양
+    return d
+
+
+def test_invalid_input_messages_are_korean(client):
+    r = client.post("/api/checks", json={"housing_type": "villa", "registry": {"mortgage_amount": -1}})
+    assert r.status_code == 422
+    fields = {f["field"]: f["message"] for f in _detail(r)["fields"]}
+    assert fields["housing_type"] == "다음 중 하나여야 합니다: apartment, row_house, officetel, multi_household, detached"
+    assert fields["deposit"] == "필수 입력입니다"
+    assert fields["registry.mortgage_amount"] == "0 이상이어야 합니다"
+    assert fields["deposit"] != "Field required"
+
+
+def test_invalid_body_shape_has_body_field(client):
+    for r in (client.post("/api/checks", json=[]), client.post("/api/checks")):
+        assert r.status_code == 422
+        assert [f["field"] for f in _detail(r)["fields"]] == ["body"]
+    r = client.post("/api/checks", content=b'{"deposit": ', headers={"content-type": "application/json"})
+    assert r.status_code == 422
+    fields = _detail(r)["fields"]
+    assert [f["field"] for f in fields] == ["body"]
+    assert fields[0]["message"] == "JSON 형식이 올바르지 않습니다"
+
+
+def test_unknown_path_and_method_use_error_format(client):
+    r = client.get("/api/check/999")
+    assert r.status_code == 404
+    assert _detail(r)["code"] == "NOT_FOUND"
+    r = client.delete("/api/checks/1")
+    assert r.status_code == 405
+    assert _detail(r)["code"] == "METHOD_NOT_ALLOWED"
+    assert "allow" in r.headers   # 프레임워크가 붙인 헤더 유지
+
+
+def test_unhandled_exception_is_json_500(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    def boom(*a, **k):
+        raise RuntimeError("내부 오류")
+
+    monkeypatch.setattr("app.api.checks.run_check", boom)
+    r = TestClient(app, raise_server_exceptions=False).post(
+        "/api/checks", json={"housing_type": "apartment", "deposit": 100_000_000, "official_price": 200_000_000})
+    assert r.status_code == 500
+    assert r.headers["content-type"].startswith("application/json")
+    assert _detail(r)["code"] == "INTERNAL_ERROR"
+    assert "내부 오류" not in r.text   # 내부 정보를 응답에 싣지 않는다
+
+
+def test_integer_fields_say_integer(client):
+    r = client.post("/api/checks", json={"housing_type": "apartment", "deposit": 1.5, "official_price": 200_000_000})
+    assert r.status_code == 422
+    fields = {f["field"]: f["message"] for f in _detail(r)["fields"]}
+    assert fields["deposit"] == "정수로 입력하세요"
+
+
+def test_registry_file_sent_as_text_is_korean(client):
+    r = client.post("/api/registry/parse", data={"file": "not a file"})
+    assert r.status_code == 422
+    fields = {f["field"]: f["message"] for f in _detail(r)["fields"]}
+    assert fields["file"] == "파일을 올려야 합니다"
+
+
+def test_choices_and_value_error_messages():
+    from app.errors import _choices, _message
+    assert _choices("'a', 'b' or 'c'") == "a, b, c"
+    assert _choices("1 or 2") == "1, 2"
+    assert _message({"type": "literal_error", "msg": "Input should be 1 or 2", "ctx": {"expected": "1 or 2"}}) == "다음 중 하나여야 합니다: 1, 2"
+    assert _message({"type": "literal_error", "msg": "Input should be 1 or 2", "ctx": {}}) == "Input should be 1 or 2"
+    assert _message({"type": "value_error", "msg": "Value error, 근저당이 있으면 채권최고액 합계를 입력해야 합니다"}) == "근저당이 있으면 채권최고액 합계를 입력해야 합니다"
+    assert _message({"type": "value_error", "msg": "Value error, something internal"}) == "값이 올바르지 않습니다"
+
+
+def test_plain_http_exception_keeps_reason_and_logs(caplog):
+    from fastapi import FastAPI, HTTPException
+    from fastapi.testclient import TestClient
+
+    from app import errors
+
+    mini = FastAPI()
+    errors.install(mini)
+
+    @mini.get("/blocked")
+    def blocked():
+        raise HTTPException(409, "문제 항목 판정이라 패키지를 시작할 수 없습니다")
+
+    with caplog.at_level("WARNING", logger="app.errors"):
+        r = TestClient(mini).get("/blocked")
+    assert r.status_code == 409
+    d = _detail(r)
+    assert d["code"] == "HTTP_ERROR"
+    assert d["message"] == "문제 항목 판정이라 패키지를 시작할 수 없습니다"
+    assert "문제 항목 판정이라" in caplog.text

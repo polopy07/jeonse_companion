@@ -66,19 +66,19 @@
 
 | 이름 | 역할 |
 | --- | --- |
-| 황웅재 | PM 또는 PO (미정) |
-| 배승환 | PM 또는 PO (미정) |
+| 황웅재 | PO, 개발 A (백엔드·규칙) |
+| 배승환 | PM, 개발 B (프론트·검증) |
 
 ## 문서
 
 | 문서 | 최신 버전 | 위치 |
 | --- | --- | --- |
-| 서비스 기획안 | v4.34 | [`docs/plan/`](docs/plan/) |
-| 요구사항 명세서(SRS) | v0.4 (기획안 v4.34 기준) | [`docs/srs/`](docs/srs/) |
-| Use Case Diagram | SRS v0.4 5.1절 | [`docs/srs/usecase_전동기.puml`](docs/srs/usecase_전동기.puml) |
+| 서비스 기획안 | v4.35 | [`docs/plan/`](docs/plan/) |
+| 요구사항 명세서(SRS) | v0.5 (기획안 v4.35 기준) | [`docs/srs/`](docs/srs/) |
+| Use Case Diagram | SRS v0.5 5.1절 | [`docs/srs/usecase_전동기.puml`](docs/srs/usecase_전동기.puml) |
 | 화면 목업 | UI-01~09 + 홈 (모바일 390px) | [`docs/design/`](docs/design/) (`index.html`을 브라우저로 열기) |
-| 프론트엔드 | Expo + Expo Router (웹·안드로이드·iOS). 목업 10개 화면, 시연 데이터 | [`frontend/`](frontend/) (`npx expo start`) |
-| 4주 개발 계획 | 기획안 v4.34 기준 주차·담당별 상세 | [`docs/plan/4주_개발계획.md`](docs/plan/4주_개발계획.md) |
+| 프론트엔드 | Expo + Expo Router (웹·안드로이드·iOS). 목업 10개 화면, 계약 전 확인 입력, 현장 확인, 시연 데이터 | [`frontend/`](frontend/) (`npx expo start`) |
+| 4주 개발 계획 | 기획안 v4.35 기준 주차·담당별 상세 | [`docs/plan/4주_개발계획.md`](docs/plan/4주_개발계획.md) |
 | 규칙 설정 파일 | v1.0 (PO 확정). 판정·경보·연동 규칙·특약·할 일 9종·보증기관 (YAML) | [`rules/`](rules/) (`python3 rules/check_rules.py`로 검사) |
 | 백엔드 | FastAPI·PostgreSQL. 실행·테스트 방법 | [`backend/`](backend/) |
 | 작업일지 | 날짜별 | [`worklog/`](worklog/) (`YYYY-MM-DD.md`) |
@@ -97,4 +97,5 @@
 
 - 제목: `<종류>: <한국어 한 줄 요약>` (종류: `feat` / `fix` / `docs` / `refactor` / `test` / `chore`). 예: `feat: 등기부 요약 파서 뼈대 추가`
 - 본문: Summary / 변경 파일 / Test plan 세 절. PR을 열면 [템플릿](.github/pull_request_template.md)이 자동으로 채워짐
+- CI: PR마다 백엔드 테스트와 규칙 파일 검사가 자동으로 돌아감 ([`test.yml`](.github/workflows/test.yml)). 통과한 PR만 병합
 - 병합: 팀원 리뷰 후 황웅재가 병합
