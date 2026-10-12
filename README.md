@@ -54,7 +54,7 @@
 
 | 영역 | 기술 |
 | --- | --- |
-| 프론트엔드 | React 기반 모바일 웹(PWA) |
+| 프론트엔드 | Expo(React Native) 한 코드로 웹(PWA)·안드로이드·iOS, MVP 시연은 웹(PWA) |
 | 백엔드 | Python FastAPI, PostgreSQL |
 | 등기부 처리 | pdfplumber + "주요 등기사항 요약" 페이지 규칙 기반 파서 |
 | 할 일 엔진 | 규칙 기반 (기한 계산은 LLM이 아닌 규칙으로 처리) |
