@@ -26,8 +26,8 @@ Software Requirements Specification (SRS)
 </tr>
 <tr class="odd">
 <td><strong>팀원</strong></td>
-<td><p>황웅재 / [학번] / PO</p>
-<p>배승환 / [학번] / PM</p></td>
+<td><p>황웅재 / PO</p>
+<p>배승환 / PM</p></td>
 </tr>
 <tr class="even">
 <td><strong>버전</strong></td>
