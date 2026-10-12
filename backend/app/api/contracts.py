@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.engine.alert import alert_level
+from app.engine.special_terms import contract_day_guide
 from app.engine.todos import build_todos, report_required
 from app.errors import api_error, responses
 from app.models import Contract, Todo, Verdict
@@ -22,10 +23,8 @@ _TODO_FIELDS = ("contract_date", "balance_date", "end_date", "deposit", "monthly
 
 
 def shown_special_terms(linkages: list[str], rules: dict) -> set[str]:
-    """판정에 걸린 MVP 연동 규칙이 보여 주는 MVP 특약 id (계약 당일 특약 예시와 같은 기준)."""
-    mvp_linkages = {lk["id"] for lk in rules["linkage"]["rules"] if lk.get("mvp")} & set(linkages)
-    return {t["id"] for t in rules["special_terms"]["terms"]
-            if t.get("mvp") and mvp_linkages & set(t.get("shown_when", []))}
+    """계약 당일 특약 예시(GET /api/checks/{id}/special-terms)로 보여 준 특약 id. 보여 준 기준과 받는 기준을 같게."""
+    return {t.id for t in contract_day_guide(linkages, rules).terms}
 
 
 def _check_special_terms(result: dict, linkages: list[str], rules: dict) -> None:

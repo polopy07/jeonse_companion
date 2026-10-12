@@ -69,7 +69,8 @@ def _outcome(actions: list[dict], todo_titles: dict[str, str]) -> TermOutcome:
 def contract_day_guide(linkages: list[str], rules: dict) -> ContractDayGuide:
     """판정에 걸린 연동 규칙(linkages)으로 계약 당일 특약 예시와 경고를 만든다."""
     linkage_by_id = {r["id"]: r for r in rules["linkage"]["rules"]}
-    active = [linkage_by_id[i] for i in linkages if linkage_by_id[i].get("mvp")]
+    # 규칙 파일에서 없어진 연동 규칙 id(옛 판정)는 건너뛴다
+    active = [linkage_by_id[i] for i in linkages if i in linkage_by_id and linkage_by_id[i].get("mvp")]
     active_ids = [r["id"] for r in active]
     todo_titles = {t["id"]: t["title"] for t in rules["todos"]["todos"] + rules["todos"].get("extra_todos", [])}
 
