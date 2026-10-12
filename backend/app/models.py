@@ -20,6 +20,9 @@ class Contract(Base):
     __tablename__ = "contracts"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # 패키지를 시작한 판정(verdicts.id). 한 판정으로 계약 1개만 만들도록 DB가 막는다 (동시 요청 대비).
+    # verdicts.contract_id와 서로 가리키므로 외래 키는 걸지 않는다
+    check_id: Mapped[int] = mapped_column(Integer, unique=True)
     housing_type: Mapped[str] = mapped_column(String(32))
     deposit: Mapped[int] = mapped_column(Integer)
     monthly_rent: Mapped[int] = mapped_column(Integer, default=0)
@@ -44,7 +47,7 @@ class Contract(Base):
 
     todos: Mapped[list["Todo"]] = relationship(back_populates="contract", cascade="all, delete-orphan",
                                                order_by="Todo.sort_order")
-    # 첫 번째가 패키지를 시작한 판정(check_id). 계약 당일·잔금일 재비교 판정이 뒤에 붙는다 (FR-048, FR-023)
+    # 패키지를 시작한 판정(check_id)과 계약 당일·잔금일 재비교 판정 (FR-048, FR-023)
     verdicts: Mapped[list["Verdict"]] = relationship(back_populates="contract", order_by="Verdict.id")
     alerts: Mapped[list["Alert"]] = relationship(back_populates="contract", cascade="all, delete-orphan")
 
