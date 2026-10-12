@@ -101,6 +101,25 @@ export function Button({ label, onPress, href, variant = 'primary', height = Tou
   );
 }
 
+/** 여러 단계 화면 위쪽 진행 막대 ("2 / 5 · 현장 확인") */
+export function StepProgress({ current, total, label }: { current: number; total: number; label: string }) {
+  return (
+    <View style={{ marginTop: 8 }}>
+      <View style={{ flexDirection: 'row', gap: 4 }}>
+        {Array.from({ length: total }, (_, i) => (
+          <View
+            key={i}
+            style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: i <= current ? Colors.primary : Colors.inactiveDot }}
+          />
+        ))}
+      </View>
+      <AppText size={12} color={Colors.textSub} style={{ marginTop: 8 }}>
+        {current + 1} / {total} · {label}
+      </AppText>
+    </View>
+  );
+}
+
 /** 모든 결과 화면 맨 아래 고지: 조회 시점 + "정보 제공이며 보증하지 않습니다" */
 export function Disclaimer({ children, style }: { children: ReactNode; style?: ViewStyle }) {
   return (

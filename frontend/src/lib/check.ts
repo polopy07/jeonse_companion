@@ -5,9 +5,8 @@
  * rules/verdict.yaml·alert.yaml v1.0을 그대로 옮겼다. 2주차에 POST /api/checks 응답으로 바꾸고 이 계산은 지운다.
  * 입력 필드 이름은 백엔드 CheckInput과 같다.
  */
-import { useSyncExternalStore } from 'react';
-
 import { formatWon } from '@/lib/format';
+import { createStore } from '@/lib/store';
 
 export type HousingType = 'apartment' | 'row_house' | 'officetel' | 'multi_household' | 'detached';
 export type TrustConsent = 'unknown' | 'obtained' | 'unavailable';
@@ -57,6 +56,8 @@ export type UncheckedItem = { label: string; guide: string };
 /** 결과 화면(UI-01)이 그리는 값 */
 export type CheckView = {
   houseLabel: string;
+  /** 등기부 소유자 이름. 계약 당일 현장 확인에서 신분증·계좌 예금주와 대조한다 */
+  owner: string | null;
   level: VerdictLevel;
   label: string;
   next_step: string;
@@ -179,7 +180,12 @@ const uncheckedOtherDeposits: UncheckedItem = {
   guide: '등기부에 나오지 않아요. 임대인에게 다른 세대의 보증금과 계약 기간을 서면으로 받아 두세요.',
 };
 
-export function runCheckLocal(input: CheckInput, houseLabel: string, today: string): CheckView {
+export function runCheckLocal(
+  input: CheckInput,
+  houseLabel: string,
+  today: string,
+  owner: string | null = null,
+): CheckView {
   let ratio: number | null = null;
   let estimated: number | null = null;
   const formula: string[] = [];
@@ -228,6 +234,7 @@ export function runCheckLocal(input: CheckInput, houseLabel: string, today: stri
   const asOf = `조회 ${today}`;
   return {
     houseLabel,
+    owner,
     level,
     label: t.label,
     next_step: t.next_step,
@@ -243,22 +250,7 @@ export function runCheckLocal(input: CheckInput, houseLabel: string, today: stri
   };
 }
 
-// 입력 화면 → 결과 화면으로 넘기는 마지막 결과. 앱을 다시 켜면 사라진다.
-let latest: CheckView | null = null;
-const listeners = new Set<() => void>();
-
-export function setLatestCheck(view: CheckView) {
-  latest = view;
-  listeners.forEach((l) => l());
-}
-
-export function useLatestCheck() {
-  return useSyncExternalStore(
-    (l) => {
-      listeners.add(l);
-      return () => listeners.delete(l);
-    },
-    () => latest,
-    () => latest,
-  );
-}
+// 입력 화면 → 결과 화면으로 넘기는 마지막 결과
+const latestCheck = createStore<CheckView | null>(null);
+export const setLatestCheck = latestCheck.set;
+export const useLatestCheck = latestCheck.use;

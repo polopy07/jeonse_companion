@@ -1,12 +1,14 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Icon } from '@/components/Icon';
-import { Button, Card, Disclaimer, Screen } from '@/components/layout';
+import { Button, Card, Disclaimer, Screen, StepProgress } from '@/components/layout';
 import { useCopy } from '@/components/verdict';
 import { Colors, Radius, Touch } from '@/constants/theme';
-import { siteChecks, specialTerms } from '@/data/demo';
+import { siteCheckDemo, specialTerms } from '@/data/demo';
+import { siteCheckItems, useSiteCheck } from '@/lib/site-check';
 
 type Pick = 'in' | 'out';
 
@@ -15,6 +17,8 @@ export default function ContractDayScreen() {
   const term = specialTerms[0];
   const [pick, setPick] = useState<Pick>('out');
   const { copied, copy } = useCopy(term.text);
+  // 현장 확인을 거치지 않고 열면(시연) 모두 확인한 시연 값을 보여 준다
+  const items = siteCheckItems(useSiteCheck() ?? siteCheckDemo);
 
   return (
     <Screen
@@ -27,25 +31,20 @@ export default function ContractDayScreen() {
           <Button label="다음 · 계약 날짜 입력" href="/todos" />
         </>
       }>
-      <View style={{ marginTop: 8 }}>
-        <View style={{ flexDirection: 'row', gap: 4 }}>
-          {[0, 1, 2, 3, 4].map((i) => (
-            <View key={i} style={[styles.step, { backgroundColor: i < 4 ? Colors.primary : Colors.inactiveDot }]} />
-          ))}
-        </View>
-        <AppText size={12} color={Colors.textSub} style={{ marginTop: 8 }}>
-          4 / 5 · 특약 반영 기록
-        </AppText>
-      </View>
+      <StepProgress current={3} total={5} label="특약 반영 기록" />
 
-      <Card style={{ marginTop: 14, paddingVertical: 14, gap: 8, borderRadius: Radius.sm }}>
-        {siteChecks.map((c) => (
-          <View key={c} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Icon name="check" size={18} color={Colors.ok} strokeWidth={2.2} />
-            <AppText size={14}>{c}</AppText>
-          </View>
-        ))}
-      </Card>
+      <Pressable accessibilityRole="button" accessibilityLabel="현장 확인 다시 보기" onPress={() => router.navigate('/site-check')}>
+        <Card style={{ marginTop: 14, paddingVertical: 14, gap: 8, borderRadius: Radius.sm }}>
+          {items.map((c) => (
+            <View key={c.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Icon name={c.checked ? 'check' : 'info'} size={18} color={c.checked ? Colors.ok : Colors.caution} strokeWidth={2.2} />
+              <AppText size={14} color={c.checked ? Colors.text : Colors.caution} style={{ flex: 1 }}>
+                {c.checked ? c.label : `확인 안 함 · ${c.label}`}
+              </AppText>
+            </View>
+          ))}
+        </Card>
+      </Pressable>
 
       <AppText size={18} weight="bold" style={{ marginTop: 18 }}>
         이 특약, 계약서에 넣었나요?
@@ -138,7 +137,6 @@ function Change({ tag, text }: { tag: string; text: string }) {
 }
 
 const styles = StyleSheet.create({
-  step: { flex: 1, height: 4, borderRadius: 2 },
   termText: { marginTop: 12, paddingVertical: 12, paddingHorizontal: 14, backgroundColor: Colors.bg, borderRadius: Radius.input },
   pick: { flex: 1, height: Touch.primary, borderRadius: Radius.button, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   result: { marginTop: 12, padding: 16, borderRadius: Radius.card },

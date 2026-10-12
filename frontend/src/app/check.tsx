@@ -22,9 +22,9 @@ export default function CheckScreen() {
         // FR-011: 문제 항목이면 결제를 막고 계약 재검토·공공 상담 창구를 안내한다
         <Button label="공공 상담 창구 보기" href="/return" />
       ) : r.level === 'na' ? (
-        <Button label="할 일 관리로 시작 · 4,900원" href="/contract-day" />
+        <Button label="할 일 관리로 시작 · 4,900원" href="/site-check" />
       ) : (
-        <Button label="전동기 패키지로 계약 당일 준비 · 9,900원" href="/contract-day" />
+        <Button label="전동기 패키지로 계약 당일 준비 · 9,900원" href="/site-check" />
       )}
     </>
   );

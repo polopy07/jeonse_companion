@@ -121,7 +121,7 @@ export default function PrecheckScreen() {
     };
     const typeLabel = housingTypes.find((t) => t.value === housingType)?.label ?? '';
     const label = `${preset ? preset.label : address.trim()} · ${typeLabel}`;
-    setLatestCheck(runCheckLocal(input, label, todayText()));
+    setLatestCheck(runCheckLocal(input, label, todayText(), withRegistry && owner.trim() ? owner.trim() : null));
     router.push('/check');
   };
 

@@ -6,7 +6,8 @@ import { AppText } from '@/components/AppText';
 import { Icon } from '@/components/Icon';
 import { Disclaimer, Screen } from '@/components/layout';
 import { Colors, Radius } from '@/constants/theme';
-import { recordDocs, type RecordDoc } from '@/data/demo';
+import { recordDocs, siteCheckDemo, type RecordDoc } from '@/data/demo';
+import { siteCheckItems, useSiteCheck } from '@/lib/site-check';
 
 /** UI-05 전세 기록함: 평소엔 계약 기록, 비상 모드에선 청구에 빠진 서류만 빨간 칸으로 */
 export default function RecordsScreen() {
@@ -38,6 +39,8 @@ export default function RecordsScreen() {
         </Pressable>
       ) : null}
 
+      {!emergency ? <SiteCheckRecord /> : null}
+
       <View style={styles.grid}>
         {recordDocs.map((d) => (
           <DocSlot key={d.name} doc={d} emergency={emergency} />
@@ -47,6 +50,29 @@ export default function RecordsScreen() {
       <View style={{ flex: 1 }} />
       <Disclaimer>반환 확인 후 3개월 동안 보관해요. 주민등록번호는 가리고 올려 주세요.</Disclaimer>
     </Screen>
+  );
+}
+
+/** 계약 당일 현장 확인 기록 (FR-047). 체크하지 않은 항목은 "확인 안 함"으로 남긴다 */
+function SiteCheckRecord() {
+  const items = siteCheckItems(useSiteCheck() ?? siteCheckDemo);
+  const missed = items.filter((i) => !i.checked);
+  return (
+    <View style={styles.siteCheck}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <AppText size={13} weight="semibold">
+          계약 당일 현장 확인
+        </AppText>
+        <AppText size={12} weight="semibold" color={missed.length ? Colors.caution : Colors.ok}>
+          {items.length}개 중 {items.length - missed.length}개 확인
+        </AppText>
+      </View>
+      {missed.map((m) => (
+        <AppText key={m.label} size={12} color={Colors.caution} style={{ marginTop: 4 }}>
+          확인 안 함 · {m.label}
+        </AppText>
+      ))}
+    </View>
   );
 }
 
@@ -103,6 +129,15 @@ const styles = StyleSheet.create({
   },
   segmentButton: { flex: 1, height: 44, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   alert: { marginTop: 12, paddingVertical: 14, paddingHorizontal: 16, backgroundColor: Colors.dangerBg, borderRadius: Radius.sm },
+  siteCheck: {
+    marginTop: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: Colors.card,
+    borderRadius: Radius.item,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
   grid: { marginTop: 14, flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   slotBox: {
     // 3열 격자: (100% - 간격 2개) / 3

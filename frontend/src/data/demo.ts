@@ -4,6 +4,7 @@
  * 특약 문구는 rules/special_terms.yaml과 같다. 백엔드 API가 붙으면 이 파일 대신 응답을 쓴다. 필드 이름은 백엔드 CheckResult와 맞췄다.
  */
 
+import type { SiteCheckState } from '@/lib/site-check';
 import { runCheckLocal, type CheckInput, type CheckView, type HousingType, type VerdictLevel } from '@/lib/check';
 
 export const house = {
@@ -99,7 +100,7 @@ const villaInput: CheckInput = {
 
 /** 홈에서 "결과 다시 보기"로 여는 시연 집 결과 (계약 전 확인 2026.10.09) */
 export const checkResult: CheckView = {
-  ...runCheckLocal(villaInput, `${house.name} · ${house.type}`, '2026.10.09'),
+  ...runCheckLocal(villaInput, `${house.name} · ${house.type}`, '2026.10.09', villa.registry.owner),
   summary: '근저당이 있는 집이에요. 아래 확인 항목과 특약 예시를 계약 당일에 챙기면 돼요.',
   disclaimer: '조회 2026.10.09 · 공시가격 2026.01.01 기준. 정보 제공이며 보증하지 않습니다.',
 };
@@ -134,11 +135,18 @@ export const specialTerms: SpecialTerm[] = [
   },
 ];
 
-export const siteChecks = [
-  '등기부 소유자 이름 = 계약서 임대인',
-  '대리인 없음 (임대인 본인 참석)',
-  '계약금 계좌 명의 = 소유자',
-];
+/** 시연 집 계약 당일 현장 확인 (소유자 본인 참석, 모두 확인) */
+export const siteCheckDemo: SiteCheckState = {
+  attendee: 'owner',
+  idName: '김철수',
+  idChecked: true,
+  poaChecked: false,
+  sealChecked: false,
+  agentIdChecked: false,
+  ownerCallChecked: false,
+  accountHolder: '김철수',
+  accountChecked: true,
+};
 
 export type TodoStatus = 'done' | 'current' | 'upcoming' | 'later';
 
