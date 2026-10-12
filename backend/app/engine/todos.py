@@ -6,7 +6,7 @@
 - C3 월과 일이 같이 있으면 월 먼저
 - C4 주말·공휴일이어도 옮기지 않음
 - C5 반환보증 가입 마감은 guarantors.yaml의 기준 (HUG: 잔금일·전입신고일 중 늦은 날 + 계약 기간 절반)
-- C6 대출이 없으면 5번 시작일 = 실제 전입신고 완료일 + 1일
+- C6 5번 시작일 = 대출 실행일 (전입신고가 더 늦거나 대출이 없으면 실제 전입신고 완료일 + 1일)
 - C7 목록 순서는 todos.yaml의 order (맨 위 규칙 → 고정 → 기한순, 같은 단계는 번호순)
 그 밖에: 아직 끝내지 않은 할 일을 기준일로 쓸 때는 그 할 일의 기한일에 끝낸 것으로 본다.
 연동 규칙은 MVP 규칙만 적용한다 (계약 당일 특약 예시와 같은 범위).
@@ -107,7 +107,14 @@ class _Builder:
             spec = spec["if_no_loan"]
         if spec.get("from") == "guarantors.yaml":
             return shift(self.guarantee_deadline(), spec)
-        return shift(self.anchor(spec["anchor"]), spec)
+        base = self.anchor(spec["anchor"])
+        later = spec.get("if_later")
+        if later and base is not None:
+            # 기준일보다 다른 날이 늦으면 그 날 기준 (T5: 전입신고가 대출 실행보다 늦으면 전입신고 다음 날, Q9)
+            other = self.anchor(later["anchor"])
+            if other is not None and other > base:
+                return shift(other, later)
+        return shift(base, spec)
 
     # 조건 -----------------------------------------------------------------
 
