@@ -49,7 +49,8 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/engine/check.py` | 계약 전 확인: 입력 → 비율 → 판정 |
 | `app/engine/todos.py` | 할 일 9종 생성: 기한·선행 조건·순서 (todos.yaml, guarantors.yaml, linkage.yaml) |
 | `app/engine/alert.py` | 경보 단계 (alert.yaml) |
-| `app/api/checks.py` | `POST /api/checks`, `GET /api/checks/{id}` |
+| `app/engine/special_terms.py` | 판정에 맞는 특약 예시와 넣음/거절당함 결과 (special_terms.yaml, linkage.yaml) |
+| `app/api/checks.py` | `POST /api/checks`, `GET /api/checks/{id}`, `GET /api/checks/{id}/special-terms` |
 | `app/api/contracts.py` | `POST /api/contracts`, `GET /api/contracts/{id}` |
 | `app/registry/pdf.py` | 등기부 PDF → "주요 등기사항 요약" 페이지 글자 (pdfplumber) |
 | `app/registry/parser.py` | 요약 글자 → 소유자, 근저당 채권최고액, 압류 등, 신탁 (규칙 파서) |
@@ -102,6 +103,34 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - `todos`는 `sort_order` 순서다: 맨 위 규칙(특약 거절·경보, `moved_to_top`) → 고정(T5~T9, `pinned`) → 기한 빠른 순. 재알림(T6·T8)은 `due_date` 대신 `remind_date`, HF·SGI 반환보증(T5)은 기관 기준이 없어 `due_date`가 null
 - 기한 계산은 `docs/validation/기한계산_정답표.md`의 계산 약속을 따르고, `tests/test_todos.py`가 정답표(`deadline_scenarios.yaml`) S1~S10·재계산 3개와 대조한다
 - `contracts.email`, `todos`의 새 칸들을 넣었다. 예전에 만든 PostgreSQL DB는 테이블이 자동으로 바뀌지 않으니 `docker compose down -v` 후 다시 띄운다
+
+### `GET /api/checks/{id}/special-terms` 특약 예시 (FR-039)
+
+계약 당일 체크(UI-03)의 특약 화면용. 판정에 걸린 연동 규칙으로 특약 예시를 고른다.
+
+```json
+{
+  "check_id": 1,
+  "level": "check_needed",
+  "terms": [{
+    "id": "S-NO-MORTGAGE",
+    "label": "잔금일 다음 날까지 담보 설정 금지",
+    "text": "임대인은 잔금 지급일 다음 날까지 …",
+    "source": "주택임대차표준계약서 특약 예시, …",
+    "linked": [{"id": "L-MORTGAGE", "label": "근저당 있음"}],
+    "if_inserted": {"warnings": [], "documents": ["특약이 보이는 계약서 사진"], "moves_to_top": [], "adds_todos": [], "link_counsel": false},
+    "if_rejected": {"warnings": ["잔금 당일 설정되는 담보는 …"], "documents": [], "moves_to_top": [{"id": "T4", "title": "전입신고"}], "adds_todos": [], "link_counsel": false}
+  }],
+  "warnings": ["선순위 채권(근저당 채권최고액)을 반영한 내 보증금 비율을 다시 계산했습니다"],
+  "checks": [],
+  "disclaimer": "정보 제공이며 보증하지 않습니다.",
+  "rules_version": "1.1"
+}
+```
+
+- 사용자가 고른 넣음/거절당함은 `terms[].id`를 키로 `POST /api/contracts`의 `special_term_result`에 보낸다 (`inserted` / `rejected`)
+- MVP는 근저당·비율 90% 이상·신탁 연동 규칙에 연결된 특약 2개(담보 설정 금지, 보증·대출 거절 시 해제)만 나온다. 신탁은 특약 대신 `checks`에 "신탁사 동의서 확인"
+- 걸린 항목이 없으면(문제 항목 없음, 대상 아님) `terms`가 빈 목록
 
 ### `POST /api/registry/parse` 등기부 요약 추출 (FR-005·006)
 

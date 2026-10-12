@@ -115,6 +115,46 @@ class CheckResult(BaseModel):
     rules_version: str
 
 
+class TodoRefOut(BaseModel):
+    id: str = Field(description="todos.yaml id")
+    title: str
+
+
+class TermOutcomeOut(BaseModel):
+    warnings: list[str] = Field(description="보여 줄 경고")
+    documents: list[str] = Field(description="기록함에 남길 서류")
+    moves_to_top: list[TodoRefOut] = Field(description="할 일 목록 맨 위로 올라가는 할 일")
+    adds_todos: list[TodoRefOut] = Field(description="새로 생기는 할 일 (todos.yaml extra_todos)")
+    link_counsel: bool = Field(description="공공 상담 창구 안내를 붙이는지")
+
+
+class LinkedRuleOut(BaseModel):
+    id: str = Field(description="linkage.yaml id")
+    label: str
+
+
+class SpecialTermOut(BaseModel):
+    id: str = Field(description="special_terms.yaml id. POST /api/contracts의 special_term_result 키")
+    label: str
+    text: str = Field(description="계약서에 옮겨 적을 특약 문구 (복사용)")
+    source: str = Field(description="문구 출처")
+    linked: list[LinkedRuleOut] = Field(description="이 특약을 보여 주게 한 연동 규칙 (판정에 걸린 항목)")
+    if_inserted: TermOutcomeOut = Field(description="\"넣음\"을 고르면 생기는 것")
+    if_rejected: TermOutcomeOut = Field(description="\"거절당함\"을 고르면 생기는 것")
+
+
+class SpecialTermsResult(BaseModel):
+    """계약 당일 특약 예시 (FR-039). 공공 자료가 안내하는 예시이며 추천이 아니다."""
+
+    check_id: int
+    level: str = Field(description="판정 단계 (verdict.yaml levels[].id)")
+    terms: list[SpecialTermOut] = Field(description="판정에 맞는 특약 예시. 걸린 연동 규칙이 없으면 빈 목록")
+    warnings: list[str] = Field(description="연동 규칙이 계약 당일에 보여 주는 경고")
+    checks: list[str] = Field(description="연동 규칙이 계약 당일에 요구하는 확인 (예: 신탁사 동의서 확인)")
+    disclaimer: str
+    rules_version: str = Field(description="special_terms.yaml 버전")
+
+
 Guarantor = Literal["HUG", "HF", "SGI", "none"]
 SpecialTermResult = Literal["inserted", "rejected"]
 

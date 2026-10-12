@@ -98,6 +98,58 @@
         }
       }
     },
+    "/api/checks/{check_id}/special-terms": {
+      "get": {
+        "tags": [
+          "계약 전 확인"
+        ],
+        "summary": "Get Special Terms",
+        "operationId": "get_special_terms_api_checks__check_id__special_terms_get",
+        "parameters": [
+          {
+            "name": "check_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Check Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpecialTermsResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
     "/api/contracts": {
       "post": {
         "tags": [
@@ -874,6 +926,25 @@
         "title": "ErrorResponse",
         "description": "모든 오류 응답의 형식."
       },
+      "LinkedRuleOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "linkage.yaml id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "LinkedRuleOut"
+      },
       "MatchedRuleOut": {
         "properties": {
           "id": {
@@ -1097,6 +1168,164 @@
         "title": "RegistryParseResult",
         "description": "등기부 요약 추출 결과 (FR-005). 사용자가 확인·수정한 뒤 fields를 CheckInput.registry로 보낸다 (FR-006)."
       },
+      "SpecialTermOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "special_terms.yaml id. POST /api/contracts의 special_term_result 키"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "계약서에 옮겨 적을 특약 문구 (복사용)"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "문구 출처"
+          },
+          "linked": {
+            "items": {
+              "$ref": "#/components/schemas/LinkedRuleOut"
+            },
+            "type": "array",
+            "title": "Linked",
+            "description": "이 특약을 보여 주게 한 연동 규칙 (판정에 걸린 항목)"
+          },
+          "if_inserted": {
+            "$ref": "#/components/schemas/TermOutcomeOut",
+            "description": "\"넣음\"을 고르면 생기는 것"
+          },
+          "if_rejected": {
+            "$ref": "#/components/schemas/TermOutcomeOut",
+            "description": "\"거절당함\"을 고르면 생기는 것"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "text",
+          "source",
+          "linked",
+          "if_inserted",
+          "if_rejected"
+        ],
+        "title": "SpecialTermOut"
+      },
+      "SpecialTermsResult": {
+        "properties": {
+          "check_id": {
+            "type": "integer",
+            "title": "Check Id"
+          },
+          "level": {
+            "type": "string",
+            "title": "Level",
+            "description": "판정 단계 (verdict.yaml levels[].id)"
+          },
+          "terms": {
+            "items": {
+              "$ref": "#/components/schemas/SpecialTermOut"
+            },
+            "type": "array",
+            "title": "Terms",
+            "description": "판정에 맞는 특약 예시. 걸린 연동 규칙이 없으면 빈 목록"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "description": "연동 규칙이 계약 당일에 보여 주는 경고"
+          },
+          "checks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Checks",
+            "description": "연동 규칙이 계약 당일에 요구하는 확인 (예: 신탁사 동의서 확인)"
+          },
+          "disclaimer": {
+            "type": "string",
+            "title": "Disclaimer"
+          },
+          "rules_version": {
+            "type": "string",
+            "title": "Rules Version",
+            "description": "special_terms.yaml 버전"
+          }
+        },
+        "type": "object",
+        "required": [
+          "check_id",
+          "level",
+          "terms",
+          "warnings",
+          "checks",
+          "disclaimer",
+          "rules_version"
+        ],
+        "title": "SpecialTermsResult",
+        "description": "계약 당일 특약 예시 (FR-039). 공공 자료가 안내하는 예시이며 추천이 아니다."
+      },
+      "TermOutcomeOut": {
+        "properties": {
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "description": "보여 줄 경고"
+          },
+          "documents": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Documents",
+            "description": "기록함에 남길 서류"
+          },
+          "moves_to_top": {
+            "items": {
+              "$ref": "#/components/schemas/TodoRefOut"
+            },
+            "type": "array",
+            "title": "Moves To Top",
+            "description": "할 일 목록 맨 위로 올라가는 할 일"
+          },
+          "adds_todos": {
+            "items": {
+              "$ref": "#/components/schemas/TodoRefOut"
+            },
+            "type": "array",
+            "title": "Adds Todos",
+            "description": "새로 생기는 할 일 (todos.yaml extra_todos)"
+          },
+          "link_counsel": {
+            "type": "boolean",
+            "title": "Link Counsel",
+            "description": "공공 상담 창구 안내를 붙이는지"
+          }
+        },
+        "type": "object",
+        "required": [
+          "warnings",
+          "documents",
+          "moves_to_top",
+          "adds_todos",
+          "link_counsel"
+        ],
+        "title": "TermOutcomeOut"
+      },
       "TodoOut": {
         "properties": {
           "id": {
@@ -1234,6 +1463,25 @@
         ],
         "title": "TodoOut",
         "description": "할 일 1개 (todos.yaml의 T1~T9). 목록은 sort_order 순서 (맨 위 규칙 → 고정 → 기한순)."
+      },
+      "TodoRefOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "todos.yaml id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "TodoRefOut"
       },
       "UncheckedItemOut": {
         "properties": {

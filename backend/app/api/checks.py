@@ -1,4 +1,4 @@
-"""계약 전 확인 API (UC-001, FR-001~FR-010)."""
+"""계약 전 확인 API (UC-001, FR-001~FR-010)와 판정에 맞는 특약 예시 (FR-039)."""
 from dataclasses import asdict
 
 from fastapi import APIRouter, Depends
@@ -6,10 +6,11 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.engine.check import MissingInputError, run_check
+from app.engine.special_terms import contract_day_guide
 from app.errors import api_error, responses
 from app.models import Verdict
 from app.rules.loader import get_rules
-from app.schemas import CheckInput, CheckResult
+from app.schemas import CheckInput, CheckResult, SpecialTermsResult
 
 router = APIRouter(prefix="/api/checks", tags=["계약 전 확인"])
 
@@ -67,3 +68,20 @@ def get_check(check_id: int, db: Session = Depends(get_db), rules: dict = Depend
     if row is None:
         raise api_error(404, "NOT_FOUND", "판정 결과가 없습니다")
     return _to_result(row, rules)
+
+
+@router.get("/{check_id}/special-terms", response_model=SpecialTermsResult, responses=responses(404, 422))
+def get_special_terms(check_id: int, db: Session = Depends(get_db), rules: dict = Depends(get_rules)):
+    row = db.get(Verdict, check_id)
+    if row is None:
+        raise api_error(404, "NOT_FOUND", "판정 결과가 없습니다")
+    guide = contract_day_guide(row.linkages, rules)
+    return SpecialTermsResult.model_validate({
+        "check_id": row.id,
+        "level": row.level,
+        "terms": [asdict(t) for t in guide.terms],
+        "warnings": guide.warnings,
+        "checks": guide.checks,
+        "disclaimer": rules["verdict"].get("display", {}).get("disclaimer", ""),
+        "rules_version": str(rules["special_terms"]["version"]),
+    })
