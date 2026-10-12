@@ -2,7 +2,7 @@
 # (명세서 부속표 D, FR-022)
 version: "1.1"   # 1.1: 기한 정답표 PO 결정 반영 (2026-10-12)
 as_of: "2026-10-12"
-basis: "서비스 기획안 v4.34 연동 규칙표, 요구사항 명세서 v0.4 부속표 D"
+basis: "서비스 기획안 v4.35 연동 규칙표, 요구사항 명세서 v0.5 부속표 D"
 
 rules:
   - id: L-MORTGAGE
@@ -21,7 +21,7 @@ rules:
       - {action: show_warning, text: 반환보증 가입이 어려울 수 있습니다}
       - {action: show_special_term, term: S-GUARANTEE-CANCEL}
     after_contract:
-      - {action: move_before, todo: T2, before: contract_date, note: "보증기관 상담을 계약금 전으로 앞당김. 계약 당일 생성되므로 기한은 계약일 당일, T1을 기다리지 않음 (정답표 Q3)"}
+      - {action: set_due, todo: T2, anchor: contract_date, note: "보증기관 상담을 계약금 전으로 앞당김. 계약 당일 생성되므로 기한은 계약일 당일, T1을 기다리지 않음 (정답표 Q3)"}
       - {action: show_warning, text: 보증이 거절되면 계약 해제 절차를 안내합니다}
 
   - id: L-TRUST
@@ -40,7 +40,7 @@ rules:
       - {action: show_warning, text: 위반건축물은 보증이 거절될 수 있습니다}
       - {action: show_special_term, term: S-GUARANTEE-CANCEL}
     after_contract:
-      - {action: move_before, todo: T2, before: contract_date, note: 보증기관 상담을 계약금 전으로 앞당김}
+      - {action: set_due, todo: T2, anchor: contract_date, note: 보증기관 상담을 계약금 전으로 앞당김. 기한은 계약일 당일}
       - {action: escalate_verdict, to: problem, when: {field: guarantor_consult, op: "==", value: impossible}}
 
   - id: L-MULTI

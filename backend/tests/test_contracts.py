@@ -1,4 +1,7 @@
 """계약 생성 API (POST·GET /api/contracts)."""
+from app.db import get_sessionmaker
+from app.models import Verdict
+
 EOK = 100_000_000
 
 VILLA = {   # 시연 빌라: 근저당 있음, 비율 96% → 확인 필요
@@ -194,3 +197,47 @@ def test_not_applicable_contract_has_todos(client):
     assert r.json()["alert_level"] is None
     # 기한순: T2 11/30(잔금 전날), T3·T4 12/1(잔금일), T1 12/2(계약일 + 30일)
     assert [t["rule_id"] for t in r.json()["todos"]] == ["T5", "T6", "T7", "T8", "T9", "T2", "T3", "T4", "T1"]
+
+
+def _update_verdict(check_id: int, **values) -> None:
+    with get_sessionmaker()() as db:
+        row = db.get(Verdict, check_id)
+        for k, v in values.items():
+            setattr(row, k, v)
+        db.commit()
+
+
+def test_unshown_special_term_is_422(client):
+    # 근저당 없는 아파트("문제 없음")에서는 담보 설정 금지 특약을 보여 주지 않으므로 결과도 받지 않는다
+    check = _check(client, {"housing_type": "apartment", "deposit": EOK, "official_price": 3 * EOK,
+                            "registry": {"mortgage": False}})
+    assert check["linkages"] == []
+    r = client.post("/api/contracts", json={
+        "check_id": check["id"], **DATES, "special_term_result": {"S-NO-MORTGAGE": "rejected"},
+    })
+    assert r.status_code == 422
+    assert _detail(r)["fields"] == [
+        {"field": "special_term_result.S-NO-MORTGAGE", "message": "이 판정에서 안내하지 않은 특약입니다: S-NO-MORTGAGE"}]
+
+
+def test_concurrent_second_contract_is_409(client):
+    # 두 요청이 모두 "아직 안 씀"으로 읽은 경우: 늦은 쪽은 check_id unique에 막혀 409, 먼저 만든 계약은 그대로
+    check = _check(client)
+    first = client.post("/api/contracts", json={"check_id": check["id"], **DATES})
+    assert first.status_code == 201
+    _update_verdict(check["id"], contract_id=None)
+    r = client.post("/api/contracts", json={"check_id": check["id"], **DATES})
+    assert r.status_code == 409
+    d = _detail(r)
+    assert d["code"] == "CHECK_ALREADY_USED"
+    assert f"/api/contracts/{first.json()['id']}" in d["hint"]
+    assert client.get(f"/api/contracts/{first.json()['id']}").status_code == 200
+
+
+def test_outdated_level_is_409(client):
+    # 규칙 버전이 바뀌어 저장된 판정 단계를 지금 규칙에서 못 찾으면 다시 확인하라고 안내한다
+    check = _check(client)
+    _update_verdict(check["id"], level="removed_level")
+    r = client.post("/api/contracts", json={"check_id": check["id"], **DATES})
+    assert r.status_code == 409
+    assert _detail(r)["code"] == "CHECK_OUTDATED"

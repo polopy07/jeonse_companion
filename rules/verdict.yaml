@@ -4,7 +4,7 @@
 # explanation: 걸린 항목을 화면에 보여 줄 때 붙이는 쉬운 말 설명 (출시 전 법률 표현 검토 필요)
 version: "1.1"   # 1.1: 걸린 항목 설명(explanation)·확인 못 한 항목 안내(guide) 추가 (2026-10-12)
 as_of: "2026-10-12"
-basis: "서비스 기획안 v4.34 '① 맞춤 할 일' 판정표, 요구사항 명세서 v0.4 부속표 B"
+basis: "서비스 기획안 v4.35 '① 맞춤 할 일' 판정표, 요구사항 명세서 v0.5 부속표 B"
 hypothesis: true   # 판정 기준은 팀 가설
 
 levels:
@@ -28,7 +28,7 @@ levels:
         when: {field: registry.seizure, op: "==", value: true}
       - id: P-2
         label: 내 보증금 비율 100% 이상
-        explanation: 보증금과 앞선 빚을 합친 금액이 추정 집값보다 많아요. 집이 팔려도 보증금을 다 돌려받기 어려워요.
+        explanation: 보증금과 앞선 빚을 합친 금액이 추정 집값과 같거나 많아요. 집이 팔려도 보증금을 다 돌려받기 어려워요.
         when: {field: deposit_ratio, op: ">=", value: 1.0}
       - id: P-3
         label: 신탁등기인데 신탁사 동의서를 받을 수 없음
@@ -89,12 +89,12 @@ unchecked_items:
     linkage: L-TAX
   - id: U-OTHER-DEPOSITS
     label: 다가구 다른 세대의 보증금
-    guide: 등기부에 나오지 않아요. 임대인에게 다른 세대의 보증금과 계약 기간을 서면으로 받아 두세요.
+    guide: 등기부에 나오지 않아요. 임대인 동의를 받아 확정일자 부여현황을 열람하거나, 임대인에게 다른 세대의 보증금과 계약 기간을 서면으로 받아 두세요.
     applies_when: {field: housing_type, op: in, value: [multi_household, detached]}
     linkage: L-MULTI
 
 # 모든 결과 화면 공통 문구 (FR-010, NFR-014)
 display:
   disclaimer: 정보 제공이며 보증하지 않습니다.
-  forbidden_phrases: [안전합니다, 안전한 집, 문제없습니다]
+  forbidden_phrases: [안전해, 안전합, 안전한 집, 문제없]   # 말끝 대신 어간으로 막아 해요체·합니다체 모두 잡는다 ("문제 항목 없음"은 띄어 써서 걸리지 않음)
   also_show: HUG 안심전세앱의 집·임대인 위험도 조회 안내

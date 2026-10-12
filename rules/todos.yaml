@@ -2,7 +2,7 @@
 # 기한은 규칙으로만 계산한다 (LLM 사용 안 함). 잔금일·만기일이 바뀌면 연결된 기한을 모두 다시 계산한다.
 version: "1.1"   # 1.1: 기한 정답표 PO 결정 반영 (2026-10-12)
 as_of: "2026-10-12"
-basis: "서비스 기획안 v4.34 '날짜별 할 일 9종', 요구사항 명세서 v0.4 부속표 A"
+basis: "서비스 기획안 v4.35 '날짜별 할 일 9종', 요구사항 명세서 v0.5 부속표 A"
 
 # 임대차 신고 대상 기준 (FR-015)
 # 보증금 6천만 원 이하이면서 월세 30만 원 이하면 신고 비대상 → 신고 알림 대신 확정일자 알림
@@ -40,8 +40,9 @@ todos:
       SGI: 취급 기관 사전 상담
       none: 반환보증 가입 여부 결정
     prerequisites: [T1]           # 신고 비대상이면 T1이 없으므로 계약 직후 바로 시작
-    prerequisites_skip_when:      # 비율 90% 이상이면 기한이 계약일로 당겨지므로 T1을 기다리지 않음 (정답표 Q3)
+    prerequisites_skip_when:      # 기한이 계약일로 당겨지면(set_due) T1을 기다리지 않음 (정답표 Q3)
       - {linkage: L-RATIO90}
+      - {linkage: L-VIOLATION}
     start: {anchor: contract_date}
     due: {anchor: balance_date, offset_days: -1}
     variants:

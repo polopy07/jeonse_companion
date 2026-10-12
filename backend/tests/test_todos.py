@@ -102,6 +102,15 @@ def test_prerequisites(rules):
     assert s9["T2"].prerequisites == []          # 비율 90% 이상이면 T1을 기다리지 않음 (Q3)
 
 
+def test_non_mvp_linkage_does_not_change_todos(rules):
+    # 위반건축물(L-VIOLATION, MVP 밖)은 계약 당일에 안내하지 않으므로 할 일도 바꾸지 않는다
+    s1 = BY_ID["S1"]
+    plain = {t.rule_id: t for t in _build(rules, s1)}
+    violation = {t.rule_id: t for t in _build(rules, {**s1, "linkage": ["L-VIOLATION"]})}
+    assert violation["T2"].due_date == plain["T2"].due_date
+    assert violation["T2"].prerequisites == ["T1"]
+
+
 def test_moved_to_top_and_pinned(rules):
     s7 = _build(rules, BY_ID["S7"])
     assert [t.rule_id for t in s7 if t.moved_to_top] == ["T4"]    # AC-016

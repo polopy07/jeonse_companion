@@ -17,7 +17,7 @@ FILES = ["fields", "verdict", "alert", "linkage", "special_terms", "todos", "gua
 OPS = {"==", "!=", ">=", ">", "<=", "<", "in"}
 ACTIONS = {
     "show_special_term", "show_warning", "require_check", "require_document", "add_todo",
-    "move_to_top", "move_next", "move_before", "escalate_verdict", "link_counsel",
+    "move_to_top", "move_next", "set_due", "escalate_verdict", "link_counsel",
 }
 DATE_FIELDS = {"contract_date", "balance_date", "end_date", "loan_execution_date"}
 
@@ -92,8 +92,8 @@ def main():
                     errors.append(f"{where}: 없는 특약 '{d.get('term')}'")
                 if d["action"] == "escalate_verdict" and d.get("to") not in level_ids:
                     errors.append(f"{where}: 없는 판정 단계 '{d.get('to')}'")
-                if d["action"] == "move_before" and d.get("before") not in DATE_FIELDS:
-                    errors.append(f"{where}: move_before의 before는 날짜 필드여야 함")
+                if d["action"] == "set_due" and d.get("anchor") not in DATE_FIELDS:
+                    errors.append(f"{where}: set_due의 anchor는 날짜 필드여야 함")
             if "special_term" in d and d["special_term"] not in term_ids:
                 errors.append(f"{where}: 없는 특약 '{d['special_term']}'")
             if "linkage" in d and d["linkage"] not in linkage_ids:

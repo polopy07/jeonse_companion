@@ -1,5 +1,5 @@
 # 기한 계산 시나리오 정답표 (기계용). 사람이 읽는 표: 기한계산_정답표.md
-version: '0.1'
+version: '0.2'
 status: PO 결정 반영 (2026-10-12, Q1~Q8). Q1 HUG 기준은 출시 전 공식 확인
 doc: 기한계산_정답표.md
 conventions:
