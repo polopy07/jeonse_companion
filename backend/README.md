@@ -20,6 +20,14 @@ uvicorn app.main:app --reload
 
 - API 문서: http://localhost:8000/docs
 - 테이블은 서버 시작 때 자동으로 만든다 (MVP). 스키마가 자주 바뀌기 시작하면 Alembic으로 옮긴다.
+- `create_all`은 없는 테이블만 만들고 이미 있는 테이블의 칸은 바꾸지 않는다. 모델이 바뀌면(예: 금액 칸 `Integer` → `BigInteger`) 로컬 DB를 지우고 다시 띄운다 (데이터도 지워진다).
+
+  ```bash
+  docker compose down -v
+  docker compose up -d
+  ```
+
+- 금액(원) 칸은 `BigInteger`로 둔다. PostgreSQL `integer`는 최대 2,147,483,647원(약 21.4억)이라 공시가격 15.3억이 넘으면 추정 주택가격(×1.4)부터 저장되지 않는다. SQLite는 정수 크기를 가리지 않아 테스트에서 드러나지 않으니 `tests/test_money_columns.py`가 칸 형식을 따로 검사한다.
 - 배포 서버에서는 `DATABASE_URL`만 그 서버의 PostgreSQL 주소로 바꾸면 된다.
 
 ## 테스트
