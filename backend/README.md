@@ -29,6 +29,8 @@ pytest                      # 임시 SQLite 파일로 실행 (DB 설치 불필�
 TEST_DATABASE_URL=postgresql+psycopg://jeonse:jeonse@localhost:5432/jeonse_test pytest
 ```
 
+PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`)가 같은 테스트(SQLite)와 `rules/check_rules.py`를 자동으로 돌린다. 의존성은 `requirements.txt`에 버전을 정확히 고정했으니, 올릴 때는 PR로 바꾸고 CI 통과를 확인한다.
+
 ## 구조
 
 | 경로 | 내용 |
