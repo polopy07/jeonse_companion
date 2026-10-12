@@ -198,10 +198,11 @@ var Engine = (function () {
     var deadline = null, half = 0;
     if (i.guarantor === "none") { T.T5 = null; T.T6 = null; }
     else {
-      var st = i.loan ? P(i.loan_execution_date) : addDays(mi, 1);
+      var le = i.loan ? P(i.loan_execution_date) : null;
+      var st = i.loan ? (mi > le ? addDays(mi, 1) : le) : addDays(mi, 1);
       var base = mi > b ? mi : b;
       if (i.guarantor === "HUG") { half = Math.floor((e - b) / DAY / 2); deadline = addDays(base, half); }
-      T.T5 = { start: st, due: deadline, note: (i.loan ? "대출 실행일부터" : "대출 없음: 전입신고 완료 다음 날부터") + (deadline ? "" : " · 기관 기준 확인 전이라 기한 없음"), assume: !!deadline };
+      T.T5 = { start: st, due: deadline, note: (i.loan ? (mi > le ? "전입신고가 대출 실행보다 늦어 전입신고 완료 다음 날부터" : "대출 실행일부터") : "대출 없음: 전입신고 완료 다음 날부터") + (deadline ? "" : " · 기관 기준 확인 전이라 기한 없음"), assume: !!deadline };
       T.T6 = deadline ? { remind: addDays(deadline, -30), note: "5번 미완료 시", assume: true } : null;
     }
     var notice = addMonths(e, -2);
@@ -240,6 +241,7 @@ if (typeof module !== "undefined") module.exports = Engine;
     ["S1 기본형", { c: "2026-11-10", b: "2026-12-15", mi: "", e: "2028-12-14", dep: 250000000, br: "1", gu: "HUG", ln: "1", le: "2026-12-15", rn: "0", ra: "0", mg: "0", tr: "0", s1: "n", s2: "n" }],
     ["S2 신고 비대상", { c: "2026-11-03", b: "2026-11-30", mi: "", e: "2028-11-29", dep: 50000000, br: "1", gu: "none", ln: "0", le: "", rn: "0", ra: "0", mg: "0", tr: "0", s1: "n", s2: "n" }],
     ["S3 대출 없음", { c: "2026-10-20", b: "2026-11-20", mi: "", e: "2028-11-19", dep: 180000000, br: "1", gu: "HUG", ln: "0", le: "", rn: "0", ra: "0", mg: "0", tr: "0", s1: "n", s2: "n" }],
+    ["S1-R3 대출·전입 늦음", { c: "2026-11-10", b: "2026-12-15", mi: "2026-12-20", e: "2028-12-14", dep: 250000000, br: "1", gu: "HUG", ln: "1", le: "2026-12-15", rn: "0", ra: "0", mg: "0", tr: "0", s1: "n", s2: "n" }],
     ["S3-R3 전입 늦음", { c: "2026-10-20", b: "2026-11-20", mi: "2026-11-25", e: "2028-11-19", dep: 180000000, br: "1", gu: "HUG", ln: "0", le: "", rn: "0", ra: "0", mg: "0", tr: "0", s1: "n", s2: "n" }],
     ["S4 직거래", { c: "2026-12-01", b: "2027-01-05", mi: "", e: "2029-01-04", dep: 150000000, br: "0", gu: "HUG", ln: "1", le: "2027-01-05", rn: "0", ra: "0", mg: "0", tr: "0", s1: "n", s2: "n" }],
     ["S5 갱신·월말", { c: "2026-08-20", b: "2026-09-01", mi: "", e: "2028-08-31", dep: 200000000, br: "1", gu: "HUG", ln: "1", le: "2026-09-01", rn: "1", ra: "0", mg: "0", tr: "0", s1: "n", s2: "n" }],
