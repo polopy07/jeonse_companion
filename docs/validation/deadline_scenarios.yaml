@@ -655,6 +655,24 @@ recalculation:
   - T2
   - T3
   - T4
+- id: S1-R3
+  base: S1
+  change:
+    T4_done_date: '2026-12-20'
+  expected:
+    T5:
+      start: '2026-12-21'
+      due: '2027-12-20'
+    T6:
+      remind: '2027-11-20'
+  unchanged:
+  - T1
+  - T2
+  - T3
+  - T4
+  - T7
+  - T8
+  - T9
 - id: S3-R3
   base: S3
   change:
