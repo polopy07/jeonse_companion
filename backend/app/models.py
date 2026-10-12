@@ -4,7 +4,7 @@
 """
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, func
+from sqlalchemy import JSON, BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -67,6 +67,8 @@ class Verdict(Base):
     linkages: Mapped[list] = mapped_column(JSONType)         # linkage.yaml id 목록
     unchecked: Mapped[list] = mapped_column(JSONType)        # 확인 못 한 항목 (FR-010)
     rules_version: Mapped[str] = mapped_column(String(16))
+    # 단지를 주었을 때 실거래 근거 {as_of, trade_basis, nearby_jeonse} (FR-003, FR-004). 기준일을 함께 남긴다 (NFR-014)
+    market: Mapped[dict] = mapped_column(JSONType, default=dict)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -114,3 +116,32 @@ class Alert(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     contract: Mapped[Contract] = relationship(back_populates="alerts")
+
+
+class Trade(Base):
+    """실거래 1건 (공공데이터포털 API 또는 내려받은 파일, DATA-02, FR-046).
+
+    같은 거래를 다시 받아도 한 번만 저장한다 (deal_key). 받은 날짜(fetched_at)를 같이 둔다.
+    """
+
+    __tablename__ = "trades"
+    __table_args__ = (UniqueConstraint("deal_key", name="uq_trades_deal_key"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    deal_key: Mapped[str] = mapped_column(String(300))       # 같은 거래인지 가르는 값 (유형·종류·지역·단지·면적·층·날짜·금액)
+    housing_type: Mapped[str] = mapped_column(String(32))    # apartment / row_house
+    kind: Mapped[str] = mapped_column(String(8))             # trade / rent
+    lawd_cd: Mapped[str] = mapped_column(String(5), index=True)
+    umd_name: Mapped[str] = mapped_column(String(50))
+    jibun: Mapped[str | None] = mapped_column(String(30))
+    complex_name: Mapped[str] = mapped_column(String(100))
+    exclusive_area: Mapped[float] = mapped_column(Float)
+    floor: Mapped[int | None] = mapped_column(Integer)
+    deal_date: Mapped[date] = mapped_column(Date, index=True)
+    price: Mapped[int | None] = mapped_column(BigInteger)        # 매매가 (원)
+    deposit: Mapped[int | None] = mapped_column(BigInteger)      # 보증금 (원)
+    monthly_rent: Mapped[int | None] = mapped_column(BigInteger) # 월세 (원)
+    build_year: Mapped[int | None] = mapped_column(Integer)
+    cancelled: Mapped[bool] = mapped_column(Boolean, default=False)
+    source: Mapped[str] = mapped_column(String(8))            # api / file
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

@@ -1,5 +1,5 @@
 """API 입출력 형식."""
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -72,6 +72,15 @@ class RegistryParseResult(BaseModel):
     warnings: list[str]
 
 
+class ComplexInput(BaseModel):
+    """실거래를 찾을 단지 (공공데이터포털 실거래가의 이름 그대로). 시연 집은 미리 매칭해 둔다."""
+
+    lawd_cd: str = Field(pattern=r"^\d{5}$", description="법정동 시군구 코드 5자리")
+    umd_name: str = Field(min_length=1, description="법정동 이름 (예: 광안동)")
+    complex_name: str = Field(min_length=1, description="단지 이름 (아파트명·연립다세대명)")
+    jibun: str | None = Field(None, description="지번. 연립다세대는 같은 이름이 많아 필수")
+
+
 class CheckInput(BaseModel):
     """계약 전 확인 입력 (FR-001)."""
 
@@ -84,6 +93,36 @@ class CheckInput(BaseModel):
     trust_consent: Literal["unknown", "obtained", "unavailable"] = "unknown"
     building_violation: bool | None = Field(None, description="건축물대장 위반건축물 여부, 모르면 비워 둠")
     guarantor_consult: Literal["not_yet", "possible", "impossible"] = "not_yet"
+    complex: ComplexInput | None = Field(
+        None, description="주면 저장된 실거래에서 매매 실거래가(trade_price를 비워 둔 경우)와 주변 전세 시세를 찾는다. exclusive_area 필요")
+
+    @model_validator(mode="after")
+    def complex_needs_area(self):
+        if self.complex is not None:
+            if self.exclusive_area is None:
+                raise ValueError("단지로 실거래를 찾으려면 전용면적을 입력해야 합니다")
+            if self.housing_type == "row_house" and not self.complex.jibun:
+                raise ValueError("연립다세대는 지번을 입력해야 실거래를 찾을 수 있습니다")
+        return self
+
+
+class TradeBasisOut(BaseModel):
+    """추정 주택가격에 쓴 매매 실거래 (같은 단지·비슷한 면적, 가장 최근 거래)."""
+
+    price: int
+    deal_date: date
+    exclusive_area: float
+    sample_count: int = Field(description="기간 안 같은 단지·비슷한 면적 매매 건수")
+    used: bool = Field(description="공시가격 × 140%보다 낮아 추정 주택가격으로 썼는지")
+
+
+class NearbyJeonseOut(BaseModel):
+    """주변 전세 시세 (FR-004). 같은 단지·비슷한 면적의 최근 전세 거래 중앙값."""
+
+    median: int | None = Field(description="표본 부족이면 null")
+    sample_count: int
+    low_sample: bool = Field(description="3건 미만이면 true (\"표본 부족\")")
+    below_deposit: bool | None = Field(description="중앙값이 내 보증금보다 낮은지 (경보 주의 조건). 표본 부족이면 null")
 
 
 class MatchedRuleOut(BaseModel):
@@ -115,6 +154,9 @@ class CheckResult(BaseModel):
     unchecked: list[UncheckedItemOut]
     disclaimer: str
     rules_version: str
+    as_of: date | None = Field(description="실거래를 볼 때 쓴 기준일 (X-Virtual-Today가 있으면 그날). 단지를 주지 않았으면 null")
+    trade_basis: TradeBasisOut | None = Field(description="단지를 주고 매매 실거래를 찾았을 때만")
+    nearby_jeonse: NearbyJeonseOut | None = Field(description="단지를 주었을 때만")
 
 
 class TodoRefOut(BaseModel):
@@ -236,3 +278,24 @@ class ContractOut(BaseModel):
     report_required: bool = Field(description="임대차 신고 대상인지 (FR-015). 비대상이면 T1 없이 T4에서 확정일자를 함께 받는다")
     alert_level: str | None = Field(description="시작할 때의 경보 단계 (alert.yaml levels[].id), 정상이면 null")
     todos: list[TodoOut] = Field(description="할 일 목록 (sort_order 순서)")
+
+
+TradeHousingType = Literal["apartment", "row_house"]
+
+
+class TradeCollectInput(BaseModel):
+    """실거래가 수집 (관리자, FR-046). 공공데이터포털 API로 받아 저장한다."""
+
+    lawd_cd: str = Field(pattern=r"^\d{5}$", description="법정동 시군구 코드 5자리 (예: 부산 수영구)")
+    end_month: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$", description="마지막 계약년월 YYYY-MM. 이 달부터 거꾸로 months개월")
+    months: int = Field(12, ge=1, le=24, description="받을 개월 수")
+    housing_types: list[TradeHousingType] = Field(
+        default_factory=lambda: ["apartment", "row_house"], min_length=1, description="받을 주택 유형")
+
+
+class TradeCollectResult(BaseModel):
+    lawd_cd: str
+    months: list[str] = Field(description="받은 계약년월 YYYYMM (오래된 달부터)")
+    received: dict[str, int] = Field(description="\"주택 유형.거래 종류\"별 받은 건수 (apartment.trade 등)")
+    added: int = Field(description="새로 저장한 건수. 이미 있던 거래는 다시 저장하지 않는다")
+    fetched_at: datetime = Field(description="받은 시각 (기준일 고정 검증용으로 거래와 함께 저장)")

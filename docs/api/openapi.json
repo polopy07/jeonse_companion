@@ -12,15 +12,36 @@
         ],
         "summary": "Create Check",
         "operationId": "create_check_api_checks_post",
+        "parameters": [
+          {
+            "name": "x-virtual-today",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7)",
+              "title": "X-Virtual-Today"
+            },
+            "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7)"
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CheckInput"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -34,14 +55,14 @@
             }
           },
           "422": {
-            "description": "Unprocessable Content",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            }
+            },
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -314,6 +335,67 @@
         }
       }
     },
+    "/api/admin/trades": {
+      "post": {
+        "tags": [
+          "관리자"
+        ],
+        "summary": "Collect Trades",
+        "operationId": "collect_trades_api_admin_trades_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TradeCollectInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeCollectResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -447,6 +529,17 @@
             ],
             "title": "Guarantor Consult",
             "default": "not_yet"
+          },
+          "complex": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComplexInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "주면 저장된 실거래에서 매매 실거래가(trade_price를 비워 둔 경우)와 주변 전세 시세를 찾는다. exclusive_area 필요"
           }
         },
         "type": "object",
@@ -533,6 +626,41 @@
           "rules_version": {
             "type": "string",
             "title": "Rules Version"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of",
+            "description": "실거래를 볼 때 쓴 기준일 (X-Virtual-Today가 있으면 그날). 단지를 주지 않았으면 null"
+          },
+          "trade_basis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TradeBasisOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "단지를 주고 매매 실거래를 찾았을 때만"
+          },
+          "nearby_jeonse": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NearbyJeonseOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "단지를 주었을 때만"
           }
         },
         "type": "object",
@@ -549,9 +677,54 @@
           "linkages",
           "unchecked",
           "disclaimer",
-          "rules_version"
+          "rules_version",
+          "as_of",
+          "trade_basis",
+          "nearby_jeonse"
         ],
         "title": "CheckResult"
+      },
+      "ComplexInput": {
+        "properties": {
+          "lawd_cd": {
+            "type": "string",
+            "pattern": "^\\d{5}$",
+            "title": "Lawd Cd",
+            "description": "법정동 시군구 코드 5자리"
+          },
+          "umd_name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Umd Name",
+            "description": "법정동 이름 (예: 광안동)"
+          },
+          "complex_name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Complex Name",
+            "description": "단지 이름 (아파트명·연립다세대명)"
+          },
+          "jibun": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jibun",
+            "description": "지번. 연립다세대는 같은 이름이 많아 필수"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lawd_cd",
+          "umd_name",
+          "complex_name"
+        ],
+        "title": "ComplexInput",
+        "description": "실거래를 찾을 단지 (공공데이터포털 실거래가의 이름 그대로). 시연 집은 미리 매칭해 둔다."
       },
       "ContractInput": {
         "properties": {
@@ -990,6 +1163,52 @@
           "level"
         ],
         "title": "MatchedRuleOut"
+      },
+      "NearbyJeonseOut": {
+        "properties": {
+          "median": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median",
+            "description": "표본 부족이면 null"
+          },
+          "sample_count": {
+            "type": "integer",
+            "title": "Sample Count"
+          },
+          "low_sample": {
+            "type": "boolean",
+            "title": "Low Sample",
+            "description": "3건 미만이면 true (\"표본 부족\")"
+          },
+          "below_deposit": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Below Deposit",
+            "description": "중앙값이 내 보증금보다 낮은지 (경보 주의 조건). 표본 부족이면 null"
+          }
+        },
+        "type": "object",
+        "required": [
+          "median",
+          "sample_count",
+          "low_sample",
+          "below_deposit"
+        ],
+        "title": "NearbyJeonseOut",
+        "description": "주변 전세 시세 (FR-004). 같은 단지·비슷한 면적의 최근 전세 거래 중앙값."
       },
       "RegistryEntryOut": {
         "properties": {
@@ -1494,6 +1713,131 @@
           "title"
         ],
         "title": "TodoRefOut"
+      },
+      "TradeBasisOut": {
+        "properties": {
+          "price": {
+            "type": "integer",
+            "title": "Price"
+          },
+          "deal_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Deal Date"
+          },
+          "exclusive_area": {
+            "type": "number",
+            "title": "Exclusive Area"
+          },
+          "sample_count": {
+            "type": "integer",
+            "title": "Sample Count",
+            "description": "기간 안 같은 단지·비슷한 면적 매매 건수"
+          },
+          "used": {
+            "type": "boolean",
+            "title": "Used",
+            "description": "공시가격 × 140%보다 낮아 추정 주택가격으로 썼는지"
+          }
+        },
+        "type": "object",
+        "required": [
+          "price",
+          "deal_date",
+          "exclusive_area",
+          "sample_count",
+          "used"
+        ],
+        "title": "TradeBasisOut",
+        "description": "추정 주택가격에 쓴 매매 실거래 (같은 단지·비슷한 면적, 가장 최근 거래)."
+      },
+      "TradeCollectInput": {
+        "properties": {
+          "lawd_cd": {
+            "type": "string",
+            "pattern": "^\\d{5}$",
+            "title": "Lawd Cd",
+            "description": "법정동 시군구 코드 5자리 (예: 부산 수영구)"
+          },
+          "end_month": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "title": "End Month",
+            "description": "마지막 계약년월 YYYY-MM. 이 달부터 거꾸로 months개월"
+          },
+          "months": {
+            "type": "integer",
+            "maximum": 24.0,
+            "minimum": 1.0,
+            "title": "Months",
+            "description": "받을 개월 수",
+            "default": 12
+          },
+          "housing_types": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "apartment",
+                "row_house"
+              ]
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Housing Types",
+            "description": "받을 주택 유형"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lawd_cd",
+          "end_month"
+        ],
+        "title": "TradeCollectInput",
+        "description": "실거래가 수집 (관리자, FR-046). 공공데이터포털 API로 받아 저장한다."
+      },
+      "TradeCollectResult": {
+        "properties": {
+          "lawd_cd": {
+            "type": "string",
+            "title": "Lawd Cd"
+          },
+          "months": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Months",
+            "description": "받은 계약년월 YYYYMM (오래된 달부터)"
+          },
+          "received": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Received",
+            "description": "\"주택 유형.거래 종류\"별 받은 건수 (apartment.trade 등)"
+          },
+          "added": {
+            "type": "integer",
+            "title": "Added",
+            "description": "새로 저장한 건수. 이미 있던 거래는 다시 저장하지 않는다"
+          },
+          "fetched_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Fetched At",
+            "description": "받은 시각 (기준일 고정 검증용으로 거래와 함께 저장)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lawd_cd",
+          "months",
+          "received",
+          "added",
+          "fetched_at"
+        ],
+        "title": "TradeCollectResult"
       },
       "UncheckedItemOut": {
         "properties": {

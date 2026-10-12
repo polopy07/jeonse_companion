@@ -1,14 +1,17 @@
 """계약 전 확인 API (UC-001, FR-001~FR-010)와 판정에 맞는 특약 예시 (FR-039)."""
 from dataclasses import asdict
+from datetime import date
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.engine.check import MissingInputError, run_check
+from app.engine.market import ComplexKey, nearby_jeonse, pick_trade_price
 from app.engine.special_terms import contract_day_guide
 from app.errors import api_error, responses
-from app.models import Verdict
+from app.models import Trade, Verdict
 from app.rules.loader import get_rules
 from app.schemas import CheckInput, CheckResult, SpecialTermsResult
 
@@ -35,15 +38,46 @@ def _to_result(row: Verdict, rules: dict) -> CheckResult:
         unchecked=row.unchecked,
         disclaimer=rules["verdict"].get("display", {}).get("disclaimer", ""),
         rules_version=row.rules_version,
+        as_of=(row.market or {}).get("as_of"),
+        trade_basis=(row.market or {}).get("trade_basis"),
+        nearby_jeonse=(row.market or {}).get("nearby_jeonse"),
     )
 
 
+def _market(inp: CheckInput, db: Session, rules: dict, as_of: date):
+    """단지를 주었으면 저장된 실거래에서 매매 실거래가와 주변 전세 시세를 찾는다."""
+    c = inp.complex
+    key = ComplexKey(inp.housing_type, c.lawd_cd, c.umd_name, c.complex_name, c.jibun)
+    records = db.scalars(select(Trade).where(Trade.lawd_cd == c.lawd_cd, Trade.housing_type == inp.housing_type)).all()
+    return (pick_trade_price(records, key, inp.exclusive_area, as_of, rules["alert"]),
+            nearby_jeonse(records, key, inp.exclusive_area, as_of, rules["alert"]))
+
+
 @router.post("", response_model=CheckResult, status_code=201, responses=responses(422))
-def create_check(inp: CheckInput, db: Session = Depends(get_db), rules: dict = Depends(get_rules)):
+def create_check(inp: CheckInput, db: Session = Depends(get_db), rules: dict = Depends(get_rules),
+                 x_virtual_today: date | None = Header(None, description="시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7)")):
+    market: dict = {}
+    pick = nearby = None
+    if inp.complex is not None:
+        as_of = x_virtual_today or date.today()
+        pick, nearby = _market(inp, db, rules, as_of)
+        market["as_of"] = as_of.isoformat()
+        if pick is not None and inp.trade_price is None:
+            inp = inp.model_copy(update={"trade_price": pick.price})
+
     try:
         outcome = run_check(inp, rules)
     except MissingInputError as e:
         raise api_error(422, e.code, str(e), e.hint)
+
+    if pick is not None:
+        used = outcome.ratio is not None and inp.trade_price == pick.price and outcome.ratio.estimated_price == pick.price
+        market["trade_basis"] = {**asdict(pick), "deal_date": pick.deal_date.isoformat(), "used": used}
+    if nearby is not None:
+        below = None if nearby.median is None else nearby.median < inp.deposit
+        market["nearby_jeonse"] = {**asdict(nearby), "below_deposit": below}
+        outcome.values["nearby_jeonse_median"] = nearby.median
+        outcome.values["nearby_sample_count"] = nearby.sample_count
 
     v = outcome.verdict
     row = Verdict(
@@ -56,6 +90,7 @@ def create_check(inp: CheckInput, db: Session = Depends(get_db), rules: dict = D
         linkages=v.linkages,
         unchecked=v.unchecked,
         rules_version=v.rules_version,
+        market=market,
     )
     db.add(row)
     db.commit()
