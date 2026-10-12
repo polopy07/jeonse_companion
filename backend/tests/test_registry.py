@@ -113,4 +113,6 @@ def test_api_parse_result_feeds_check(client):
 def test_api_parse_failure_points_to_manual_input(client):
     r = client.post("/api/registry/parse", files={"file": ("x.pdf", b"not a pdf", "application/pdf")})
     assert r.status_code == 422
-    assert "수동 입력" in r.json()["detail"]["hint"]
+    detail = r.json()["detail"]
+    assert detail["code"] == "REGISTRY_UNREADABLE"
+    assert "수동 입력" in detail["hint"]
