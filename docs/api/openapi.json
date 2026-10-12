@@ -969,6 +969,18 @@
               }
             ],
             "title": "Linkage"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation",
+            "description": "걸린 항목의 쉬운 말 설명 (verdict.yaml). 규칙 v1.0 때 저장한 판정은 null"
           }
         },
         "type": "object",
@@ -1503,6 +1515,18 @@
               }
             ],
             "title": "Linkage"
+          },
+          "guide": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Guide",
+            "description": "직접 확인하는 방법 (verdict.yaml). 규칙 v1.0 때 저장한 판정은 null"
           }
         },
         "type": "object",

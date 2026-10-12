@@ -4,7 +4,7 @@ EOK = 100_000_000
 def test_health(client):
     r = client.get("/health")
     assert r.status_code == 200
-    assert r.json() == {"status": "ok", "rules_version": "1.0"}
+    assert r.json() == {"status": "ok", "rules_version": "1.1"}
 
 
 def test_create_and_get_check(client):
@@ -221,3 +221,27 @@ def test_special_terms_no_problem_and_not_found(client):
     r = client.get("/api/checks/999/special-terms")
     assert r.status_code == 404
     assert r.json()["detail"]["code"] == "NOT_FOUND"
+
+
+def test_check_result_has_explanations(client):
+    r = client.post("/api/checks", json={
+        "housing_type": "row_house", "deposit": 150_000_000, "official_price": 2 * EOK,
+        "registry": {"mortgage": True, "mortgage_amount": 120_000_000},
+    })
+    created = r.json()
+    explained = {m["id"]: m["explanation"] for m in created["matched"]}
+    assert explained["C-1"].startswith("집이 경매로 넘어가면")
+    assert explained["C-2"].startswith("반환보증 가입이 어려운 구간")
+    assert created["unchecked"][0]["id"] == "U-TAX"
+    assert "완납증명서" in created["unchecked"][0]["guide"]
+    assert created["rules_version"] == "1.1"
+    assert client.get(f"/api/checks/{created['id']}").json() == created
+
+
+def test_not_applicable_explanation(client):
+    r = client.post("/api/checks", json={"housing_type": "detached", "deposit": EOK})
+    created = r.json()
+    assert created["matched"][0]["id"] == "NA-1"
+    assert "다른 세대의 보증금" in created["matched"][0]["explanation"]
+    assert [u["id"] for u in created["unchecked"]] == ["U-TAX", "U-OTHER-DEPOSITS"]
+    assert all(u["guide"] for u in created["unchecked"])

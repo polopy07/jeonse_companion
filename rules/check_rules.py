@@ -41,6 +41,18 @@ def walk(node, path=""):
             yield from walk(v, f"{path}[{i}]")
 
 
+def walk_text(node, path=""):
+    """모든 문자열 값과 그 위치."""
+    if isinstance(node, dict):
+        for k, v in node.items():
+            yield from walk_text(v, f"{path}.{k}" if path else str(k))
+    elif isinstance(node, list):
+        for i, v in enumerate(node):
+            yield from walk_text(v, f"{path}[{i}]")
+    elif isinstance(node, str):
+        yield path, node
+
+
 def main():
     errors = []
     data = load()
@@ -101,6 +113,25 @@ def main():
         for p in tid.get("prerequisites", []):
             if p not in todo_ids:
                 errors.append(f"todos.yaml:{tid['id']}: 없는 선행 할 일 '{p}'")
+
+    # 걸린 항목 설명·확인 못 한 항목 안내 (화면 문구)
+    for lv in data["verdict"]["levels"]:
+        for r in lv.get("rules", []):
+            if not r.get("explanation"):
+                errors.append(f"verdict.yaml:{r['id']}: explanation 없음")
+    for u in data["verdict"].get("unchecked_items", []):
+        if not u.get("guide"):
+            errors.append(f"verdict.yaml:{u['id']}: guide 없음")
+
+    # 화면에 나가는 문구에 쓰지 않는 표현 (NFR-014, verdict.yaml display.forbidden_phrases)
+    forbidden = data["verdict"].get("display", {}).get("forbidden_phrases", [])
+    for name, doc in data.items():
+        for path, text in walk_text(doc):
+            if path.endswith("forbidden_phrases") or "forbidden_phrases[" in path:
+                continue
+            for phrase in forbidden:
+                if phrase in text:
+                    errors.append(f"{name}.yaml:{path}: 쓰지 않는 표현 '{phrase}'")
 
     mvp_linkage = [r["id"] for r in data["linkage"]["rules"] if r.get("mvp")]
     mvp_terms = [t["id"] for t in data["special_terms"]["terms"] if t.get("mvp")]

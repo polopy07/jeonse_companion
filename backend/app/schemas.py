@@ -91,12 +91,14 @@ class MatchedRuleOut(BaseModel):
     label: str
     level: str
     linkage: str | None = None
+    explanation: str | None = Field(None, description="걸린 항목의 쉬운 말 설명 (verdict.yaml). 규칙 v1.0 때 저장한 판정은 null")
 
 
 class UncheckedItemOut(BaseModel):
     id: str
     label: str
     linkage: str | None = None
+    guide: str | None = Field(None, description="직접 확인하는 방법 (verdict.yaml). 규칙 v1.0 때 저장한 판정은 null")
 
 
 class CheckResult(BaseModel):
