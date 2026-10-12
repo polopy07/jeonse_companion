@@ -50,6 +50,10 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/engine/check.py` | 계약 전 확인: 입력 → 비율 → 판정 |
 | `app/engine/todos.py` | 할 일 9종 생성: 기한·선행 조건·순서 (todos.yaml, guarantors.yaml, linkage.yaml) |
 | `app/engine/alert.py` | 경보 단계 (alert.yaml) |
+| `app/engine/market.py` | 같은 단지·비슷한 면적의 최근 매매가, 주변 전세 시세 중앙값 (alert.yaml) |
+| `app/trades/client.py` | 공공데이터포털 실거래가 API 4종 호출·응답 해석 |
+| `app/trades/collect.py` | 실거래 수집·저장 (같은 거래는 한 번만) |
+| `app/api/admin.py` | `POST /api/admin/trades` |
 | `app/engine/special_terms.py` | 판정에 맞는 특약 예시와 넣음/거절당함 결과 (special_terms.yaml, linkage.yaml) |
 | `app/api/checks.py` | `POST /api/checks`, `GET /api/checks/{id}`, `GET /api/checks/{id}/special-terms` |
 | `app/api/contracts.py` | `POST /api/contracts`, `GET /api/contracts/{id}` |
@@ -104,6 +108,27 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - `todos`는 `sort_order` 순서다: 맨 위 규칙(특약 거절·경보, `moved_to_top`) → 고정(T5~T9, `pinned`) → 기한 빠른 순. 재알림(T6·T8)은 `due_date` 대신 `remind_date`, HF·SGI 반환보증(T5)은 기관 기준이 없어 `due_date`가 null
 - 기한 계산은 `docs/validation/기한계산_정답표.md`의 계산 약속을 따르고, `tests/test_todos.py`가 정답표(`deadline_scenarios.yaml`) S1~S10·재계산 3개와 대조한다
 - `contracts.email`, `todos`의 새 칸들을 넣었다. 예전에 만든 PostgreSQL DB는 테이블이 자동으로 바뀌지 않으니 `docker compose down -v` 후 다시 띄운다
+
+### `POST /api/admin/trades` 실거래가 수집 (FR-046)
+
+공공데이터포털 인증키가 있어야 한다 (`.env.example`). 시연 집이 있는 구를 한 번 받아 두면 판정·검증은 저장본으로 한다.
+
+```json
+{"lawd_cd": "26500", "end_month": "2026-10", "months": 12, "housing_types": ["apartment", "row_house"]}
+```
+
+응답: 받은 달(`months`), 유형·종류별 받은 건수(`received`), 새로 저장한 건수(`added`), 받은 시각(`fetched_at`). 같은 거래는 다시 받아도 한 번만 저장하고, 나중에 해제 신고되면 해제 표시만 고친다.
+
+`POST /api/checks`에 `complex`를 함께 보내면 저장된 거래에서 찾는다.
+
+```json
+"complex": {"lawd_cd": "26500", "umd_name": "광안동", "complex_name": "○○빌라", "jibun": "45-6"}
+```
+
+- 매매 실거래가: 같은 단지·전용면적 ±10%·기준일 이전 12개월 안의 가장 최근 매매(해제 신고 제외). `trade_price`를 직접 보내면 그 값을 쓴다
+- 주변 전세 시세: 같은 조건의 전세(월세 0원) 보증금 중앙값. 3건 미만이면 표본 부족
+- 기준일은 오늘, `X-Virtual-Today` 헤더가 있으면 그날. 응답 `as_of`에 남는다
+- 연립다세대는 같은 이름이 많아 지번(`jibun`)이 필요하다
 
 ### `GET /api/checks/{id}/special-terms` 특약 예시 (FR-039)
 
