@@ -7,6 +7,10 @@ from pydantic import BaseModel, Field, model_validator
 HousingType = Literal["apartment", "row_house", "officetel", "multi_household", "detached"]
 
 
+# 금액 입력 상한 1조 원. 이보다 크면 DB(BigInteger)에 닿기 전에 422로 막는다
+MONEY_MAX = 10**12
+
+
 class ErrorField(BaseModel):
     field: str
     message: str
@@ -30,7 +34,7 @@ class RegistryInput(BaseModel):
 
     seizure: bool = False
     mortgage: bool = False
-    mortgage_amount: int = Field(0, ge=0, description="근저당 채권최고액 합계 (원)")
+    mortgage_amount: int = Field(0, ge=0, le=MONEY_MAX, description="근저당 채권최고액 합계 (원)")
     trust: bool = False
 
     @model_validator(mode="after")
@@ -76,9 +80,9 @@ class CheckInput(BaseModel):
     """계약 전 확인 입력 (FR-001)."""
 
     housing_type: HousingType
-    deposit: int = Field(gt=0, description="보증금 (원)")
-    official_price: int | None = Field(None, gt=0, description="공동주택 공시가격 (원)")
-    trade_price: int | None = Field(None, gt=0, description="같은 단지·비슷한 면적 매매 실거래가 (원)")
+    deposit: int = Field(gt=0, le=MONEY_MAX, description="보증금 (원)")
+    official_price: int | None = Field(None, gt=0, le=MONEY_MAX, description="공동주택 공시가격 (원)")
+    trade_price: int | None = Field(None, gt=0, le=MONEY_MAX, description="같은 단지·비슷한 면적 매매 실거래가 (원)")
     exclusive_area: float | None = Field(None, gt=0, description="전용면적 (㎡)")
     registry: RegistryInput | None = Field(None, description="등기부를 올리기 전이면 비워 둠")
     trust_consent: Literal["unknown", "obtained", "unavailable"] = "unknown"
@@ -129,7 +133,7 @@ class ContractInput(BaseModel):
     contract_date: date = Field(description="계약일")
     balance_date: date = Field(description="잔금일")
     end_date: date = Field(description="만기일")
-    monthly_rent: int = Field(0, ge=0, description="월세 (원, 전세면 0)")
+    monthly_rent: int = Field(0, ge=0, le=MONEY_MAX, description="월세 (원, 전세면 0)")
     loan: bool = Field(False, description="전세대출 유무")
     loan_execution_date: date | None = Field(None, description="대출 실행일, 모르면 비워 둠")
     guarantor: Guarantor = Field("none", description="보증기관 (미가입은 none)")

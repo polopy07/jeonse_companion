@@ -67,3 +67,24 @@ def test_alert_with_big_estimated_price(client):
         db.add(Alert(contract_id=contract["id"], level=None, estimated_price=28 * EOK, deposit_ratio=0.8929))
         db.commit()
         assert db.query(Alert).one().estimated_price == 28 * EOK
+
+
+def test_amount_over_limit_is_422(client):
+    # 1조 원을 넘는 금액은 DB에 닿기 전에 422 (BigInteger 범위를 넘으면 저장 때 500이 났다)
+    huge = 10**19
+    cases = [
+        ("/api/checks", {**BIG_APARTMENT, "official_price": huge}, "official_price"),
+        ("/api/checks", {"housing_type": "detached", "deposit": huge}, "deposit"),
+        ("/api/checks", {**BIG_APARTMENT, "trade_price": huge}, "trade_price"),
+        ("/api/checks", {**BIG_APARTMENT, "registry": {"mortgage": True, "mortgage_amount": huge}}, "registry.mortgage_amount"),
+    ]
+    for path, body, field in cases:
+        r = client.post(path, json=body)
+        assert r.status_code == 422, (field, r.text)
+        fields = {f["field"]: f["message"] for f in r.json()["detail"]["fields"]}
+        assert fields[field] == "1,000,000,000,000 이하여야 합니다"
+
+    check = client.post("/api/checks", json=BIG_APARTMENT).json()
+    r = client.post("/api/contracts", json={"check_id": check["id"], **DATES, "monthly_rent": huge})
+    assert r.status_code == 422
+    assert r.json()["detail"]["fields"] == [{"field": "monthly_rent", "message": "1,000,000,000,000 이하여야 합니다"}]
