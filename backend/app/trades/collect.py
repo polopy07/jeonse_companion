@@ -59,6 +59,7 @@ def save(db: Session, records: list[TradeRecord], source: str, fetched_at: datet
     for key, r in keys.items():
         if key in existing:
             existing[key].cancelled = r.cancelled
+            existing[key].contract_type = r.contract_type
             continue
         db.add(Trade(deal_key=key, source=source, fetched_at=fetched_at, **r.__dict__))
         added += 1

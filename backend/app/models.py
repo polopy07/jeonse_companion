@@ -149,5 +149,6 @@ class Trade(Base):
     monthly_rent: Mapped[int | None] = mapped_column(BigInteger) # 월세 (원)
     build_year: Mapped[int | None] = mapped_column(Integer)
     cancelled: Mapped[bool] = mapped_column(Boolean, default=False)
+    contract_type: Mapped[str | None] = mapped_column(String(8))   # 전월세: 신규 / 갱신 / null
     source: Mapped[str] = mapped_column(String(8))            # api / file
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

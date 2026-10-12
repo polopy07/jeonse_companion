@@ -74,13 +74,14 @@ def pick_trade_price(records, key: ComplexKey, area: float, as_of: date, alert_r
 
 
 def nearby_jeonse(records, key: ComplexKey, area: float, as_of: date, alert_rules: dict) -> NearbyJeonse:
-    """같은 단지·비슷한 면적의 최근 전세 거래 중앙값 (FR-004). 3건 미만이면 표본 부족."""
+    """같은 단지·비슷한 면적의 최근 전세 거래 중앙값 (FR-004). 3건 미만이면 표본 부족. 갱신 계약은 뺀다."""
     cfg = alert_rules["nearby_jeonse"]
     if cfg["statistic"] != "median":
         raise ValueError(f"alert.yaml: 알 수 없는 statistic {cfg['statistic']}")
     rents = [
         r for r in _window(records, key, area, cfg["similar_area_tolerance"], as_of, cfg["lookback_months"])
         if r.kind == "rent" and r.deposit and not (cfg.get("jeonse_only") and r.monthly_rent)
+        and not (cfg.get("exclude_renewal") and r.contract_type == "갱신")
     ]
     if len(rents) < cfg["min_sample"]:
         return NearbyJeonse(median=None, sample_count=len(rents), low_sample=True)

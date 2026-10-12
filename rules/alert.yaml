@@ -27,6 +27,7 @@ nearby_jeonse:
   min_sample: 3        # 3건 미만이면 "표본 부족" (PO 확정 2026-10-07, 명세서 FR-004)
   lookback_months: 12  # 기준일부터 12개월 안의 거래만 (PO 결정 2026-10-12)
   jeonse_only: true    # 월세 0원인 거래만 전세로 봄
+  exclude_renewal: true  # 갱신 계약은 5% 상한 때문에 시세보다 낮게 나오기 쉬워 뺌. 신규·공백만 사용 (PO 결정 2026-10-12)
   similar_area_tolerance: 0.1
   statistic: median
   hypothesis: false

@@ -119,7 +119,7 @@ def _r(key: ComplexKey, kind: str, d: date, area=84.97, price=None, deposit=None
                        umd_name=kw.get("umd", key.umd_name), jibun=kw.get("jibun", key.jibun),
                        complex_name=kw.get("name", key.complex_name), exclusive_area=area, floor=1,
                        deal_date=d, price=price, deposit=deposit, monthly_rent=rent if kind == "rent" else None,
-                       build_year=None, cancelled=cancelled)
+                       build_year=None, cancelled=cancelled, contract_type=kw.get("ctype"))
 
 
 def test_pick_latest_trade(rules):
@@ -148,6 +148,7 @@ def test_nearby_jeonse_median_and_low_sample(rules):
         _r(VILLA, "rent", d, area=50.0, deposit=120 * 10**6),
         _r(VILLA, "rent", d, area=49.0, deposit=20 * 10**6, rent=450_000),           # 월세는 빼기
         _r(VILLA, "rent", d, area=49.5, deposit=110 * 10**6, jibun="99-1"),           # 다른 지번
+        _r(VILLA, "rent", d, area=49.5, deposit=90 * 10**6, ctype="갱신"),            # 갱신 계약은 빼기
     ]
     low = nearby_jeonse(records, VILLA, 49.5, date(2026, 10, 12), rules["alert"])
     assert (low.median, low.sample_count, low.low_sample) == (None, 2, True)
@@ -305,6 +306,8 @@ def test_parse_real_responses():
     assert sum(r.cancelled for r in apt) == 1                        # 더샵남천프레스티지 두 건 중 한 건 해제
     rh_rent = _real("rh_rent", "row_house", "rent")
     assert [(r.deposit, r.monthly_rent) for r in rh_rent if r.complex_name == "드림밸리빌"] == [(50_000_000, 0)]
+    assert {r.complex_name: r.contract_type for r in rh_rent}["아진펠리스A,B"] == "신규"
+    assert {r.complex_name: r.contract_type for r in rh_rent}["드림밸리빌"] is None   # 공백
     assert {r.complex_name for r in _real("rh_trade", "row_house", "trade")} >= {"광성연립"}
     assert len(_real("apt_rent", "apartment", "rent")) == 5
 

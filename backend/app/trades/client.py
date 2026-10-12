@@ -50,6 +50,7 @@ class TradeRecord:
     monthly_rent: int | None     # 월세 (원)
     build_year: int | None
     cancelled: bool              # 해제 신고된 매매
+    contract_type: str | None = None   # 전월세 계약 구분: 신규 / 갱신 / None(공백)
 
 
 def _text(item: ET.Element, tag: str) -> str | None:
@@ -110,6 +111,7 @@ def parse_response(xml_text: str, housing_type: str, kind: str, lawd_cd: str) ->
             monthly_rent=_manwon(_text(item, "monthlyRent")) if kind == "rent" else None,
             build_year=_int(_text(item, "buildYear")),
             cancelled=kind == "trade" and (_text(item, "cdealType") or "").upper() == "O",
+            contract_type=_text(item, "contractType") if kind == "rent" else None,
         ))
     return records, total
 
