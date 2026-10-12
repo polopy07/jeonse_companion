@@ -134,8 +134,8 @@ A = 개발 A(백엔드·규칙), B = 개발 B(화면). 주차는 노션 "할 일
 | `POST /api/checks` | 계약 전 확인: 입력 → 추정 주택가격·내 보증금 비율 → 판정. 결과 저장 | FR-001~003, 009~010 | UI-01, UI-02 |
 | `GET /api/checks/{id}` | 저장된 판정 결과 | FR-009 | UI-02 |
 | `POST /api/registry/parse` | 등기부 PDF → 요약 추출 결과 (저장 안 함). `fields`를 확인·수정해 `POST /api/checks`의 `registry`로 보낸다 | FR-005~006 | UI-01 |
-| `POST /api/contracts` | 패키지 시작: `check_id` + 계약 조건(계약일·잔금일·만기일·월세·대출·보증기관·중개·갱신·공동 계약·알림 이메일) + 특약 넣음/거절당함 → 계약 생성. 주택 유형·보증금·공시가격·전용면적은 판정 입력에서 가져온다. "문제 항목" 판정이면 409 `CHECK_BLOCKED`, 이미 계약을 만든 판정이면 409 `CHECK_ALREADY_USED`. 할 일 생성은 아직 안 함 (2주차에 추가) | FR-011, 014, 049 | UI-03 |
-| `GET /api/contracts/{id}` | 계약 정보 | FR-014 | UI-03 |
+| `POST /api/contracts` | 패키지 시작: `check_id` + 계약 조건(계약일·잔금일·만기일·월세·대출·보증기관·중개·갱신·공동 계약·알림 이메일) + 특약 넣음/거절당함 → 계약 생성. 주택 유형·보증금·공시가격·전용면적은 판정 입력에서 가져온다. "문제 항목" 판정이면 409 `CHECK_BLOCKED`, 이미 계약을 만든 판정이면 409 `CHECK_ALREADY_USED`. 계약을 만들면서 할 일 9종도 생성해 응답 `todos`에 순서대로 넣는다 (신고 대상 판별·조건별 분기·우선 노출·선행 조건, `rules/todos.yaml`). 응답에 `report_required`(신고 대상), `alert_level`(시작할 때의 경보 단계)도 넣는다 | FR-011, 014~015, 017~020, 049 | UI-03, UI-04 |
+| `GET /api/contracts/{id}` | 계약 정보와 할 일 목록 | FR-014, 017 | UI-03, UI-04 |
 
 입출력 예시는 `backend/README.md`, 전체 형식은 `openapi.json`.
 
@@ -144,10 +144,9 @@ A = 개발 A(백엔드·규칙), B = 개발 B(화면). 주차는 노션 "할 일
 | 메서드·주소 | 하는 일 | FR | 화면 | 주차 |
 | --- | --- | --- | --- | --- |
 | `GET /api/checks/{id}/special-terms` | 판정에 걸린 연동 규칙에 맞는 공공 자료 특약 예시 | FR-039 | UI-02, UI-03 | 2 |
-| `POST /api/contracts` (할 일 생성 추가) | 계약을 만들 때 할 일 9종도 생성: 신고 대상 판별·조건별 분기·우선 노출·선행 조건 | FR-015, 017~020 | UI-03 | 2 |
 | `PATCH /api/contracts/{id}` | 날짜 변경 → 할 일 재계산, 특약 넣음/거절당함 기록 → 할 일 분기, 계약 무산 (`status: "cancelled"`) | FR-016, 021, 049~050 | UI-03, UI-04 | 2~3 |
 | `POST /api/contracts/{id}/registry-compare` | 계약 당일·잔금일 등기부를 다시 올려 점검 때와 비교, 바뀐 항목 표시 | FR-023, 048 | UI-03 | 3 |
-| `GET /api/contracts/{id}/todos` | 할 일 목록 (기한·선행 조건·우선 노출 순서) | FR-017~020, 040 | UI-04 | 3 |
+| `GET /api/contracts/{id}/todos` | 할 일 목록에 오늘 기준 상태(시작 전·진행 중·지남)를 더해서. 그 전까지는 `GET /api/contracts/{id}`의 `todos`를 쓴다 | FR-040 | UI-04 | 3 |
 | `PATCH /api/todos/{id}` | 완료 체크, "나중에 올리기" | FR-029~030 | UI-04 | 3 |
 | `POST /api/todos/{id}/evidence` | 증빙 사진 올리기 → 할 일 완료 | FR-029, 031 | UI-05 | 3 |
 | `DELETE /api/todos/{id}/evidence` | 증빙 삭제 | FR-033 | UI-05 | 3 |

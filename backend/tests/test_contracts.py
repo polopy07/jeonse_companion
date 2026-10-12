@@ -140,3 +140,57 @@ def test_unknown_special_term_is_422(client):
     d = _detail(r)
     assert d["code"] == "INVALID_INPUT"
     assert d["fields"] == [{"field": "special_term_result.S-UNKNOWN", "message": "규칙 파일에 없는 특약입니다: S-UNKNOWN"}]
+
+
+def test_contract_creates_todos(client):
+    # 시연 빌라: 근저당·비율 96% → L-MORTGAGE·L-RATIO90, 경보 "경고". 담보 설정 금지 특약 거절당함 (AC-016)
+    check = _check(client)
+    r = client.post("/api/contracts", json={
+        "check_id": check["id"], **DATES,
+        "loan": True, "loan_execution_date": "2026-12-01", "guarantor": "HUG",
+        "special_term_result": {"S-NO-MORTGAGE": "rejected"},
+    })
+    assert r.status_code == 201, r.text
+    created = r.json()
+    assert created["report_required"] is True
+    assert created["alert_level"] == "warning"
+
+    todos = created["todos"]
+    # 맨 위 규칙(T4 특약 거절, T5 경보) → 고정(T6~T9) → 기한순(T2 계약일, T3 잔금일, T1 계약일+30일)
+    assert [t["rule_id"] for t in todos] == ["T4", "T5", "T6", "T7", "T8", "T9", "T2", "T3", "T1"]
+    assert [t["sort_order"] for t in todos] == list(range(1, 10))
+    by_id = {t["rule_id"]: t for t in todos}
+    assert by_id["T4"]["moved_to_top"] and by_id["T5"]["moved_to_top"]
+    assert by_id["T2"]["due_date"] == "2026-11-02"            # 비율 90% 이상: 계약일 당일 (Q3)
+    assert by_id["T2"]["prerequisites"] == []
+    assert by_id["T3"]["required_checks"] == ["근저당 금액 변동 비교 (필수)"]
+    assert by_id["T5"]["due_date"] == "2027-12-01"            # 잔금일 + 729일 ÷ 2
+    assert by_id["T6"]["remind_date"] == "2027-11-01"
+    assert by_id["T6"]["due_date"] is None
+    assert all(t["status"] == "todo" and t["rules_version"] == "1.1" for t in todos)
+
+    r = client.get(f"/api/contracts/{created['id']}")
+    assert r.json()["todos"] == todos
+
+
+def test_report_exempt_contract(client):
+    # 보증금 6천만 원 이하·월세 30만 원 이하: T1 없이 T2가 바로 시작 (AC-018). 보증 미가입이면 T5·T6 없음
+    check = _check(client, {"housing_type": "apartment", "deposit": 50_000_000, "official_price": 2 * EOK,
+                            "registry": {}})
+    r = client.post("/api/contracts", json={"check_id": check["id"], **DATES, "monthly_rent": 300_000})
+    assert r.status_code == 201, r.text
+    created = r.json()
+    assert created["report_required"] is False
+    assert created["alert_level"] is None
+    ids = [t["rule_id"] for t in created["todos"]]
+    assert ids == ["T7", "T8", "T9", "T2", "T3", "T4"]
+    assert created["todos"][3]["prerequisites"] == []
+
+
+def test_not_applicable_contract_has_todos(client):
+    check = _check(client, {"housing_type": "multi_household", "deposit": EOK})
+    r = client.post("/api/contracts", json={"check_id": check["id"], **DATES, "guarantor": "HUG"})
+    assert r.status_code == 201, r.text
+    assert r.json()["alert_level"] is None
+    # 기한순: T2 11/30(잔금 전날), T3·T4 12/1(잔금일), T1 12/2(계약일 + 30일)
+    assert [t["rule_id"] for t in r.json()["todos"]] == ["T5", "T6", "T7", "T8", "T9", "T2", "T3", "T4", "T1"]

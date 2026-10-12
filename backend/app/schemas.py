@@ -151,6 +151,26 @@ class ContractInput(BaseModel):
         return self
 
 
+class TodoOut(BaseModel):
+    """할 일 1개 (todos.yaml의 T1~T9). 목록은 sort_order 순서 (맨 위 규칙 → 고정 → 기한순)."""
+
+    id: int
+    rule_id: str = Field(description="todos.yaml id (T1~T9)")
+    title: str
+    detail: str | None = Field(description="보증기관·직거래·갱신 계약 등에 따라 바뀌는 안내")
+    start_date: date | None
+    due_date: date | None = Field(description="기한. 기관 기준이 아직 없으면 null (HF·SGI 반환보증)")
+    remind_date: date | None = Field(description="재알림(T6, T8)의 알림일. 다른 할 일은 null")
+    prerequisites: list[str] = Field(description="먼저 끝내야 하는 할 일 rule_id")
+    required_checks: list[str] = Field(description="연동 규칙이 붙인 필수 확인 (예: 근저당 금액 변동 비교)")
+    evidence: str | None = Field(description="완료 증빙으로 올릴 것")
+    pinned: bool = Field(description="맨 위 고정 할 일 (T5~T9). 시작일 전이면 화면에서 흐리게")
+    moved_to_top: bool = Field(description="특약 거절·경보로 맨 위에 올린 할 일")
+    sort_order: int
+    status: str = Field(description="todo / done / skipped")
+    rules_version: str
+
+
 class ContractOut(BaseModel):
     id: int
     check_id: int
@@ -171,3 +191,6 @@ class ContractOut(BaseModel):
     co_tenant: bool
     email: str | None
     special_term_result: dict[str, SpecialTermResult]
+    report_required: bool = Field(description="임대차 신고 대상인지 (FR-015). 비대상이면 T1 없이 T4에서 확정일자를 함께 받는다")
+    alert_level: str | None = Field(description="시작할 때의 경보 단계 (alert.yaml levels[].id), 정상이면 null")
+    todos: list[TodoOut] = Field(description="할 일 목록 (sort_order 순서)")

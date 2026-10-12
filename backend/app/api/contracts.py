@@ -1,21 +1,23 @@
-"""패키지 시작·계약 당일 체크: 계약 생성 (UC-003, FR-011, FR-014, FR-049).
-
-할 일 9종 생성(FR-015, FR-017~020)은 다음 단계에서 계약을 만들 때 같이 한다.
-"""
+"""패키지 시작·계약 당일 체크: 계약 생성과 할 일 9종 생성 (UC-003, FR-011, FR-014, FR-015, FR-017~020, FR-049)."""
 from fastapi import APIRouter, Depends
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.engine.alert import alert_level
+from app.engine.todos import build_todos, report_required
 from app.errors import api_error, responses
-from app.models import Contract, Verdict
+from app.models import Contract, Todo, Verdict
 from app.rules.loader import get_rules
-from app.schemas import ContractInput, ContractOut
+from app.schemas import ContractInput, ContractOut, TodoOut
 
 router = APIRouter(prefix="/api/contracts", tags=["계약"])
 
 # 판정 입력에서 그대로 가져오는 값 (fields.yaml 이름)
 _FROM_CHECK = ("housing_type", "deposit", "official_price", "exclusive_area")
+# 할 일 규칙(todos.yaml)이 읽는 계약 조건
+_TODO_FIELDS = ("contract_date", "balance_date", "end_date", "deposit", "monthly_rent", "loan",
+                "loan_execution_date", "guarantor", "brokered", "renewal_right_used")
 
 
 def _check_special_terms(result: dict, rules: dict) -> None:
@@ -29,7 +31,29 @@ def _check_special_terms(result: dict, rules: dict) -> None:
         raise RequestValidationError(errors)
 
 
-def _to_out(row: Contract) -> ContractOut:
+def _alert_level(check: Verdict, rules: dict) -> str | None:
+    # 시작할 때의 경보 단계는 판정 때 계산한 내 보증금 비율로 정한다. 계약 중 재계산(FR-037)은 4주차
+    return alert_level({"deposit_ratio": check.deposit_ratio, "deposit": check.inputs.get("deposit")}, rules["alert"])
+
+
+def _todo_values(row: Contract) -> dict:
+    return {name: getattr(row, name) for name in _TODO_FIELDS}
+
+
+def _create_todos(row: Contract, check: Verdict, rules: dict) -> None:
+    planned = build_todos(_todo_values(row), check.linkages, row.special_term_result, _alert_level(check, rules), rules)
+    version = str(rules["todos"]["version"])
+    for t in planned:
+        row.todos.append(Todo(
+            rule_id=t.rule_id, title=t.title, detail=t.detail,
+            start_date=t.start_date, due_date=t.due_date, remind_date=t.remind_date,
+            prerequisites=t.prerequisites, required_checks=t.required_checks, evidence=t.evidence,
+            sort_order=t.sort_order, pinned=t.pinned, moved_to_top=t.moved_to_top,
+            status="todo", rules_version=version,
+        ))
+
+
+def _to_out(row: Contract, rules: dict) -> ContractOut:
     check = row.verdicts[0]
     return ContractOut(
         id=row.id,
@@ -51,6 +75,9 @@ def _to_out(row: Contract) -> ContractOut:
         co_tenant=row.co_tenant,
         email=row.email,
         special_term_result=row.special_term_result,
+        report_required=report_required(_todo_values(row), rules["todos"]),
+        alert_level=_alert_level(check, rules),
+        todos=[TodoOut.model_validate(t, from_attributes=True) for t in row.todos],
     )
 
 
@@ -74,14 +101,15 @@ def create_contract(inp: ContractInput, db: Session = Depends(get_db), rules: di
         **inp.model_dump(exclude={"check_id"}),
     )
     row.verdicts.append(check)
+    _create_todos(row, check, rules)
     db.add(row)
     db.commit()
-    return _to_out(row)
+    return _to_out(row, rules)
 
 
 @router.get("/{contract_id}", response_model=ContractOut, responses=responses(404, 422))
-def get_contract(contract_id: int, db: Session = Depends(get_db)):
+def get_contract(contract_id: int, db: Session = Depends(get_db), rules: dict = Depends(get_rules)):
     row = db.get(Contract, contract_id)
     if row is None:
         raise api_error(404, "NOT_FOUND", "계약이 없습니다")
-    return _to_out(row)
+    return _to_out(row, rules)

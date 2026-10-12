@@ -47,6 +47,8 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/engine/price.py` | 추정 주택가격, 내 보증금 비율 (alert.yaml) |
 | `app/engine/verdict.py` | 판정 4단계 (verdict.yaml) |
 | `app/engine/check.py` | 계약 전 확인: 입력 → 비율 → 판정 |
+| `app/engine/todos.py` | 할 일 9종 생성: 기한·선행 조건·순서 (todos.yaml, guarantors.yaml, linkage.yaml) |
+| `app/engine/alert.py` | 경보 단계 (alert.yaml) |
 | `app/api/checks.py` | `POST /api/checks`, `GET /api/checks/{id}` |
 | `app/api/contracts.py` | `POST /api/contracts`, `GET /api/contracts/{id}` |
 | `app/registry/pdf.py` | 등기부 PDF → "주요 등기사항 요약" 페이지 글자 (pdfplumber) |
@@ -76,7 +78,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 
 응답: 판정 단계(`level`, `label`, `next_step`, `block_payment`), 추정 주택가격, 내 보증금 비율, 걸린 규칙(`matched`), 연동 규칙(`linkages`), 확인 못 한 항목(`unchecked`), 안내 문구(`disclaimer`), 규칙 버전.
 
-### `POST /api/contracts` 패키지 시작·계약 생성 (FR-011·014·049)
+### `POST /api/contracts` 패키지 시작·계약 생성·할 일 생성 (FR-011·014·015·017~020·049)
 
 ```json
 {
@@ -96,8 +98,10 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - 선택 입력과 기본값: `monthly_rent` 0, `loan` false, `guarantor` `none`(HUG / HF / SGI / none), `brokered` true(직거래면 false), `renewal_right_used` false, `co_tenant` false, `email`, `special_term_result`(키는 `special_terms.yaml`의 id, 값은 `inserted` / `rejected`)
 - 날짜: 잔금일 ≥ 계약일, 만기일 > 잔금일. 대출이 없으면 `loan_execution_date`를 비워 둔다
 - "문제 항목" 판정이면 409 `CHECK_BLOCKED`, 한 판정으로 계약을 두 번 만들면 409 `CHECK_ALREADY_USED`
-- 응답: 입력한 계약 조건 + `id`, `check_id`, `level`(시작할 때의 판정 단계)과 판정에서 가져온 주택 정보. 할 일 생성은 다음 단계에서 붙인다
-- `contracts` 테이블에 `email` 칸을 새로 넣었다. 예전에 만든 PostgreSQL DB는 테이블이 자동으로 바뀌지 않으니 `docker compose down -v` 후 다시 띄운다
+- 응답: 입력한 계약 조건 + `id`, `check_id`, `level`(시작할 때의 판정 단계), 판정에서 가져온 주택 정보, `report_required`(임대차 신고 대상), `alert_level`(판정 때 비율로 정한 경보 단계, 정상이면 null), `todos`(할 일 목록)
+- `todos`는 `sort_order` 순서다: 맨 위 규칙(특약 거절·경보, `moved_to_top`) → 고정(T5~T9, `pinned`) → 기한 빠른 순. 재알림(T6·T8)은 `due_date` 대신 `remind_date`, HF·SGI 반환보증(T5)은 기관 기준이 없어 `due_date`가 null
+- 기한 계산은 `docs/validation/기한계산_정답표.md`의 계산 약속을 따르고, `tests/test_todos.py`가 정답표(`deadline_scenarios.yaml`) S1~S10·재계산 3개와 대조한다
+- `contracts.email`, `todos`의 새 칸들을 넣었다. 예전에 만든 PostgreSQL DB는 테이블이 자동으로 바뀌지 않으니 `docker compose down -v` 후 다시 띄운다
 
 ### `POST /api/registry/parse` 등기부 요약 추출 (FR-005·006)
 

@@ -42,7 +42,8 @@ class Contract(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    todos: Mapped[list["Todo"]] = relationship(back_populates="contract", cascade="all, delete-orphan")
+    todos: Mapped[list["Todo"]] = relationship(back_populates="contract", cascade="all, delete-orphan",
+                                               order_by="Todo.sort_order")
     # 첫 번째가 패키지를 시작한 판정(check_id). 계약 당일·잔금일 재비교 판정이 뒤에 붙는다 (FR-048, FR-023)
     verdicts: Mapped[list["Verdict"]] = relationship(back_populates="contract", order_by="Verdict.id")
     alerts: Mapped[list["Alert"]] = relationship(back_populates="contract", cascade="all, delete-orphan")
@@ -73,7 +74,7 @@ class Verdict(Base):
 
 
 class Todo(Base):
-    """계약별 할 일 (todos.yaml의 T1~T9, 추가 할 일 X-*)."""
+    """계약별 할 일 (todos.yaml의 T1~T9, 추가 할 일 X-*). 종류·기한·상태·선행 조건·근거를 저장한다 (FR-017)."""
 
     __tablename__ = "todos"
 
@@ -81,10 +82,17 @@ class Todo(Base):
     contract_id: Mapped[int] = mapped_column(ForeignKey("contracts.id"))
     rule_id: Mapped[str] = mapped_column(String(32))         # T1, T2, ..., X-LANDLORD-PLAN
     title: Mapped[str] = mapped_column(String(200))
+    detail: Mapped[str | None] = mapped_column(String(500))          # 보증기관·직거래·갱신 계약 등 조건별 안내 (FR-018)
     start_date: Mapped[date | None] = mapped_column(Date)
     due_date: Mapped[date | None] = mapped_column(Date)
+    remind_date: Mapped[date | None] = mapped_column(Date)            # 재알림(T6, T8)은 기한 대신 알림일
+    prerequisites: Mapped[list] = mapped_column(JSONType, default=list)     # 먼저 끝내야 하는 할 일 rule_id (FR-020)
+    required_checks: Mapped[list] = mapped_column(JSONType, default=list)   # 연동 규칙이 붙인 필수 확인 (FR-022)
+    evidence: Mapped[str | None] = mapped_column(String(200))         # 완료 증빙으로 올릴 것
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     pinned: Mapped[bool] = mapped_column(Boolean, default=False)
+    moved_to_top: Mapped[bool] = mapped_column(Boolean, default=False)   # 특약 거절·경보로 맨 위에 올림 (FR-019)
+    rules_version: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="todo")   # todo / done / skipped
     done_date: Mapped[date | None] = mapped_column(Date)
     evidence_path: Mapped[str | None] = mapped_column(String(500))     # 기록함 증빙 사진

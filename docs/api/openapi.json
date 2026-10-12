@@ -749,6 +749,31 @@
             },
             "type": "object",
             "title": "Special Term Result"
+          },
+          "report_required": {
+            "type": "boolean",
+            "title": "Report Required",
+            "description": "임대차 신고 대상인지 (FR-015). 비대상이면 T1 없이 T4에서 확정일자를 함께 받는다"
+          },
+          "alert_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert Level",
+            "description": "시작할 때의 경보 단계 (alert.yaml levels[].id), 정상이면 null"
+          },
+          "todos": {
+            "items": {
+              "$ref": "#/components/schemas/TodoOut"
+            },
+            "type": "array",
+            "title": "Todos",
+            "description": "할 일 목록 (sort_order 순서)"
           }
         },
         "type": "object",
@@ -771,7 +796,10 @@
           "renewal_right_used",
           "co_tenant",
           "email",
-          "special_term_result"
+          "special_term_result",
+          "report_required",
+          "alert_level",
+          "todos"
         ],
         "title": "ContractOut"
       },
@@ -1068,6 +1096,144 @@
         ],
         "title": "RegistryParseResult",
         "description": "등기부 요약 추출 결과 (FR-005). 사용자가 확인·수정한 뒤 fields를 CheckInput.registry로 보낸다 (FR-006)."
+      },
+      "TodoOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "rule_id": {
+            "type": "string",
+            "title": "Rule Id",
+            "description": "todos.yaml id (T1~T9)"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail",
+            "description": "보증기관·직거래·갱신 계약 등에 따라 바뀌는 안내"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date",
+            "description": "기한. 기관 기준이 아직 없으면 null (HF·SGI 반환보증)"
+          },
+          "remind_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remind Date",
+            "description": "재알림(T6, T8)의 알림일. 다른 할 일은 null"
+          },
+          "prerequisites": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Prerequisites",
+            "description": "먼저 끝내야 하는 할 일 rule_id"
+          },
+          "required_checks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Required Checks",
+            "description": "연동 규칙이 붙인 필수 확인 (예: 근저당 금액 변동 비교)"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence",
+            "description": "완료 증빙으로 올릴 것"
+          },
+          "pinned": {
+            "type": "boolean",
+            "title": "Pinned",
+            "description": "맨 위 고정 할 일 (T5~T9). 시작일 전이면 화면에서 흐리게"
+          },
+          "moved_to_top": {
+            "type": "boolean",
+            "title": "Moved To Top",
+            "description": "특약 거절·경보로 맨 위에 올린 할 일"
+          },
+          "sort_order": {
+            "type": "integer",
+            "title": "Sort Order"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "todo / done / skipped"
+          },
+          "rules_version": {
+            "type": "string",
+            "title": "Rules Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "rule_id",
+          "title",
+          "detail",
+          "start_date",
+          "due_date",
+          "remind_date",
+          "prerequisites",
+          "required_checks",
+          "evidence",
+          "pinned",
+          "moved_to_top",
+          "sort_order",
+          "status",
+          "rules_version"
+        ],
+        "title": "TodoOut",
+        "description": "할 일 1개 (todos.yaml의 T1~T9). 목록은 sort_order 순서 (맨 위 규칙 → 고정 → 기한순)."
       },
       "UncheckedItemOut": {
         "properties": {
