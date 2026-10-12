@@ -1,6 +1,6 @@
 # 전동기 API 명세
 
-- 기준: 요구사항 명세서 v0.4, 규칙 파일 v1.0
+- 기준: 요구사항 명세서 v0.5 (기획안 v4.35), 규칙 파일 `rules/` (파일마다 `version`)
 - 서버: `backend/` (FastAPI). 실행하면 http://localhost:8000/docs 에서 직접 호출해 볼 수 있다
 - 입출력 세부 형식의 기준은 `docs/api/openapi.json` (서버 코드에서 자동 생성). 이 문서는 공통 규칙과 API 목록을 정한다
 - 새 API를 만들거나 바꾸면 이 문서와 `openapi.json`을 같은 PR에서 고친다
@@ -155,7 +155,7 @@ A = 개발 A(백엔드·규칙), B = 개발 B(화면). 주차는 노션 "할 일
 | `POST /api/contracts/{id}/move` | 갈아타기: 다음 집 날짜 → 자금 틈, 전입 순서 경고 (저장) | FR-025~028 | UI-07 | 3 |
 | `GET /api/contracts/{id}/return-guide` | 반환 대응 단계, 청구 서류 대조 | FR-024, 034~035 | UI-08 | 4 |
 | `GET /api/contracts/{id}/alerts/latest` | 최근 역전세 경보 단계·계산 근거·기준일 | FR-036~038 | UI-09 | 4 |
-| `POST /api/admin/trades` | 실거래 CSV 적재 (관리자) | FR-046 | | 4 |
+| `POST /api/admin/trades` | 실거래가 수집 (관리자): 공공데이터포털 API로 시연 집이 있는 구의 아파트·연립다세대 최근 12개월을 받아 받은 날짜와 함께 저장. API가 안 되면 내려받은 파일 적재 | FR-046 | | 2 |
 | `POST /api/admin/alerts/recalculate` | 경보 재계산 (관리자, 스케줄러는 서버 안에서 직접 실행) | FR-037 | | 4 |
 
-주변 전세 시세 비교(FR-004)는 실거래 CSV 적재(FR-046) 뒤에 `POST /api/checks` 응답에 넣는다.
+주변 전세 시세 비교(FR-004)는 실거래가 수집(FR-046) 뒤에 `POST /api/checks` 응답에 넣는다 (2주차).
