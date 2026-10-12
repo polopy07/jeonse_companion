@@ -484,6 +484,7 @@ scenarios:
     - T2
     - T5
     T2_due: pending_po (Q3), 표의 값은 제안
+    T2_prerequisite: pending_po (Q3), 기한이 계약일로 당겨지면 선행 1번(기한 2026-12-17)보다 앞서므로 1번 대기 조건 없음으로 제안
     warnings:
     - 보증이 거절되면 계약금을 돌려받지 못할 수 있음
 - id: S10
