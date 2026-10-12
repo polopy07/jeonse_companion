@@ -93,7 +93,8 @@
 | `METHOD_NOT_ALLOWED` | 405 | 그 주소에서 허용되지 않는 메서드 |
 | `INTERNAL_ERROR` | 500 | 서버 오류. 내부 내용은 응답에 싣지 않는다 |
 | `HTTP_ERROR` | 그 외 | 위에 없는 상태 코드의 오류 |
-| `CHECK_BLOCKED` | 409 | (예정) "문제 항목" 판정이라 패키지를 시작할 수 없음 (FR-011) |
+| `CHECK_BLOCKED` | 409 | "문제 항목" 판정이라 패키지를 시작할 수 없음 (FR-011) |
+| `CHECK_ALREADY_USED` | 409 | 이미 계약을 만든 판정 결과로 다시 계약을 만들려 함. `hint`에 만든 계약 주소 |
 
 `fields`의 규칙:
 
@@ -133,6 +134,8 @@ A = 개발 A(백엔드·규칙), B = 개발 B(화면). 주차는 노션 "할 일
 | `POST /api/checks` | 계약 전 확인: 입력 → 추정 주택가격·내 보증금 비율 → 판정. 결과 저장 | FR-001~003, 009~010 | UI-01, UI-02 |
 | `GET /api/checks/{id}` | 저장된 판정 결과 | FR-009 | UI-02 |
 | `POST /api/registry/parse` | 등기부 PDF → 요약 추출 결과 (저장 안 함). `fields`를 확인·수정해 `POST /api/checks`의 `registry`로 보낸다 | FR-005~006 | UI-01 |
+| `POST /api/contracts` | 패키지 시작: `check_id` + 계약 조건(계약일·잔금일·만기일·월세·대출·보증기관·중개·갱신·공동 계약·알림 이메일) + 특약 넣음/거절당함 → 계약 생성. 주택 유형·보증금·공시가격·전용면적은 판정 입력에서 가져온다. "문제 항목" 판정이면 409 `CHECK_BLOCKED`, 이미 계약을 만든 판정이면 409 `CHECK_ALREADY_USED`. 할 일 생성은 아직 안 함 (2주차에 추가) | FR-011, 014, 049 | UI-03 |
+| `GET /api/contracts/{id}` | 계약 정보 | FR-014 | UI-03 |
 
 입출력 예시는 `backend/README.md`, 전체 형식은 `openapi.json`.
 
@@ -141,8 +144,7 @@ A = 개발 A(백엔드·규칙), B = 개발 B(화면). 주차는 노션 "할 일
 | 메서드·주소 | 하는 일 | FR | 화면 | 주차 |
 | --- | --- | --- | --- | --- |
 | `GET /api/checks/{id}/special-terms` | 판정에 걸린 연동 규칙에 맞는 공공 자료 특약 예시 | FR-039 | UI-02, UI-03 | 2 |
-| `POST /api/contracts` | 패키지 시작: `check_id` + 계약 조건(계약일·잔금일·만기일·대출·보증기관 등) → 계약 생성, 할 일 생성. "문제 항목" 판정이면 409 `CHECK_BLOCKED` | FR-011, 013~015, 017~018 | UI-03 | 2 |
-| `GET /api/contracts/{id}` | 계약 정보 | FR-014 | UI-03 | 2 |
+| `POST /api/contracts` (할 일 생성 추가) | 계약을 만들 때 할 일 9종도 생성: 신고 대상 판별·조건별 분기·우선 노출·선행 조건 | FR-015, 017~020 | UI-03 | 2 |
 | `PATCH /api/contracts/{id}` | 날짜 변경 → 할 일 재계산, 특약 넣음/거절당함 기록 → 할 일 분기, 계약 무산 (`status: "cancelled"`) | FR-016, 021, 049~050 | UI-03, UI-04 | 2~3 |
 | `POST /api/contracts/{id}/registry-compare` | 계약 당일·잔금일 등기부를 다시 올려 점검 때와 비교, 바뀐 항목 표시 | FR-023, 048 | UI-03 | 3 |
 | `GET /api/contracts/{id}/todos` | 할 일 목록 (기한·선행 조건·우선 노출 순서) | FR-017~020, 040 | UI-04 | 3 |

@@ -1,4 +1,5 @@
 """API 입출력 형식."""
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -112,3 +113,61 @@ class CheckResult(BaseModel):
     unchecked: list[UncheckedItemOut]
     disclaimer: str
     rules_version: str
+
+
+Guarantor = Literal["HUG", "HF", "SGI", "none"]
+SpecialTermResult = Literal["inserted", "rejected"]
+
+
+class ContractInput(BaseModel):
+    """패키지 시작·계약 당일 체크에서 입력하는 계약 조건 (FR-014, FR-049).
+
+    주택 유형·보증금·공시가격·전용면적은 check_id의 판정 입력을 그대로 쓴다 (판정과 계약의 보증금이 갈리지 않게).
+    """
+
+    check_id: int = Field(description="POST /api/checks로 만든 판정 결과 id")
+    contract_date: date = Field(description="계약일")
+    balance_date: date = Field(description="잔금일")
+    end_date: date = Field(description="만기일")
+    monthly_rent: int = Field(0, ge=0, description="월세 (원, 전세면 0)")
+    loan: bool = Field(False, description="전세대출 유무")
+    loan_execution_date: date | None = Field(None, description="대출 실행일, 모르면 비워 둠")
+    guarantor: Guarantor = Field("none", description="보증기관 (미가입은 none)")
+    brokered: bool = Field(True, description="중개 거래 여부 (직거래면 false)")
+    renewal_right_used: bool = Field(False, description="계약갱신요구권을 써서 갱신한 계약인지")
+    co_tenant: bool = Field(False, description="공동 계약자(부부) 여부")
+    email: str | None = Field(None, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", description="알림 이메일")
+    special_term_result: dict[str, SpecialTermResult] = Field(
+        default_factory=dict, description="특약별 넣음/거절당함 (special_terms.yaml의 id가 키)")
+
+    @model_validator(mode="after")
+    def dates_in_order(self):
+        if self.balance_date < self.contract_date:
+            raise ValueError("잔금일은 계약일과 같거나 뒤여야 합니다")
+        if self.end_date <= self.balance_date:
+            raise ValueError("만기일은 잔금일보다 뒤여야 합니다")
+        if self.loan_execution_date is not None and not self.loan:
+            raise ValueError("전세대출이 없으면 대출 실행일을 비워 두세요")
+        return self
+
+
+class ContractOut(BaseModel):
+    id: int
+    check_id: int
+    level: str = Field(description="시작할 때의 판정 단계 (verdict.yaml levels[].id)")
+    housing_type: HousingType
+    deposit: int
+    monthly_rent: int
+    exclusive_area: float | None
+    official_price: int | None
+    contract_date: date
+    balance_date: date
+    end_date: date
+    loan: bool
+    loan_execution_date: date | None
+    guarantor: Guarantor
+    brokered: bool
+    renewal_right_used: bool
+    co_tenant: bool
+    email: str | None
+    special_term_result: dict[str, SpecialTermResult]

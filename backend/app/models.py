@@ -35,6 +35,7 @@ class Contract(Base):
     brokered: Mapped[bool] = mapped_column(Boolean, default=True)
     renewal_right_used: Mapped[bool] = mapped_column(Boolean, default=False)
     co_tenant: Mapped[bool] = mapped_column(Boolean, default=False)
+    email: Mapped[str | None] = mapped_column(String(254))   # 알림 이메일 (FR-014, NFR-011 회원 식별도 이메일만)
 
     # 특약별 넣음/거절당함 {"S-NO-MORTGAGE": "rejected", ...} (FR-049)
     special_term_result: Mapped[dict] = mapped_column(JSONType, default=dict)
@@ -42,7 +43,8 @@ class Contract(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     todos: Mapped[list["Todo"]] = relationship(back_populates="contract", cascade="all, delete-orphan")
-    verdicts: Mapped[list["Verdict"]] = relationship(back_populates="contract")
+    # 첫 번째가 패키지를 시작한 판정(check_id). 계약 당일·잔금일 재비교 판정이 뒤에 붙는다 (FR-048, FR-023)
+    verdicts: Mapped[list["Verdict"]] = relationship(back_populates="contract", order_by="Verdict.id")
     alerts: Mapped[list["Alert"]] = relationship(back_populates="contract", cascade="all, delete-orphan")
 
 

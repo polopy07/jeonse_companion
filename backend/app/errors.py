@@ -94,6 +94,10 @@ def _message(error: dict) -> str:
             return "true 또는 false로 입력하세요"
         case "string_type":
             return "문자로 입력하세요"
+        case "string_pattern_mismatch":
+            return "형식이 올바르지 않습니다"
+        case "string_too_long":
+            return f"{ctx.get('max_length')}자 이하여야 합니다"
         case "greater_than":
             return f"{ctx.get('gt')}보다 커야 합니다"
         case "greater_than_equal":

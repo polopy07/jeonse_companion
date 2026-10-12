@@ -34,7 +34,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity",
+            "description": "Unprocessable Content",
             "content": {
               "application/json": {
                 "schema": {
@@ -93,7 +93,120 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/contracts": {
+      "post": {
+        "tags": [
+          "계약"
+        ],
+        "summary": "Create Contract",
+        "operationId": "create_contract_api_contracts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContractInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/contracts/{contract_id}": {
+      "get": {
+        "tags": [
+          "계약"
+        ],
+        "summary": "Get Contract",
+        "operationId": "get_contract_api_contracts__contract_id__get",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -127,7 +240,7 @@
             }
           },
           "413": {
-            "description": "Request Entity Too Large",
+            "description": "Content Too Large",
             "content": {
               "application/json": {
                 "schema": {
@@ -137,7 +250,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity",
+            "description": "Unprocessable Content",
             "content": {
               "application/json": {
                 "schema": {
@@ -387,6 +500,280 @@
           "rules_version"
         ],
         "title": "CheckResult"
+      },
+      "ContractInput": {
+        "properties": {
+          "check_id": {
+            "type": "integer",
+            "title": "Check Id",
+            "description": "POST /api/checks로 만든 판정 결과 id"
+          },
+          "contract_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Contract Date",
+            "description": "계약일"
+          },
+          "balance_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Balance Date",
+            "description": "잔금일"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date",
+            "description": "만기일"
+          },
+          "monthly_rent": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Monthly Rent",
+            "description": "월세 (원, 전세면 0)",
+            "default": 0
+          },
+          "loan": {
+            "type": "boolean",
+            "title": "Loan",
+            "description": "전세대출 유무",
+            "default": false
+          },
+          "loan_execution_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loan Execution Date",
+            "description": "대출 실행일, 모르면 비워 둠"
+          },
+          "guarantor": {
+            "type": "string",
+            "enum": [
+              "HUG",
+              "HF",
+              "SGI",
+              "none"
+            ],
+            "title": "Guarantor",
+            "description": "보증기관 (미가입은 none)",
+            "default": "none"
+          },
+          "brokered": {
+            "type": "boolean",
+            "title": "Brokered",
+            "description": "중개 거래 여부 (직거래면 false)",
+            "default": true
+          },
+          "renewal_right_used": {
+            "type": "boolean",
+            "title": "Renewal Right Used",
+            "description": "계약갱신요구권을 써서 갱신한 계약인지",
+            "default": false
+          },
+          "co_tenant": {
+            "type": "boolean",
+            "title": "Co Tenant",
+            "description": "공동 계약자(부부) 여부",
+            "default": false
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 254,
+                "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email",
+            "description": "알림 이메일"
+          },
+          "special_term_result": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "inserted",
+                "rejected"
+              ]
+            },
+            "type": "object",
+            "title": "Special Term Result",
+            "description": "특약별 넣음/거절당함 (special_terms.yaml의 id가 키)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "check_id",
+          "contract_date",
+          "balance_date",
+          "end_date"
+        ],
+        "title": "ContractInput",
+        "description": "패키지 시작·계약 당일 체크에서 입력하는 계약 조건 (FR-014, FR-049).\n\n주택 유형·보증금·공시가격·전용면적은 check_id의 판정 입력을 그대로 쓴다 (판정과 계약의 보증금이 갈리지 않게)."
+      },
+      "ContractOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "check_id": {
+            "type": "integer",
+            "title": "Check Id"
+          },
+          "level": {
+            "type": "string",
+            "title": "Level",
+            "description": "시작할 때의 판정 단계 (verdict.yaml levels[].id)"
+          },
+          "housing_type": {
+            "type": "string",
+            "enum": [
+              "apartment",
+              "row_house",
+              "officetel",
+              "multi_household",
+              "detached"
+            ],
+            "title": "Housing Type"
+          },
+          "deposit": {
+            "type": "integer",
+            "title": "Deposit"
+          },
+          "monthly_rent": {
+            "type": "integer",
+            "title": "Monthly Rent"
+          },
+          "exclusive_area": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclusive Area"
+          },
+          "official_price": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Official Price"
+          },
+          "contract_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Contract Date"
+          },
+          "balance_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Balance Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "loan": {
+            "type": "boolean",
+            "title": "Loan"
+          },
+          "loan_execution_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loan Execution Date"
+          },
+          "guarantor": {
+            "type": "string",
+            "enum": [
+              "HUG",
+              "HF",
+              "SGI",
+              "none"
+            ],
+            "title": "Guarantor"
+          },
+          "brokered": {
+            "type": "boolean",
+            "title": "Brokered"
+          },
+          "renewal_right_used": {
+            "type": "boolean",
+            "title": "Renewal Right Used"
+          },
+          "co_tenant": {
+            "type": "boolean",
+            "title": "Co Tenant"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "special_term_result": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "inserted",
+                "rejected"
+              ]
+            },
+            "type": "object",
+            "title": "Special Term Result"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "check_id",
+          "level",
+          "housing_type",
+          "deposit",
+          "monthly_rent",
+          "exclusive_area",
+          "official_price",
+          "contract_date",
+          "balance_date",
+          "end_date",
+          "loan",
+          "loan_execution_date",
+          "guarantor",
+          "brokered",
+          "renewal_right_used",
+          "co_tenant",
+          "email",
+          "special_term_result"
+        ],
+        "title": "ContractOut"
       },
       "ErrorDetail": {
         "properties": {
