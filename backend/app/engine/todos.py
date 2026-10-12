@@ -6,8 +6,10 @@
 - C3 월과 일이 같이 있으면 월 먼저
 - C4 주말·공휴일이어도 옮기지 않음
 - C5 반환보증 가입 마감은 guarantors.yaml의 기준 (HUG: 잔금일·전입신고일 중 늦은 날 + 계약 기간 절반)
-- C6 아직 끝내지 않은 할 일을 기준으로 삼을 때는 그 할 일의 기한일에 끝낸 것으로 본다
+- C6 대출이 없으면 5번 시작일 = 실제 전입신고 완료일 + 1일
 - C7 목록 순서는 todos.yaml의 order (맨 위 규칙 → 고정 → 기한순, 같은 단계는 번호순)
+그 밖에: 아직 끝내지 않은 할 일을 기준일로 쓸 때는 그 할 일의 기한일에 끝낸 것으로 본다.
+연동 규칙은 MVP 규칙만 적용한다 (계약 당일 특약 예시와 같은 범위).
 
 아직 하지 않는 것: 날짜 변경 재계산 저장(FR-021, 3주차), 특약 반영 분기의 경고·서류(FR-050, 3주차),
 추가 할 일 X-*(MVP 밖이거나 계약 중 경보 때 붙는 것).
@@ -58,7 +60,10 @@ class _Builder:
     def __init__(self, values: dict, linkages: list[str], special_terms: dict[str, str],
                  alert_level: str | None, rules: dict, done_dates: dict[str, date]):
         self.values = values
-        self.linkages = linkages
+        # MVP 연동 규칙만 적용한다. MVP 밖 규칙(위반건축물 등)은 계약 당일 화면에 안내하지 않으므로
+        # 할 일도 바꾸지 않는다
+        mvp = {rule["id"] for rule in rules["linkage"]["rules"] if rule.get("mvp")}
+        self.linkages = [lid for lid in linkages if lid in mvp]
         self.special_terms = special_terms
         self.alert_level = alert_level
         self.done_dates = done_dates
@@ -67,7 +72,7 @@ class _Builder:
         self.alert_levels = [lv["id"] for lv in rules["alert"]["levels"]]
         self.after_contract = [
             action
-            for rule in rules["linkage"]["rules"] if rule["id"] in linkages
+            for rule in rules["linkage"]["rules"] if rule["id"] in self.linkages
             for action in rule.get("after_contract", [])
         ]
         self.plans: dict[str, PlannedTodo] = {}
@@ -75,7 +80,7 @@ class _Builder:
     # 날짜 -----------------------------------------------------------------
 
     def anchor(self, name: str) -> date | None:
-        if "." in name:   # "T4.done_date": 그 할 일을 끝낸 날. 아직이면 기한일에 끝낸 것으로 본다 (C6)
+        if "." in name:   # "T4.done_date": 그 할 일을 끝낸 날. 아직이면 기한일에 끝낸 것으로 본다
             todo_id, attr = name.split(".")
             if attr != "done_date":
                 raise ValueError(f"todos.yaml: 알 수 없는 기준일 {name}")
@@ -160,8 +165,8 @@ class _Builder:
         for action in self.after_contract:
             if action.get("todo") != todo_id:
                 continue
-            if action["action"] == "move_before":   # 비율 90% 이상: 기한을 계약일 당일로 (정답표 Q3)
-                due = self.anchor(action["before"])
+            if action["action"] == "set_due":   # 비율 90% 이상: 기한을 계약일 당일로 (정답표 Q3)
+                due = self.anchor(action["anchor"])
                 start = min(start, due) if start else due
             elif action["action"] == "require_check":
                 required_checks.append(action["check"])
