@@ -262,3 +262,49 @@ def test_check_complex_input_rules(client):
                     headers={"X-Virtual-Today": "2026-13-01"})
     assert r.status_code == 422
     assert r.json()["detail"]["fields"][0]["field"] == "x-virtual-today"
+
+
+# 실제 응답 (부산 수영구 2026-09, 2026-10-12에 받아 잘라낸 것) ------------------------------
+
+def _real(name: str, housing_type: str, kind: str):
+    records, total = parse_response(_xml(f"real_{name}_26500_202609.xml"), housing_type, kind, "26500")
+    assert total == len(records)
+    return records
+
+
+def test_parse_real_responses():
+    apt = _real("apt_trade", "apartment", "trade")
+    sungwon = next(r for r in apt if r.complex_name == "성원상떼빌")
+    assert (sungwon.umd_name, sungwon.jibun, sungwon.exclusive_area, sungwon.floor) == ("광안동", "143-1", 99.279, 3)
+    assert (sungwon.price, sungwon.deal_date, sungwon.cancelled) == (423_000_000, date(2026, 9, 17), False)
+    assert sum(r.cancelled for r in apt) == 1                        # 더샵남천프레스티지 두 건 중 한 건 해제
+    rh_rent = _real("rh_rent", "row_house", "rent")
+    assert [(r.deposit, r.monthly_rent) for r in rh_rent if r.complex_name == "드림밸리빌"] == [(50_000_000, 0)]
+    assert {r.complex_name for r in _real("rh_trade", "row_house", "trade")} >= {"광성연립"}
+    assert len(_real("apt_rent", "apartment", "rent")) == 5
+
+
+def test_identical_deals_are_kept(client):
+    # 동·호수가 없어 똑같아 보이는 줄도 서로 다른 거래다. 합치지 않고, 다시 받아도 두 번 저장하지 않는다
+    from app.db import get_sessionmaker
+    from app.models import Trade
+    from app.trades.collect import save
+    from sqlalchemy import func, select
+    apt = _real("apt_trade", "apartment", "trade")
+    rent = _real("rh_rent", "row_house", "rent")
+    at = datetime(2026, 10, 12, tzinfo=timezone.utc)
+    with get_sessionmaker()() as db:
+        assert save(db, apt + rent, "api", at) == 12
+        assert save(db, apt + rent, "api", at) == 0
+        assert db.scalar(select(func.count()).select_from(Trade).where(Trade.complex_name == "남천동원로얄듀크")) == 2
+        assert db.scalar(select(func.count()).select_from(Trade).where(Trade.cancelled)) == 1
+        stored = db.scalars(select(Trade).where(Trade.complex_name == "더샵남천프레스티지")).all()
+
+    key = ComplexKey("apartment", "26500", "남천동", "더샵남천프레스티지")
+    pick = pick_trade_price(stored, key, 59.18, date(2026, 10, 12), _rules())
+    assert (pick.price, pick.sample_count) == (975_000_000, 1)      # 해제된 한 건은 빼고 센다
+
+
+def _rules():
+    from app.rules.loader import get_rules
+    return get_rules()["alert"]

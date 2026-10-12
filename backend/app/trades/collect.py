@@ -29,12 +29,31 @@ def months_back(end_month: date, count: int) -> list[str]:
 def deal_key(r: TradeRecord) -> str:
     amount = r.price if r.kind == "trade" else f"{r.deposit}/{r.monthly_rent}"
     return "|".join(str(v) for v in (r.housing_type, r.kind, r.lawd_cd, r.umd_name, r.jibun, r.complex_name,
-                                      f"{r.exclusive_area:.2f}", r.floor, r.deal_date.isoformat(), amount))
+                                      f"{r.exclusive_area:.3f}", r.floor, r.deal_date.isoformat(), amount))
+
+
+def numbered_keys(records: list[TradeRecord]) -> dict[str, TradeRecord]:
+    """같은 값으로 보이는 거래에 순번을 붙인다.
+
+    공개 자료에는 동·호수가 없어서, 같은 날 같은 층·면적·금액으로 거래한 다른 집이 똑같은 줄로 온다
+    (수영구 2026-09 아파트 매매 106건 중 2건, 2026-10-12 확인). 한 건으로 합치지 않고 "#1", "#2"로 나눈다.
+    같은 달을 다시 받으면 같은 순번이 나오므로 두 번 저장되지 않는다.
+    """
+    seen: Counter[str] = Counter()
+    keyed = {}
+    for r in records:
+        base = deal_key(r)
+        seen[base] += 1
+        keyed[f"{base}#{seen[base]}"] = r
+    return keyed
 
 
 def save(db: Session, records: list[TradeRecord], source: str, fetched_at: datetime) -> int:
-    """새 거래만 저장하고 저장한 건수를 돌려준다. 이미 있던 거래가 해제 신고되면 해제 표시만 고친다."""
-    keys = {deal_key(r): r for r in records}
+    """새 거래만 저장하고 저장한 건수를 돌려준다. 이미 있던 거래가 해제 신고되면 해제 표시만 고친다.
+
+    records는 한 번에 받은 거래 전체(같은 달은 빠짐없이)여야 순번이 맞는다.
+    """
+    keys = numbered_keys(records)
     existing = {t.deal_key: t for t in db.scalars(select(Trade).where(Trade.deal_key.in_(keys)))}
     added = 0
     for key, r in keys.items():
