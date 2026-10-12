@@ -23,3 +23,9 @@ def test_every_term_action_is_understood(rules):
 def test_only_mvp_rules_in_mvp(rules):
     guide = contract_day_guide(["L-MORTGAGE", "L-VIOLATION", "L-TAX"], rules)
     assert [t.id for t in guide.terms] == ["S-NO-MORTGAGE"]
+
+
+def test_removed_linkage_is_skipped(rules):
+    # 규칙 파일에서 없어진 연동 규칙 id가 옛 판정에 남아 있어도 오류 없이 건너뛴다
+    guide = contract_day_guide(["L-REMOVED", "L-MORTGAGE"], rules)
+    assert [t.id for t in guide.terms] == ["S-NO-MORTGAGE"]
