@@ -96,5 +96,7 @@
 
 - 제목: `<종류>: <한국어 한 줄 요약>` (종류: `feat` / `fix` / `docs` / `refactor` / `test` / `chore`). 예: `feat: 등기부 요약 파서 뼈대 추가`
 - 본문: Summary / 변경 파일 / Test plan 세 절. PR을 열면 [템플릿](.github/pull_request_template.md)이 자동으로 채워짐
-- CI: PR마다 백엔드 테스트와 규칙 파일 검사가 자동으로 돌아감 ([`test.yml`](.github/workflows/test.yml)). 통과한 PR만 병합
-- 병합: 팀원 리뷰 후 황웅재가 병합
+- CI: PR마다 백엔드 테스트와 규칙 파일 검사가 자동으로 돌아감 ([`test.yml`](.github/workflows/test.yml))
+- 병합: **PR을 올린 사람이** 팀원 승인(Approve 1개)과 CI(`test`) 통과를 확인한 뒤 직접 병합. 병합 방식은 merge commit으로 하고, 병합한 브랜치는 병합한 사람이 지운다 (팀 약속. 저장소 설정으로 강제하지는 않음)
+- 쌓인 PR(앞 PR 위에 만든 PR)은 **맨 위 PR만 승인·병합**한다. 맨 위 PR에 아래 PR 내용이 모두 들어 있어 아래 PR도 병합된 것으로 처리된다. 아래 PR부터 하나씩 병합하면 새 커밋 푸시 때 승인 취소 설정 때문에 위 PR 승인이 풀린다
+- `main` 보호 규칙(저장소 Rulesets): PR 없이 직접 푸시 금지, 승인 1개 필수, `test` 통과 필수, 강제 푸시·삭제 금지
