@@ -79,6 +79,8 @@
 | 4주 개발 계획 | 기획안 v4.35 기준 주차·담당별 상세 | [`docs/plan/4주_개발계획.md`](docs/plan/4주_개발계획.md) |
 | 규칙 설정 파일 | v1.0 (PO 확정). 판정·경보·연동 규칙·특약·할 일 9종·보증기관 (YAML) | [`rules/`](rules/) (`python3 rules/check_rules.py`로 검사) |
 | 백엔드 | FastAPI·PostgreSQL. 실행·테스트 방법 | [`backend/`](backend/) |
+| 화면 목업 | UI-01~09 + 홈 (모바일 390px) | [`docs/design/`](docs/design/) (`index.html`을 브라우저로 열기) |
+| 프론트엔드 | Expo + Expo Router (웹·안드로이드·iOS). 목업 10개 화면, 계약 전 확인 입력, 현장 확인, 시연 데이터 | [`frontend/`](frontend/) (`npx expo start`) |
 | 작업일지 | 날짜별 | [`worklog/`](worklog/) (`YYYY-MM-DD.md`) |
 
 각 문서는 원본(.docx)과 읽기용 마크다운 변환본(.md)을 함께 둡니다. 기획안과 명세서가 다르면 기획안을 먼저 고치고 명세서에 반영합니다.
@@ -95,5 +97,7 @@
 
 - 제목: `<종류>: <한국어 한 줄 요약>` (종류: `feat` / `fix` / `docs` / `refactor` / `test` / `chore`). 예: `feat: 등기부 요약 파서 뼈대 추가`
 - 본문: Summary / 변경 파일 / Test plan 세 절. PR을 열면 [템플릿](.github/pull_request_template.md)이 자동으로 채워짐
-- CI: PR마다 백엔드 테스트와 규칙 파일 검사가 자동으로 돌아감 ([`test.yml`](.github/workflows/test.yml)). 통과한 PR만 병합
-- 병합: 팀원 리뷰 후 황웅재가 병합
+- CI: PR마다 백엔드 테스트와 규칙 파일 검사가 자동으로 돌아감 ([`test.yml`](.github/workflows/test.yml))
+- 병합: **PR을 올린 사람이** 팀원 승인(Approve 1개)과 CI(`test`) 통과를 확인한 뒤 직접 병합. 병합 방식은 merge commit으로 하고, 병합한 브랜치는 병합한 사람이 지운다 (팀 약속. 저장소 설정으로 강제하지는 않음)
+- 쌓인 PR(앞 PR 위에 만든 PR)은 **맨 위 PR만 승인·병합**한다. 맨 위 PR에 아래 PR 내용이 모두 들어 있어 아래 PR도 병합된 것으로 처리된다. 아래 PR부터 하나씩 병합하면 새 커밋 푸시 때 승인 취소 설정 때문에 위 PR 승인이 풀린다
+- `main` 보호 규칙(저장소 Rulesets): PR 없이 직접 푸시 금지, 승인 1개 필수, `test` 통과 필수, 강제 푸시·삭제 금지

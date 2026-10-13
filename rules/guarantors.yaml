@@ -1,7 +1,7 @@
 # 보증기관별 기준 (FR-018). HF·SGI는 기관 기준을 확인한 뒤 채운다.
-version: "1.0"
-as_of: "2026-10-07"
-basis: "서비스 기획안 v4.34 '보증기관 연계 포인트', '입력 조건에 따라 달라지는 것'"
+version: "1.1"   # 1.1: 기한 정답표 PO 결정 반영 (2026-10-12)
+as_of: "2026-10-12"
+basis: "서비스 기획안 v4.35 '보증기관 연계 포인트', '입력 조건에 따라 달라지는 것'"
 
 guarantors:
   HUG:
@@ -9,9 +9,10 @@ guarantors:
     pre_screening: true            # 전세보증 사전심사 (2026-10-30 시행 예정, 시행 후 실제 기준 확인)
     pre_screening_requires_broker: true   # 공인중개사가 작성한 계약서 필요 → 직거래면 상담으로 대체
     return_guarantee_deadline:
-      rule: 계약 기간의 절반이 지나기 전
-      anchor: contract_period_half      # (잔금일 ~ 만기일)의 절반 시점
-      hypothesis: true                  # 기산일(계약일/잔금일) 출시 전 확인
+      rule: 잔금일과 전입신고일 중 늦은 날부터 계약 기간의 절반이 지나기 전
+      anchor: contract_period_half      # max(잔금일, 전입신고 완료일) + ⌊(만기일 − 잔금일) ÷ 2⌋일. 일수에 만기일은 넣지 않음
+      decided: "2026-10-12 PO (정답표 Q1·Q7)"
+      hypothesis: true                  # 민간 안내 자료 기준. 출시 전 HUG 공식 기준 확인
     claim_channel: HUG 보증 이행 청구 창구
   HF:
     label: 한국주택금융공사
