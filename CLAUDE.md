@@ -22,10 +22,11 @@
 - 규칙 설정 파일: `rules/*.yaml` (판정 verdict, 경보 alert, 연동 linkage, 특약 special_terms, 할 일 todos, 보증기관 guarantors, 필드 fields). 명세서 부속표 A~E를 데이터로 옮긴 것. 고친 뒤 `python3 rules/check_rules.py`로 검사. v1.0(2026-10-07 PO 확정), 할 일·연동·특약·보증기관은 v1.1(2026-10-12, 기한 정답표 PO 결정 Q1~Q8). `hypothesis: true`로 남은 것은 외부 기준 확인이 필요한 값. 기한 정답표는 `docs/validation/기한계산_정답표.md`(+ `deadline_scenarios.yaml`, 시뮬레이터 `deadline_simulator.html`)
 - API 명세: `docs/api/API_명세.md` (공통 규칙·API 목록·오류 코드), 입출력 형식은 `docs/api/openapi.json`(서버 코드에서 생성, `cd backend && python export_openapi.py`. `tests/test_openapi.py`가 설명 문구를 뺀 내용이 코드와 같은지 검사)
 - 백엔드: `backend/` (FastAPI + SQLAlchemy, PostgreSQL 기본·SQLite도 동작, `DATABASE_URL`로 전환). 테스트는 `cd backend && pytest`. 배포 서버는 교수님이 나중에 열어 주실 예정
+- 화면 목업: `docs/design/` (UI-01~09 + 홈, 모바일 390px). 프론트 작업 시 이 목업의 화면 구성·문구·색을 기준으로 한다. 디자인 규칙과 컴포넌트 단위는 `docs/design/README.md`, 브라우저로 볼 때는 `docs/design/index.html`
 - 4주 개발 계획: `docs/plan/4주_개발계획.md` (기획서 그림에 빠져 있던 특약 반영 분기 → A 3주차, 계약 당일 체크 화면 UI-03 → B 2주차 반영)
 - PO는 황웅재, 개발 A(백엔드·규칙) 겸임. 배승환은 PM·개발 B (기획서 v4.35, 팀원 리뷰 중)
 - 작업일지: `worklog/YYYY-MM-DD.md`에 하루 1개. 양식은 "오늘 한 일 / 다음에 할 일". 노션 작업일지에도 같은 내용을 기록
-- 사용자는 편집을 자동 수락하도록 허락함. GitHub 반영은 브랜치 규칙대로 `docs/*` 등 브랜치를 만들어 PR을 올리는 데까지만 한다. **병합은 팀원 리뷰 후 황웅재가 직접 한다** (2026-10-07, Claude가 병합하지 않음)
+- 사용자는 편집을 자동 수락하도록 허락함. GitHub 반영은 브랜치 규칙대로 `docs/*` 등 브랜치를 만들어 PR을 올린다. **병합은 PR을 올린 사람이** 팀원 승인과 CI 통과 후 직접 한다 (2026-10-12 변경). 황웅재 PR은 황웅재 세션(gh 계정 `polopy07`)에서 황웅재가 요청할 때만 Claude가 병합할 수 있고, 배승환 PR은 리뷰·충돌 해결까지만 하고 병합은 배승환이 한다
 - 계약 당일 현장 확인 화면 예시(`계약당일화면예시_v1.png`)를 프로젝트에 올림
 - 사용자 흐름도는 v4.2 그림이 기준(4단계: 계약 전·무료 확인 / 계약 당일 / 계약~입주 / 거주·만기·다음 집). v4.3에서 계약 당일에 "특약 넣음?" 분기를 추가해 4단계·분기 6개로 다시 그림
 - 기획서 수정 시 문제점을 찾아 문서에 바로 반영하고, 개선 사항(변경 메모)은 문서에 적지 않길 원함
