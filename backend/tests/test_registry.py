@@ -117,7 +117,9 @@ def test_demo_houses_registry_matches_answer_sheet():
     demo = yaml.safe_load((root / "docs" / "validation" / "demo_houses.yaml").read_text(encoding="utf-8"))
     for house in demo["houses"]:
         s = parse_summary_text((root / house["registry_fixture"]).read_text(encoding="utf-8"))
-        assert s.to_fields() == house["input"]["registry"], house["id"]
+        fields, expected = s.to_fields(), house["input"]["registry"]
+        assert {k: fields[k] for k in expected} == expected, house["id"]
+        assert not any(v for k, v in fields.items() if k not in expected), house["id"]   # 정답표에 없는 칸은 비어 있어야 함
         assert s.owners == [house["registry_owner"]], house["id"]
         assert s.others == [] and s.warnings == [], house["id"]
 
