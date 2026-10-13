@@ -188,7 +188,7 @@ def _parse_eulgu(section: str, result: RegistrySummary) -> None:
             result.mortgages.append(Mortgage(
                 rank=e.rank, purpose=e.purpose, text=e.text,
                 amount=int(amount.group(1).replace(",", "")) if amount else None,
-                holder=holder.group(1) if holder else None,
+                holder=_strip_owner(holder.group(1), result.owners) if holder else None,
             ))
             if amount is None:
                 result.warnings.append(f"을구 {e.rank}번 근저당의 채권최고액을 읽지 못했습니다. 직접 입력하세요")
@@ -196,3 +196,11 @@ def _parse_eulgu(section: str, result: RegistrySummary) -> None:
             # 변경 등기(1-1 등), 전세권·임차권 등은 합계에 넣지 않고 사용자에게 확인을 맡긴다.
             result.others.append(e)
             result.warnings.append(f"을구 {e.rank}번 '{e.purpose}' 등기가 있습니다. 선순위 채권에 넣을지 직접 확인하세요")
+
+
+def _strip_owner(holder: str, owners: list[str]) -> str:
+    """부동산정보요약은 근저당권자 바로 옆 칸이 대상소유자라 띄어쓰기 없이 붙어 나올 때가 있다 ("은행홍길동")."""
+    for name in owners:
+        if holder.endswith(name) and holder != name:
+            return holder[: -len(name)]
+    return holder

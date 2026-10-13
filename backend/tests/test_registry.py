@@ -115,6 +115,28 @@ def test_iros_summary_ignores_checklists_after_summary():
     assert parse_summary_text(text).to_fields()["seizure"] is False
 
 
+def test_iros_summary_seizures_and_auctions():
+    # 압류 3건·가압류 4건·강제경매·임의경매가 걸린 실제 샘플 (경매 진행 중인 집, 이름·주소·번호는 가림)
+    s = parse_summary_text(load("iros_seizures_auction.txt"))
+    assert s.owners == ["최가상"]
+    assert [(e.rank, e.purpose) for e in s.seizures] == [
+        ("9", "압류"), ("10", "가압류"), ("11", "가압류"), ("12", "강제경매개시결정"), ("13", "압류"),
+        ("14", "가압류"), ("15", "가압류"), ("16", "압류"), ("17", "임의경매개시결정"),
+    ]
+    assert [(m.rank, m.amount, m.holder) for m in s.mortgages] == [("3", 220_000_000, "주식회사하나은행")]
+    assert s.to_fields() == {"seizure": True, "mortgage": True, "mortgage_amount": 220_000_000, "trust": False}
+    assert s.others == [] and s.warnings == []
+    # 각 행에 자기 접수일이 붙는다 (다음 행 날짜가 섞이지 않음)
+    assert "2024년11월20일" in s.seizures[0].text and "2024년12월5일" not in s.seizures[0].text
+    assert "2025년12월16일" in s.seizures[-1].text
+
+
+def test_iros_summary_holder_stuck_to_owner_name():
+    # 근저당권자와 대상소유자가 띄어쓰기 없이 붙어 나와도 근저당권자만 남긴다
+    text = load("iros_seizures_auction.txt").replace("주식회사하나은행 최가상", "주식회사하나은행최가상")
+    assert parse_summary_text(text).mortgages[0].holder == "주식회사하나은행"
+
+
 class _FakePage:
     def __init__(self, chars):
         self.chars = chars
