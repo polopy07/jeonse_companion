@@ -34,7 +34,7 @@ class ErrorResponse(BaseModel):
 
 
 class RegistryInput(BaseModel):
-    """등기부 "주요 등기사항 요약" 추출 결과 (사용자 확인값, FR-005)."""
+    """등기부 요약("부동산정보요약" 또는 증명서의 "주요 등기사항 요약") 추출 결과 (사용자 확인값, FR-005)."""
 
     seizure: bool = False
     mortgage: bool = False

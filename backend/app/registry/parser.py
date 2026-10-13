@@ -43,15 +43,19 @@ NO_PENDING = re.compile(r"접\s*수\s*정\s*보\s*는\s*없\s*습\s*니\s*다")
 # 부동산정보요약을 브라우저에서 PDF로 저장하면 페이지마다 붙는 머리말·꼬리말
 PAGE_FURNITURE = re.compile(r"인터넷등기소\s*-\s*열람|iros\.go\.kr|^\s*\d+\s*페이지\s*/\s*\d+\s*페이지\s*$")
 DATE_ONLY = re.compile(r"^\d{4}\s*년\s*\d{1,2}\s*월\s*\d{1,2}\s*일$")
+# 행이 세 줄로 나뉘면 첫 줄이 "2021년8월20일 채권최고액 금…원"처럼 날짜로 시작한다. 날짜만 있는 줄처럼 다음 항목에 붙인다
+DATE_FIRST = re.compile(r"^\d{4}\s*년\s*\d{1,2}\s*월\s*\d{1,2}\s*일")
 
 ENTRY_START = re.compile(r"^\s*(\d+(?:-\d+)*)\s+([가-힣()]+)")
 OWNER = re.compile(r"(\S+)\s*\(\s*(소유자|공유자|수탁자)\s*\)")
 ID_LINE = re.compile(r"^\d{6}\s*-")                 # 주민등록번호(법인등록번호) 줄
 NAME_PART = re.compile(r"^[^\s\d()]+$")           # 이름 조각만 있는 줄
 MAX_AMOUNT = re.compile(r"채\s*권\s*최\s*고\s*액\s*금\s*([\d,]+)\s*원")
-MORTGAGEE = re.compile(r"근저당권자\s*(\S+)")
+MORTGAGEE = re.compile(r"근저당권자\s*(.+)")
+# 권리자 이름 뒤에 오는 것: 접수번호, 접수일, 주민(법인)등록번호, 가린 번호, 주소
+HOLDER_END = re.compile(r"\s+(?:제\s*\d+\s*호|\d{4}\s*년|\d{6}\s*-|\*{3,}|[가-힣]+(?:특별시|광역시|특별자치시|도)\s)")
 LEASE_AMOUNT = re.compile(r"(?:임\s*차\s*보\s*증\s*금|전\s*세\s*금)\s*금\s*([\d,]+)\s*원")
-LESSEE = re.compile(r"(?:임차권자|전세권자)\s*(\S+)")
+LESSEE = re.compile(r"(?:임차권자|전세권자)\s*(.+)")
 
 SEIZURE_WORDS = ("압류", "가처분", "경매개시결정")   # "압류"는 가압류도 포함
 TRUST_WORD = "신탁"
@@ -172,7 +176,7 @@ def _entries(section: str) -> list[Entry]:
         if m:
             entries.append(Entry(rank=m.group(1), purpose=m.group(2), text=" ".join([line, *waiting])))
             waiting = []
-        elif DATE_ONLY.match(line):
+        elif DATE_ONLY.match(line) or DATE_FIRST.match(line):
             waiting.append(line)
         elif entries:
             entries[-1].text += " " + line
@@ -184,7 +188,7 @@ def _parse_owners(section: str, result: RegistrySummary) -> None:
     for i, line in enumerate(lines):
         for n, m in enumerate(OWNER.finditer(line)):
             name, role = m.groups()
-            # 부동산정보요약은 긴 이름(신탁회사 등)이 주민등록번호 줄 위아래로 나뉜다: "국제자산신탁주" / 번호 줄 / "식회사 (수탁자)"
+            # 부동산정보요약은 긴 이름(신탁회사 등)이 주민등록번호 줄 위아래로 나뉜다: "가상자산신탁주" / 번호 줄 / "식회사 (수탁자)"
             if n == 0 and m.start() == 0 and i >= 2 and ID_LINE.match(lines[i - 1]) and NAME_PART.match(lines[i - 2]):
                 name = lines[i - 2] + name
             result.owners.append(name)
@@ -216,7 +220,7 @@ def _parse_eulgu(section: str, result: RegistrySummary) -> None:
             result.mortgages.append(Mortgage(
                 rank=e.rank, purpose=e.purpose, text=e.text,
                 amount=int(amount.group(1).replace(",", "")) if amount else None,
-                holder=_strip_owner(holder.group(1), result.owners) if holder else None,
+                holder=_holder(holder.group(1), result.owners) if holder else None,
             ))
             if amount is None:
                 result.warnings.append(f"을구 {e.rank}번 근저당의 채권최고액을 읽지 못했습니다. 직접 입력하세요")
@@ -226,7 +230,7 @@ def _parse_eulgu(section: str, result: RegistrySummary) -> None:
             lease = Lease(
                 rank=e.rank, purpose=e.purpose, text=e.text,
                 amount=int(amount.group(1).replace(",", "")) if amount else None,
-                holder=_strip_owner(holder.group(1), result.owners) if holder else None,
+                holder=_holder(holder.group(1), result.owners) if holder else None,
             )
             result.leases.append(lease)
             if lease.amount is None:
@@ -241,9 +245,15 @@ def _parse_eulgu(section: str, result: RegistrySummary) -> None:
             result.warnings.append(f"을구 {e.rank}번 '{e.purpose}' 등기가 있습니다. 선순위 채권에 넣을지 직접 확인하세요")
 
 
+def _holder(rest: str, owners: list[str]) -> str:
+    """권리자 칸 뒤 글자에서 이름만. "주식회사 하나은행"처럼 띄어 쓴 이름도 남긴다."""
+    end = HOLDER_END.search(rest)
+    return _strip_owner((rest[: end.start()] if end else rest).strip(), owners)
+
+
 def _strip_owner(holder: str, owners: list[str]) -> str:
     """부동산정보요약은 근저당권자 바로 옆 칸이 대상소유자라 띄어쓰기 없이 붙어 나올 때가 있다 ("은행홍길동")."""
     for name in owners:
         if holder.endswith(name) and holder != name:
-            return holder[: -len(name)]
+            return holder[: -len(name)].rstrip()
     return holder
