@@ -122,3 +122,104 @@ export function postCheck(input: CheckInput, virtualToday?: string) {
   if (virtualToday) headers['X-Virtual-Today'] = virtualToday;
   return request<ApiCheckResult>('/api/checks', { method: 'POST', headers, body: JSON.stringify(input) });
 }
+
+// ---- GET /api/checks/{id}/special-terms ----
+
+export type ApiTermOutcome = {
+  warnings: string[];
+  documents: string[];
+  moves_to_top: { id: string; title: string }[];
+  adds_todos: { id: string; title: string }[];
+  link_counsel: boolean;
+};
+
+export type ApiSpecialTerms = {
+  check_id: number;
+  level: string;
+  terms: {
+    id: string;
+    label: string;
+    text: string;
+    source: string;
+    linked: { id: string; label: string }[];
+    if_inserted: ApiTermOutcome;
+    if_rejected: ApiTermOutcome;
+  }[];
+  /** 연동 규칙이 계약 당일에 보여 주는 경고 */
+  warnings: string[];
+  /** 연동 규칙이 계약 당일에 요구하는 확인 */
+  checks: string[];
+  disclaimer: string;
+  rules_version: string;
+};
+
+/** 판정에 맞는 계약 당일 특약 예시 ("문제 항목" 판정이면 409 CHECK_BLOCKED) */
+export function getSpecialTerms(checkId: number) {
+  return request<ApiSpecialTerms>(`/api/checks/${checkId}/special-terms`, { method: 'GET' });
+}
+
+// ---- POST /api/contracts ----
+
+export type Guarantor = 'HUG' | 'HF' | 'SGI' | 'none';
+
+export type ApiContractInput = {
+  check_id: number;
+  /** YYYY-MM-DD */
+  contract_date: string;
+  balance_date: string;
+  end_date: string;
+  monthly_rent?: number;
+  loan?: boolean;
+  loan_execution_date?: string | null;
+  guarantor?: Guarantor;
+  brokered?: boolean;
+  renewal_right_used?: boolean;
+  co_tenant?: boolean;
+  email?: string | null;
+  /** 특약 id → 넣음/거절당함 (계약 당일 화면에서 보여 준 특약만) */
+  special_term_result?: Record<string, 'inserted' | 'rejected'>;
+};
+
+export type ApiTodo = {
+  id: number;
+  /** todos.yaml id (T1~T9) */
+  rule_id: string;
+  title: string;
+  detail: string | null;
+  start_date: string | null;
+  due_date: string | null;
+  remind_date: string | null;
+  prerequisites: string[];
+  required_checks: string[];
+  evidence: string | null;
+  pinned: boolean;
+  moved_to_top: boolean;
+  sort_order: number;
+  status: 'todo' | 'done' | 'skipped';
+  rules_version: string;
+};
+
+export type ApiContract = {
+  id: number;
+  check_id: number;
+  level: string;
+  deposit: number;
+  contract_date: string;
+  balance_date: string;
+  end_date: string;
+  guarantor: Guarantor;
+  special_term_result: Record<string, 'inserted' | 'rejected'>;
+  report_required: boolean;
+  alert_level: string | null;
+  /** sort_order 순서 */
+  todos: ApiTodo[];
+};
+
+/** 패키지 시작: 계약 생성 + 할 일 9종 생성 */
+export function postContract(input: ApiContractInput) {
+  return request<ApiContract>('/api/contracts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}

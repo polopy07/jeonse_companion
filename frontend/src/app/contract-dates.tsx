@@ -1,0 +1,159 @@
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { View } from 'react-native';
+
+import { AppText } from '@/components/AppText';
+import { ChoiceChips, TextField, ToggleRow } from '@/components/form';
+import { Button, Card, Disclaimer, Screen, StepProgress } from '@/components/layout';
+import { Colors } from '@/constants/theme';
+import { checkResult, house } from '@/data/demo';
+import { ApiError, apiEnabled, postContract, type Guarantor } from '@/lib/api';
+import { useLatestCheck } from '@/lib/check';
+import { setLatestContract } from '@/lib/contract';
+import { useSpecialTermResults } from '@/lib/special-terms';
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** 시연 데이터의 "2026.10.20" → 입력칸 "2026-10-20" */
+const demoDate = (s: string) => s.replaceAll('.', '-');
+
+const isDate = (s: string) => DATE.test(s) && !Number.isNaN(new Date(s).getTime());
+
+/** UI-03 계약 당일 체크 5/5: 계약 날짜·조건 입력 → 계약 생성과 할 일 9종 (FR-014, POST /api/contracts) */
+export default function ContractDatesScreen() {
+  const check = useLatestCheck() ?? checkResult;
+  const termResults = useSpecialTermResults();
+
+  const [contractDate, setContractDate] = useState(demoDate(house.contractDate));
+  const [balanceDate, setBalanceDate] = useState(demoDate(house.balanceDate));
+  const [endDate, setEndDate] = useState(demoDate(house.endDate));
+  const [loan, setLoan] = useState(false);
+  const [loanDate, setLoanDate] = useState('');
+  const [guarantor, setGuarantor] = useState<Guarantor>('HUG');
+  const [brokered, setBrokered] = useState(true);
+  const [email, setEmail] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const datesValid = isDate(contractDate) && isDate(balanceDate) && isDate(endDate) && (!loanDate || isDate(loanDate));
+  const orderError =
+    datesValid && balanceDate < contractDate
+      ? '잔금일은 계약일과 같거나 뒤여야 해요'
+      : datesValid && endDate <= balanceDate
+        ? '만기일은 잔금일보다 뒤여야 해요'
+        : null;
+  const canSubmit = datesValid && !orderError && !submitting;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    if (!apiEnabled || check.id === null) {
+      // 서버 판정이 없으면(앱 안 계산·시연) 계약을 만들지 않고 시연 할 일 목록으로 간다
+      setLatestContract(null);
+      router.push('/todos');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const contract = await postContract({
+        check_id: check.id,
+        contract_date: contractDate,
+        balance_date: balanceDate,
+        end_date: endDate,
+        loan,
+        loan_execution_date: loan && loanDate ? loanDate : null,
+        guarantor,
+        brokered,
+        email: email.trim() || null,
+        special_term_result: Object.fromEntries(
+          Object.entries(termResults).filter((e): e is [string, 'inserted' | 'rejected'] => !!e[1]),
+        ),
+      });
+      setLatestContract(contract);
+      router.push('/todos');
+    } catch (e) {
+      setError(e instanceof ApiError ? [e.message, e.hint].filter(Boolean).join('. ') : '계약을 만들지 못했어요');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const dateField = (label: string, value: string, onChange: (v: string) => void, helper?: string) => (
+    <TextField
+      label={label}
+      value={value}
+      onChange={onChange}
+      placeholder="2026-10-20"
+      keyboardType="numbers-and-punctuation"
+      error={value && !isDate(value) ? 'YYYY-MM-DD 형식으로 입력해 주세요' : undefined}
+      helper={helper}
+    />
+  );
+
+  return (
+    <Screen
+      title="계약 당일 체크"
+      footer={
+        <>
+          <Disclaimer style={{ paddingTop: 0, marginBottom: 12 }}>
+            {error ?? orderError ?? '날짜를 넣으면 2년 동안 할 일과 기한을 만들어 드려요.'}
+          </Disclaimer>
+          <Button
+            label={submitting ? '할 일 만드는 중…' : '할 일 만들기'}
+            onPress={canSubmit ? submit : undefined}
+            style={{ opacity: canSubmit ? 1 : 0.4 }}
+          />
+        </>
+      }>
+      <StepProgress current={4} total={5} label="계약 날짜 입력" />
+
+      <AppText size={18} weight="bold" style={{ marginTop: 18 }}>
+        계약서의 날짜를 넣어 주세요
+      </AppText>
+      <AppText size={13} color={Colors.textSub} leading={1.6} style={{ marginTop: 4 }}>
+        신고·전입·보증 가입 기한은 이 날짜로 계산해요. 나중에 날짜가 바뀌면 고칠 수 있어요.
+      </AppText>
+
+      <Card style={{ marginTop: 14, gap: 14 }}>
+        {dateField('계약일', contractDate, setContractDate)}
+        {dateField('잔금일', balanceDate, setBalanceDate, '잔금을 치르고 이사하는 날')}
+        {dateField('만기일', endDate, setEndDate)}
+      </Card>
+
+      <Card style={{ marginTop: 12, paddingVertical: 6 }}>
+        <ToggleRow label="전세대출" sub="전세자금대출을 받나요?" value={loan} onChange={setLoan}>
+          {dateField('대출 실행일 (모르면 비워 두세요)', loanDate, setLoanDate)}
+        </ToggleRow>
+        <ToggleRow label="중개 거래" sub="공인중개사를 통해 계약했나요?" value={brokered} onChange={setBrokered} last />
+      </Card>
+
+      <Card style={{ marginTop: 12, gap: 14 }}>
+        <ChoiceChips
+          label="반환보증 보증기관"
+          choices={[
+            { value: 'HUG', label: 'HUG' },
+            { value: 'HF', label: 'HF' },
+            { value: 'SGI', label: 'SGI' },
+            { value: 'none', label: '가입 안 함' },
+          ]}
+          value={guarantor}
+          onChange={setGuarantor}
+        />
+        <TextField
+          label="알림 받을 이메일 (선택)"
+          value={email}
+          onChange={setEmail}
+          placeholder="name@example.com"
+          keyboardType="email-address"
+        />
+      </Card>
+
+      {!apiEnabled || check.id === null ? (
+        <View style={{ marginTop: 12 }}>
+          <AppText size={12} color={Colors.textHint} leading={1.6}>
+            서버에 저장된 판정이 없어 시연 할 일 목록으로 이어져요.
+          </AppText>
+        </View>
+      ) : null}
+    </Screen>
+  );
+}
