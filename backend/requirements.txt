@@ -8,7 +8,7 @@ pyyaml==6.0.3
 pydantic==2.13.5
 pdfplumber==0.11.10
 python-multipart==0.0.32
+httpx==0.28.1        # 공공데이터포털 실거래가 API 호출 (테스트 클라이언트도 이것을 씀)
 
 # 테스트
 pytest==9.1.1
-httpx==0.28.1

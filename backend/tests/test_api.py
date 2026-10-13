@@ -4,7 +4,7 @@ EOK = 100_000_000
 def test_health(client):
     r = client.get("/health")
     assert r.status_code == 200
-    assert r.json() == {"status": "ok", "rules_version": "1.0"}
+    assert r.json() == {"status": "ok", "rules_version": "1.1"}
 
 
 def test_create_and_get_check(client):
@@ -160,3 +160,100 @@ def test_plain_http_exception_keeps_reason_and_logs(caplog):
     assert d["code"] == "HTTP_ERROR"
     assert d["message"] == "문제 항목 판정이라 패키지를 시작할 수 없습니다"
     assert "문제 항목 판정이라" in caplog.text
+
+
+def _special_terms(client, body):
+    check = client.post("/api/checks", json=body).json()
+    r = client.get(f"/api/checks/{check['id']}/special-terms")
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_special_terms_for_mortgage_and_high_ratio(client):
+    # 근저당 + 비율 96%: 담보 설정 금지, 보증·대출 거절 시 해제 (FR-039)
+    out = _special_terms(client, {
+        "housing_type": "row_house", "deposit": 150_000_000, "official_price": 2 * EOK,
+        "registry": {"mortgage": True, "mortgage_amount": 120_000_000},
+    })
+    assert out["level"] == "check_needed"
+    assert [t["id"] for t in out["terms"]] == ["S-NO-MORTGAGE", "S-GUARANTEE-CANCEL"]
+    no_mortgage, cancel = out["terms"]
+    assert no_mortgage["linked"] == [{"id": "L-MORTGAGE", "label": "근저당 있음"}]
+    assert no_mortgage["text"].startswith("임대인은 잔금 지급일 다음 날까지")
+    assert no_mortgage["source"]
+    # 거절당함 → 경고 + 전입신고(T4) 맨 위 (AC-016), 넣음 → 계약서 사진
+    assert no_mortgage["if_rejected"]["moves_to_top"] == [{"id": "T4", "title": "전입신고"}]
+    assert "전입신고" in no_mortgage["if_rejected"]["warnings"][0]
+    assert no_mortgage["if_inserted"]["documents"] == ["특약이 보이는 계약서 사진"]
+    assert cancel["linked"] == [{"id": "L-RATIO90", "label": "내 보증금 비율 90% 이상"}]
+    assert cancel["if_rejected"]["moves_to_top"] == [{"id": "T2", "title": "보증 가입 여부 확정"}]
+    assert cancel["if_rejected"]["link_counsel"] is True
+    assert out["warnings"] == [
+        "선순위 채권(근저당 채권최고액)을 반영한 내 보증금 비율을 다시 계산했습니다",
+        "반환보증 가입이 어려울 수 있습니다",
+    ]
+    assert out["disclaimer"] == "정보 제공이며 보증하지 않습니다."
+    assert out["rules_version"] == "1.1"
+
+
+def test_special_terms_trust_asks_for_consent(client):
+    # 신탁은 특약 예시 대신 계약 당일 동의서 확인 (linkage.yaml L-TRUST)
+    out = _special_terms(client, {
+        "housing_type": "apartment", "deposit": EOK, "official_price": 2 * EOK, "registry": {"trust": True},
+    })
+    assert out["terms"] == []
+    assert out["checks"] == ["신탁사 동의서 확인"]
+
+
+def test_special_terms_skip_non_mvp(client):
+    # 위반건축물(L-VIOLATION)은 MVP 밖이라 연결된 특약을 보여 주지 않는다. 체납 완납증명(S-TAX-CERT)도 MVP 밖
+    out = _special_terms(client, {
+        "housing_type": "apartment", "deposit": EOK, "official_price": 2 * EOK, "registry": {},
+        "building_violation": True,
+    })
+    assert out["level"] == "check_needed"
+    assert out["terms"] == [] and out["warnings"] == [] and out["checks"] == []
+
+
+def test_special_terms_no_problem_and_not_found(client):
+    out = _special_terms(client, {"housing_type": "apartment", "deposit": EOK, "official_price": 2 * EOK, "registry": {}})
+    assert out["level"] == "no_problem" and out["terms"] == []
+    r = client.get("/api/checks/999/special-terms")
+    assert r.status_code == 404
+    assert r.json()["detail"]["code"] == "NOT_FOUND"
+
+
+def test_check_result_has_explanations(client):
+    r = client.post("/api/checks", json={
+        "housing_type": "row_house", "deposit": 150_000_000, "official_price": 2 * EOK,
+        "registry": {"mortgage": True, "mortgage_amount": 120_000_000},
+    })
+    created = r.json()
+    explained = {m["id"]: m["explanation"] for m in created["matched"]}
+    assert explained["C-1"].startswith("집이 경매로 넘어가면")
+    assert explained["C-2"].startswith("보증기관은 보통 (보증금 + 선순위 채권)")
+    assert created["unchecked"][0]["id"] == "U-TAX"
+    assert "완납증명서" in created["unchecked"][0]["guide"]
+    assert created["rules_version"] == "1.1"
+    assert client.get(f"/api/checks/{created['id']}").json() == created
+
+
+def test_not_applicable_explanation(client):
+    r = client.post("/api/checks", json={"housing_type": "detached", "deposit": EOK})
+    created = r.json()
+    assert created["matched"][0]["id"] == "NA-1"
+    assert "다른 세대의 보증금" in created["matched"][0]["explanation"]
+    assert [u["id"] for u in created["unchecked"]] == ["U-TAX", "U-OTHER-DEPOSITS"]
+    assert all(u["guide"] for u in created["unchecked"])
+
+
+def test_special_terms_blocked_for_problem(client):
+    # 압류 + 근저당: "문제 항목"(결제 전 멈춤)이면 특약 예시를 주지 않는다 (POST /api/contracts의 CHECK_BLOCKED와 같은 기준)
+    check = client.post("/api/checks", json={
+        "housing_type": "row_house", "deposit": 150_000_000, "official_price": 2 * EOK,
+        "registry": {"seizure": True, "mortgage": True, "mortgage_amount": 120_000_000},
+    }).json()
+    assert check["level"] == "problem"
+    r = client.get(f"/api/checks/{check['id']}/special-terms")
+    assert r.status_code == 409
+    assert _detail(r)["code"] == "CHECK_BLOCKED"
