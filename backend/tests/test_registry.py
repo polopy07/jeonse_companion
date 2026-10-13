@@ -172,6 +172,23 @@ def test_lease_with_other_original_deposit_is_counted_twice():
     assert s.to_fields()["lease_amount"] == 230_000_000
 
 
+def test_original_deposit_match_with_other_holder_counts_both_and_warns():
+    # "보증금 N원 중"이 전세금과 같아도 두 권리자 이름이 다르면 다른 세입자일 수 있어 둘 다 넣고 (덜 위험하게 나오지 않게),
+    # 법인 명의 전세권 + 직원 임차권처럼 같은 돈일 수 있다고 알린다
+    text = load("iros_villa_jeonse_and_lease.txt").replace(
+        "(보증금120,000,000원 중 반환되지 오가상",
+        "(보증금120,000,000원 중 반환되지 아니한 금액) 임차권자 나가상 오가상")
+    s = parse_summary_text(text)
+    assert [(lease.holder, lease.same_deposit_as) for lease in s.leases] == [("가상엘리베이터주식회사", None), ("나가상", None)]
+    assert s.to_fields()["lease_amount"] == 230_000_000
+    assert s.warnings[-1] == (
+        "을구 2번 임차권설정은 을구 1번 전세권설정 전세금 중 못 돌려받은 금액으로 보이지만 권리자가 달라 둘 다 넣었습니다. "
+        "회사 명의 전세권처럼 같은 보증금이면 을구 1번을 빼세요")
+    # 같은 사람이면 지금처럼 못 돌려받은 금액만
+    same = parse_summary_text(text.replace("임차권자 나가상", "임차권자 가상엘리베이터주식회사"))
+    assert same.to_fields()["lease_amount"] == 110_000_000
+
+
 def test_jeonse_and_lease_with_same_holder_and_amount_counted_once():
     # 전세권과 임차권의 권리자·금액이 같으면 (기간이 끝나 전세권에 더해 임차권등기를 한 경우) 먼저 등기한 전세권만 넣는다
     text = load("iros_villa_jeonse_and_lease.txt").replace(
