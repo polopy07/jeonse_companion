@@ -132,6 +132,17 @@ def test_iros_summary_trust():
     assert s.others == [] and s.warnings == []
 
 
+def test_iros_summary_auction_with_registered_lease():
+    # 경매 진행 중인 다세대 (실제 샘플). 임차권설정은 근저당 합계에 넣지 않고 사용자 확인으로 넘긴다
+    s = parse_summary_text(load("iros_auction_lease.txt"))
+    assert s.owners == ["문가상"]
+    assert [(e.rank, e.purpose) for e in s.seizures] == [("3", "임의경매개시결정")]
+    assert [(e.rank, e.purpose) for e in s.others] == [("5", "임차권설정")]
+    assert "임차보증금 금90,000,000원" in s.others[0].text
+    assert s.to_fields() == {"seizure": True, "mortgage": False, "mortgage_amount": 0, "trust": False}
+    assert s.warnings == ["을구 5번 '임차권설정' 등기가 있습니다. 선순위 채권에 넣을지 직접 확인하세요"]
+
+
 def test_owner_name_split_only_around_id_line():
     # 이름 조각 → 번호 줄 → 나머지 이름일 때만 붙인다. 앞 사람 주소가 줄바꿈된 경우는 붙이지 않는다
     section = "센텀아이파크\n김가상 (공유자) 000000-******* 2분의 1 3\n"
