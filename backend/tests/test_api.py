@@ -29,6 +29,21 @@ def test_create_and_get_check(client):
     assert r.json() == created
 
 
+def test_lease_amount_counts_as_senior_debt(client):
+    # 을구 임차권·전세권 보증금은 선순위 채권에 들어가고, 확인 화면에서 빼면(0) 비율에서도 빠진다
+    body = {"housing_type": "row_house", "deposit": 150_000_000, "official_price": 2 * EOK,
+            "registry": {"lease_amount": 90_000_000}}
+    with_lease = client.post("/api/checks", json=body).json()
+    assert round(with_lease["deposit_ratio"], 4) == 0.8571       # (1.5억 + 0.9억) ÷ 2.8억
+    assert [m["id"] for m in with_lease["matched"]] == []
+    body["registry"]["lease_amount"] = 120_000_000
+    over = client.post("/api/checks", json=body).json()
+    assert [m["id"] for m in over["matched"]] == ["C-2"]           # (1.5억 + 1.2억) ÷ 2.8억 = 96.4%
+    body["registry"]["lease_amount"] = 0
+    removed = client.post("/api/checks", json=body).json()
+    assert round(removed["deposit_ratio"], 4) == 0.5357
+
+
 def test_missing_official_price_is_422(client):
     r = client.post("/api/checks", json={"housing_type": "apartment", "deposit": EOK})
     assert r.status_code == 422

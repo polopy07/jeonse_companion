@@ -6,7 +6,7 @@
     부동산정보요약
     소유지분현황(갑구)                              → 소유자
     소유지분을 제외한 소유권에 대한 사항 (갑구)      → 압류·가압류·가처분·경매개시결정, 신탁
-    (근)저당권 및 전세권 등 (을구)                  → 근저당 채권최고액
+    (근)저당권 및 전세권 등 (을구)                  → 근저당 채권최고액, 임차권·전세권 보증금
     권리변동 예정사항                                → 처리 중인 등기 신청이 있는지만 보고, 뒤는 읽지 않음
 
 2) 등기사항증명서 마지막 페이지 "주요 등기사항 요약"
@@ -18,8 +18,9 @@
 다음 행 전까지를 한 항목으로 묶는다. 부동산정보요약은 접수일이 순위번호 줄보다 위에 찍혀서
 날짜만 있는 줄은 다음 항목에 붙인다.
 
-자동으로 판단하기 어려운 것(변경 등기, 전세권 등)은 합계에 넣지 않고 warnings로 돌려
-사용자가 확인 화면(FR-006)에서 고치게 한다.
+임차권·전세권 보증금은 새 세입자보다 먼저 돌려받는 돈이라 선순위 채권(lease_amount)에 넣고, 이미 돌려받았거나
+내 계약이면 확인 화면(FR-006)에서 빼도록 warnings로 알린다. 자동으로 판단하기 어려운 것(변경 등기 등)은
+합계에 넣지 않고 warnings로 돌려 사용자가 확인 화면에서 고치게 한다.
 """
 import re
 from dataclasses import dataclass, field
@@ -49,11 +50,14 @@ ID_LINE = re.compile(r"^\d{6}\s*-")                 # 주민등록번호(법인�
 NAME_PART = re.compile(r"^[^\s\d()]+$")           # 이름 조각만 있는 줄
 MAX_AMOUNT = re.compile(r"채\s*권\s*최\s*고\s*액\s*금\s*([\d,]+)\s*원")
 MORTGAGEE = re.compile(r"근저당권자\s*(\S+)")
+LEASE_AMOUNT = re.compile(r"(?:임\s*차\s*보\s*증\s*금|전\s*세\s*금)\s*금\s*([\d,]+)\s*원")
+LESSEE = re.compile(r"(?:임차권자|전세권자)\s*(\S+)")
 
 SEIZURE_WORDS = ("압류", "가처분", "경매개시결정")   # "압류"는 가압류도 포함
 TRUST_WORD = "신탁"
 TRUST_NOTICE = "신탁원부"
 MORTGAGE_WORDS = ("근저당권설정", "저당권설정")
+LEASE_WORDS = ("임차권", "전세권설정")             # 임차권설정·주택임차권(임차권등기명령)·전세권설정
 
 
 @dataclass
@@ -70,11 +74,18 @@ class Mortgage(Entry):
 
 
 @dataclass
+class Lease(Entry):
+    amount: int | None = None     # 임차보증금·전세금 (원)
+    holder: str | None = None     # 임차권자·전세권자
+
+
+@dataclass
 class RegistrySummary:
     owners: list[str] = field(default_factory=list)
     seizures: list[Entry] = field(default_factory=list)
     trusts: list[Entry] = field(default_factory=list)
     mortgages: list[Mortgage] = field(default_factory=list)
+    leases: list[Lease] = field(default_factory=list)   # 을구 임차권·전세권 (선순위 채권에 넣음)
     others: list[Entry] = field(default_factory=list)   # 분류하지 못한 등기 (사용자 확인)
     trustee_owner: bool = False                        # 소유자가 수탁자(신탁회사)로 나옴
     warnings: list[str] = field(default_factory=list)
@@ -87,12 +98,17 @@ class RegistrySummary:
     def mortgage_amount(self) -> int:
         return sum(m.amount or 0 for m in self.mortgages)
 
+    @property
+    def lease_amount(self) -> int:
+        return sum(lease.amount or 0 for lease in self.leases)
+
     def to_fields(self) -> dict:
         """fields.yaml의 registry.* 값 (schemas.RegistryInput과 같은 이름)."""
         return {
             "seizure": bool(self.seizures),
             "mortgage": bool(self.mortgages),
             "mortgage_amount": self.mortgage_amount,
+            "lease_amount": self.lease_amount,
             "trust": self.trust,
         }
 
@@ -204,8 +220,23 @@ def _parse_eulgu(section: str, result: RegistrySummary) -> None:
             ))
             if amount is None:
                 result.warnings.append(f"을구 {e.rank}번 근저당의 채권최고액을 읽지 못했습니다. 직접 입력하세요")
+        elif any(w in e.purpose for w in LEASE_WORDS) and "-" not in e.rank:
+            amount = LEASE_AMOUNT.search(e.text)
+            holder = LESSEE.search(e.text)
+            lease = Lease(
+                rank=e.rank, purpose=e.purpose, text=e.text,
+                amount=int(amount.group(1).replace(",", "")) if amount else None,
+                holder=_strip_owner(holder.group(1), result.owners) if holder else None,
+            )
+            result.leases.append(lease)
+            if lease.amount is None:
+                result.warnings.append(f"을구 {e.rank}번 {e.purpose}의 보증금을 읽지 못했습니다. 직접 입력하세요")
+            else:
+                result.warnings.append(
+                    f"을구 {e.rank}번 {e.purpose} 보증금 {lease.amount:,}원을 선순위 채권에 넣었습니다. "
+                    "이미 돌려받았거나 내 계약이면 빼세요")
         else:
-            # 변경 등기(1-1 등), 전세권·임차권 등은 합계에 넣지 않고 사용자에게 확인을 맡긴다.
+            # 변경 등기(1-1 등) 등은 합계에 넣지 않고 사용자에게 확인을 맡긴다.
             result.others.append(e)
             result.warnings.append(f"을구 {e.rank}번 '{e.purpose}' 등기가 있습니다. 선순위 채권에 넣을지 직접 확인하세요")
 

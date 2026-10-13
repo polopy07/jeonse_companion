@@ -20,14 +20,14 @@ def test_villa_with_two_mortgages():
         ("1", 120_000_000, "주식회사가상은행"),
         ("4", 36_000_000, "가상캐피탈주식회사"),
     ]
-    assert s.to_fields() == {"seizure": False, "mortgage": True, "mortgage_amount": 156_000_000, "trust": False}
+    assert s.to_fields() == {"seizure": False, "mortgage": True, "mortgage_amount": 156_000_000, "lease_amount": 0, "trust": False}
     assert s.warnings == []
 
 
 def test_apartment_without_records():
     s = parse_summary_text(load("apartment_clean.txt"))
     assert s.owners == ["김가상", "이가상"]
-    assert s.to_fields() == {"seizure": False, "mortgage": False, "mortgage_amount": 0, "trust": False}
+    assert s.to_fields() == {"seizure": False, "mortgage": False, "mortgage_amount": 0, "lease_amount": 0, "trust": False}
     assert s.others == [] and s.warnings == []
 
 
@@ -37,11 +37,12 @@ def test_trust_seizure_and_entries_left_to_user():
     assert s.trustee_owner
     assert [e.purpose for e in s.trusts] == ["신탁"]
     assert [e.purpose for e in s.seizures] == ["가압류"]
-    # 변경 등기(2-1)와 전세권은 합계에 넣지 않고 사용자 확인으로 넘긴다
+    # 변경 등기(2-1)는 합계에 넣지 않고 사용자 확인으로, 전세권은 전세금을 선순위 채권에 넣고 뺄 수 있게 알린다
     assert [(m.rank, m.amount) for m in s.mortgages] == [("2", 240_000_000)]
-    assert [(e.rank, e.purpose) for e in s.others] == [("2-1", "근저당권변경"), ("3", "전세권설정")]
+    assert [(e.rank, e.purpose) for e in s.others] == [("2-1", "근저당권변경")]
+    assert [(lease.rank, lease.purpose, lease.amount) for lease in s.leases] == [("3", "전세권설정", 50_000_000)]
     assert len(s.warnings) == 2
-    assert s.to_fields() == {"seizure": True, "mortgage": True, "mortgage_amount": 240_000_000, "trust": True}
+    assert s.to_fields() == {"seizure": True, "mortgage": True, "mortgage_amount": 240_000_000, "lease_amount": 50_000_000, "trust": True}
 
 
 def test_continuation_lines_join_into_one_entry():
@@ -88,7 +89,7 @@ def test_iros_summary_apartment_with_two_mortgages():
         ("15", 38_500_000, "주식회사부산은행"),
         ("16", 51_700_000, "주식회사부산은행"),
     ]
-    assert s.to_fields() == {"seizure": False, "mortgage": True, "mortgage_amount": 90_200_000, "trust": False}
+    assert s.to_fields() == {"seizure": False, "mortgage": True, "mortgage_amount": 90_200_000, "lease_amount": 0, "trust": False}
     assert s.others == [] and s.warnings == []
     # 순위번호 줄보다 위에 찍힌 접수일은 그 행에 붙는다
     assert "2021년8월20일" in s.mortgages[0].text and "2024년8월22일" not in s.mortgages[0].text
@@ -98,7 +99,7 @@ def test_iros_summary_apartment_with_two_mortgages():
 def test_iros_summary_coowners_without_records():
     s = parse_summary_text(load("iros_villa_coowners.txt"))
     assert s.owners == ["이가상", "박가상"]
-    assert s.to_fields() == {"seizure": False, "mortgage": False, "mortgage_amount": 0, "trust": False}
+    assert s.to_fields() == {"seizure": False, "mortgage": False, "mortgage_amount": 0, "lease_amount": 0, "trust": False}
     assert s.others == [] and s.warnings == []
 
 
@@ -108,19 +109,19 @@ def test_iros_summary_trust():
     s = parse_summary_text(load("iros_trust.txt"))
     assert s.owners == ["국제자산신탁주식회사"] and s.trustee_owner
     assert [(e.rank, e.purpose) for e in s.trusts] == [("2-1", "신탁 주의사항")]
-    assert s.to_fields() == {"seizure": False, "mortgage": False, "mortgage_amount": 0, "trust": True}
+    assert s.to_fields() == {"seizure": False, "mortgage": False, "mortgage_amount": 0, "lease_amount": 0, "trust": True}
     assert s.others == [] and s.warnings == []
 
 
 def test_iros_summary_auction_with_registered_lease():
-    # 경매 진행 중인 다세대 (실제 샘플). 임차권설정은 근저당 합계에 넣지 않고 사용자 확인으로 넘긴다
+    # 경매 진행 중인 다세대 (실제 샘플). 앞 세입자 임차보증금은 선순위 채권에 넣고, 뺄 수 있게 알린다 (PO 결정 2026-10-13)
     s = parse_summary_text(load("iros_auction_lease.txt"))
     assert s.owners == ["문가상"]
     assert [(e.rank, e.purpose) for e in s.seizures] == [("3", "임의경매개시결정")]
-    assert [(e.rank, e.purpose) for e in s.others] == [("5", "임차권설정")]
-    assert "임차보증금 금90,000,000원" in s.others[0].text
-    assert s.to_fields() == {"seizure": True, "mortgage": False, "mortgage_amount": 0, "trust": False}
-    assert s.warnings == ["을구 5번 '임차권설정' 등기가 있습니다. 선순위 채권에 넣을지 직접 확인하세요"]
+    assert [(lease.rank, lease.purpose, lease.amount, lease.holder) for lease in s.leases] == [("5", "임차권설정", 90_000_000, "남가상")]
+    assert s.others == []
+    assert s.to_fields() == {"seizure": True, "mortgage": False, "mortgage_amount": 0, "lease_amount": 90_000_000, "trust": False}
+    assert s.warnings == ["을구 5번 임차권설정 보증금 90,000,000원을 선순위 채권에 넣었습니다. 이미 돌려받았거나 내 계약이면 빼세요"]
 
 
 def test_owner_name_split_only_around_id_line():
@@ -152,7 +153,7 @@ def test_iros_summary_seizures_and_auctions():
         ("14", "가압류"), ("15", "가압류"), ("16", "압류"), ("17", "임의경매개시결정"),
     ]
     assert [(m.rank, m.amount, m.holder) for m in s.mortgages] == [("3", 220_000_000, "주식회사하나은행")]
-    assert s.to_fields() == {"seizure": True, "mortgage": True, "mortgage_amount": 220_000_000, "trust": False}
+    assert s.to_fields() == {"seizure": True, "mortgage": True, "mortgage_amount": 220_000_000, "lease_amount": 0, "trust": False}
     assert s.others == [] and s.warnings == []
     # 각 행에 자기 접수일이 붙는다 (다음 행 날짜가 섞이지 않음)
     assert "2024년11월20일" in s.seizures[0].text and "2024년12월5일" not in s.seizures[0].text
@@ -197,7 +198,7 @@ def test_api_parse(client):
     r = client.post("/api/registry/parse", files={"file": ("registry.pdf", pdf, "application/pdf")})
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["fields"] == {"seizure": False, "mortgage": True, "mortgage_amount": 156_000_000, "trust": False}
+    assert body["fields"] == {"seizure": False, "mortgage": True, "mortgage_amount": 156_000_000, "lease_amount": 0, "trust": False}
     assert body["owners"] == ["홍길동"]
     assert [m["amount"] for m in body["mortgages"]] == [120_000_000, 36_000_000]
 

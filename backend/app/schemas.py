@@ -39,6 +39,8 @@ class RegistryInput(BaseModel):
     seizure: bool = False
     mortgage: bool = False
     mortgage_amount: MoneyOrZero = Field(0, description="근저당 채권최고액 합계 (원)")
+    lease_amount: MoneyOrZero = Field(
+        0, description="을구 임차권·전세권 보증금 합계 (원). 선순위 채권에 넣는다. 이미 돌려받았거나 내 계약이면 확인 화면에서 뺀다")
     trust: bool = False
 
     @model_validator(mode="after")
@@ -59,12 +61,18 @@ class RegistryMortgageOut(RegistryEntryOut):
     holder: str | None
 
 
+class RegistryLeaseOut(RegistryEntryOut):
+    amount: int | None = Field(description="임차보증금·전세금 (원). 읽지 못하면 null")
+    holder: str | None = Field(description="임차권자·전세권자")
+
+
 class RegistryFieldsOut(BaseModel):
     """RegistryInput과 같은 이름. 채권최고액을 못 읽으면 mortgage=true, mortgage_amount=0으로 나갈 수 있어 검사는 하지 않는다."""
 
     seizure: bool
     mortgage: bool
     mortgage_amount: int
+    lease_amount: int
     trust: bool
 
 
@@ -74,6 +82,7 @@ class RegistryParseResult(BaseModel):
     fields: RegistryFieldsOut
     owners: list[str]
     mortgages: list[RegistryMortgageOut]
+    leases: list[RegistryLeaseOut] = Field(description="을구 임차권·전세권. 보증금이 fields.lease_amount에 들어 있어 확인 화면에서 항목별로 뺄 수 있게 보여 준다")
     seizures: list[RegistryEntryOut]
     trusts: list[RegistryEntryOut]
     others: list[RegistryEntryOut]

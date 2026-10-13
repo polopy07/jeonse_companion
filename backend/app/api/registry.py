@@ -30,6 +30,7 @@ async def parse_registry(file: UploadFile):
         fields=summary.to_fields(),
         owners=summary.owners,
         mortgages=[asdict(m) for m in summary.mortgages],
+        leases=[asdict(lease) for lease in summary.leases],
         seizures=[asdict(e) for e in summary.seizures],
         trusts=[asdict(e) for e in summary.trusts],
         others=[asdict(e) for e in summary.others],
