@@ -169,7 +169,6 @@ GitHub 이슈와 마일스톤(2주차·3주차·4주차)으로 진행을 관리�
 | `POST /api/contracts/{id}/move` | 갈아타기: 다음 집 날짜·보증금·계약금 → 자금 틈, 전입 순서 경고 (저장) | FR-025~028 | UI-07 | 3 | #48 |
 | `POST /api/admin/notifications/run` | 알림 스케줄러를 지정한 날(가상 날짜)로 한 번 실행. 이메일 1종 실제 발송 (시연용, 평소에는 서버 안 스케줄러) | FR-041, 044 | | 3 | #49 |
 | (공통) | 가상 날짜(`X-Virtual-Today`)를 할 일 상태·알림·경보 계산에도 적용 (1.7) | FR-044 | UI-04, UI-09 | 3 | #50 |
-| (공통) | `/api/admin/*` 관리자 토큰 확인. 배포 전에 처리 | FR-046 | | 3 | #55 |
 | `GET /api/contracts/{id}/timeline` | 계약 2년 기록을 날짜순으로 | FR-032 | UI-06 | 4 | #51 |
 | `GET /api/contracts/{id}/return-guide` | 반환 대응 단계, 청구 서류 대조 | FR-024, 034~035 | UI-08 | 4 | #52 |
 | `GET /api/contracts/{id}/alerts/latest` | 최근 역전세 경보 단계·계산 근거·기준일 | FR-036~038 | UI-09 | 4 | #53 |
