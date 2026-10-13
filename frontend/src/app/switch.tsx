@@ -6,6 +6,7 @@ import { TextField, Toggle } from '@/components/form';
 import { Icon } from '@/components/Icon';
 import { Button, Card, Screen, SectionLabel } from '@/components/layout';
 import { Colors, Radius } from '@/constants/theme';
+import { formatWon, parseManwon } from '@/lib/format';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -22,14 +23,22 @@ const md = (d: Date) => `${d.getMonth() + 1}.${String(d.getDate()).padStart(2, '
 /** UI-07 갈아타기 입력: 지금 집 만기와 다음 집 잔금 사이의 자금 틈을 계산한다 */
 export default function SwitchScreen() {
   const [endDate, setEndDate] = useState('2028.11.19');
-  const [refund, setRefund] = useState('1억 4,000만');
+  const [refund, setRefund] = useState('14000');
   const [balanceDate, setBalanceDate] = useState('2028.11.15');
-  const [nextDeposit, setNextDeposit] = useState('1억 6,000만');
+  const [nextDeposit, setNextDeposit] = useState('16000');
+  const [nextDown, setNextDown] = useState('1600');
   const [keepRecords, setKeepRecords] = useState(true);
 
   const end = parseDate(endDate);
   const bal = parseDate(balanceDate);
   const gapDays = end && bal ? Math.round((end.getTime() - bal.getTime()) / DAY) : null;
+
+  // 자금 틈에 먼저 필요한 돈 = min(지금 집 보증금, 다음 집 잔금), 다음 집 잔금 = 보증금 − 계약금 (정답표 Q5)
+  const refundWon = parseManwon(refund);
+  const depositWon = parseManwon(nextDeposit);
+  const downWon = parseManwon(nextDown) ?? 0;
+  const nextBalance = depositWon !== null ? Math.max(depositWon - downWon, 0) : null;
+  const gapMoney = refundWon !== null && nextBalance !== null ? Math.min(refundWon, nextBalance) : null;
 
   return (
     <Screen title="다음 집으로 갈아타기" footer={<Button label="다음 집 계약 전 확인하기" href="/precheck" />}>
@@ -43,14 +52,38 @@ export default function SwitchScreen() {
         </AppText>
         <View style={styles.fields}>
           <TextField label="만기일" value={endDate} onChange={setEndDate} />
-          <TextField label="돌려받을 보증금" value={refund} onChange={setRefund} />
+          <TextField
+            label="돌려받을 보증금"
+            value={refund}
+            onChange={setRefund}
+            suffix="만 원"
+            keyboardType="number-pad"
+            helper={refundWon ? `= ${formatWon(refundWon)} 원` : undefined}
+          />
         </View>
         <AppText size={12} weight="bold" color={Colors.textSub} style={{ marginTop: 4 }}>
           다음 집
         </AppText>
         <View style={styles.fields}>
           <TextField label="잔금일" value={balanceDate} onChange={setBalanceDate} warn={gapDays !== null && gapDays > 0} />
-          <TextField label="보증금" value={nextDeposit} onChange={setNextDeposit} />
+          <TextField
+            label="보증금"
+            value={nextDeposit}
+            onChange={setNextDeposit}
+            suffix="만 원"
+            keyboardType="number-pad"
+            helper={depositWon ? `= ${formatWon(depositWon)} 원` : undefined}
+          />
+        </View>
+        <View style={styles.fields}>
+          <TextField
+            label="계약금 (이미 보낸 돈)"
+            value={nextDown}
+            onChange={setNextDown}
+            suffix="만 원"
+            keyboardType="number-pad"
+            helper={nextBalance !== null ? `잔금 ${formatWon(nextBalance)} 원` : undefined}
+          />
         </View>
       </Card>
 
@@ -72,7 +105,9 @@ export default function SwitchScreen() {
                   <AppText size={13} weight="bold" color={Colors.caution}>
                     자금 틈 {gapDays}일
                   </AppText>
-                  {` · 이 기간에 ${nextDeposit} 원이 먼저 필요해요`}
+                  {gapMoney !== null
+                    ? ` · 이 기간에 ${formatWon(gapMoney)} 원이 먼저 필요해요`
+                    : ' · 보증금과 계약금을 입력하면 먼저 필요한 돈을 알려 드려요'}
                 </>
               ) : (
                 '지금 집 보증금을 받은 뒤 다음 집 잔금을 내요. 자금 틈이 없어요.'

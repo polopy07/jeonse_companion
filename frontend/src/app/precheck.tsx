@@ -11,6 +11,7 @@ import { ratioBand } from '@/components/verdict';
 import { Colors, Radius, Touch } from '@/constants/theme';
 import { demoHouses, type DemoHouse } from '@/data/demo';
 import {
+  estimateFromOfficial,
   housingTypes,
   isNotApplicable,
   runCheckLocal,
@@ -265,7 +266,7 @@ export default function PrecheckScreen() {
                 placeholder="15000"
                 helper={
                   official
-                    ? `= ${formatWon(official)} 원 · 추정 집값 ${formatWon(Math.floor(official * 1.4))} 원`
+                    ? `= ${formatWon(official)} 원 · 추정 집값 ${formatWon(estimateFromOfficial(official))} 원`
                     : '부동산 공시가격 알리미에서 주소로 찾을 수 있어요'
                 }
               />
@@ -423,7 +424,7 @@ function Row({ label, note, value }: { label: string; note?: string; value: stri
 
 /** 등기부 전 최소 추정치 미리보기 (근저당 0원으로 계산) */
 function MinimumPreview({ deposit, official, trade }: { deposit: number; official: number; trade: number | null }) {
-  const estimated = trade ? Math.min(Math.floor(official * 1.4), trade) : Math.floor(official * 1.4);
+  const estimated = trade ? Math.min(estimateFromOfficial(official), trade) : estimateFromOfficial(official);
   const ratio = deposit / estimated;
   const band = ratioBand(ratio);
   return (

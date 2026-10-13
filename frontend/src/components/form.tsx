@@ -8,6 +8,8 @@ type TextFieldProps = {
   label: string;
   value: string;
   onChange: (v: string) => void;
+  /** 입력을 마치고 칸을 벗어날 때 */
+  onBlur?: () => void;
   placeholder?: string;
   /** 칸 오른쪽 단위 (만 원, ㎡) */
   suffix?: string;
@@ -20,7 +22,7 @@ type TextFieldProps = {
   style?: ViewStyle;
 };
 
-export function TextField({ label, value, onChange, placeholder, suffix, helper, keyboardType, warn, error, style }: TextFieldProps) {
+export function TextField({ label, value, onChange, onBlur, placeholder, suffix, helper, keyboardType, warn, error, style }: TextFieldProps) {
   return (
     <View style={[{ flex: 1, gap: 4 }, style]}>
       <AppText size={12} color={Colors.textSub}>
@@ -35,6 +37,7 @@ export function TextField({ label, value, onChange, placeholder, suffix, helper,
         <TextInput
           value={value}
           onChangeText={onChange}
+          onBlur={onBlur}
           placeholder={placeholder}
           placeholderTextColor="#9C968A"
           keyboardType={keyboardType}

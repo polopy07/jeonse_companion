@@ -67,6 +67,16 @@ export function nameMatches(a: string | null, b: string | null): boolean | null 
   return [...x].every((ch, i) => ch === y[i] || MASK.test(ch) || MASK.test(y[i]));
 }
 
+/**
+ * 입력 중에는 경고를 띄우지 않는다. 칸을 벗어났거나(입력 마침) 글자 수가 같아졌을 때만 다르다고 본다.
+ * ("김"만 쳤을 때 "계약을 멈추세요"가 뜨지 않게)
+ */
+export function nameMismatch(owner: string | null, input: string, finished: boolean): boolean {
+  if (nameMatches(owner, input) !== false) return false;
+  const sameLength = (owner ?? '').replace(/\s/g, '').length === input.replace(/\s/g, '').length;
+  return finished || sameLength;
+}
+
 // 현장 확인 결과. 특약 반영 기록·기록함 화면에서 읽는다
 const siteCheck = createStore<SiteCheckState | null>(null);
 export const setSiteCheck = siteCheck.set;

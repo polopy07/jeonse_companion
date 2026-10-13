@@ -1,7 +1,7 @@
 /**
  * 시연용 예시 값. 목업(docs/design)의 시나리오를 그대로 따른다.
  * 부산 수영구 근저당 빌라, 담보 설정 금지 특약 "거절당함".
- * 특약 문구는 rules/special_terms.yaml과 같다. 백엔드 API가 붙으면 이 파일 대신 응답을 쓴다. 필드 이름은 백엔드 CheckResult와 맞췄다.
+ * 특약 문구는 lib/special-terms.ts(rules/special_terms.yaml)에 있다. 백엔드 API가 붙으면 이 파일 대신 응답을 쓴다. 필드 이름은 백엔드 CheckResult와 맞췄다.
  */
 
 import type { SiteCheckState } from '@/lib/site-check';
@@ -115,25 +115,6 @@ export const detailRows: DetailRow[] = [
   { label: '위반건축물', value: '해당 없음', level: 'ok' },
 ];
 
-export type SpecialTerm = { title: string; link: string; text: string };
-
-export const specialTerms: SpecialTerm[] = [
-  {
-    title: '잔금일 다음 날까지 담보 설정 금지',
-    link: '근저당 있음과 연결',
-    text: '임대인은 잔금 지급일 다음 날까지 이 주택에 저당권 등 담보권을 설정하지 않는다. 이를 위반하면 임차인은 계약을 해제할 수 있으며 임대인은 손해를 배상한다.',
-  },
-  {
-    title: '보증·대출 거절 시 계약 해제',
-    link: '모든 계약 공통',
-    text: '임차인의 전세자금대출 또는 전세보증금 반환보증이 거절되면 임차인은 계약을 해제할 수 있고, 임대인은 받은 계약금을 즉시 반환한다.',
-  },
-  {
-    title: '국세·지방세 완납증명 제출',
-    link: '확인 못 한 항목: 체납과 연결',
-    text: '임대인은 잔금 지급 전까지 국세·지방세 완납증명서를 임차인에게 제출한다.',
-  },
-];
 
 /** 시연 집 계약 당일 현장 확인 (소유자 본인 참석, 모두 확인) */
 export const siteCheckDemo: SiteCheckState = {
@@ -165,16 +146,17 @@ export type Todo = {
 export const todos: Todo[] = [
   { id: 'T1', title: '임대차 신고', when: '10.21 완료 · 증빙 1장', status: 'done' },
   { id: 'T2', title: '보증 가입 여부 확정', when: '10.28 완료 · HUG', status: 'done' },
+  // 담보 설정 금지 특약 "거절당함" → 전입신고를 맨 위로 (special_terms.yaml S-NO-MORTGAGE on_rejected, AC-016)
   {
-    id: 'T3',
-    title: '잔금일 아침 등기부 재비교',
-    when: '11.20(금) 아침',
+    id: 'T4',
+    title: '전입신고',
+    when: '11.20(금) 잔금 직후',
     dday: 'D-10',
-    badge: '특약 거절됨 · 꼭 확인',
+    badge: '특약 거절됨 · 잔금일 당일 필수',
     status: 'current',
     todayBefore: true,
   },
-  { id: 'T4', title: '전입신고', when: '11.20(금) 잔금 직후', dday: 'D-10', badge: '잔금일 당일 필수', status: 'upcoming' },
+  { id: 'T3', title: '잔금일 아침 등기부 재비교', when: '11.20(금) 아침', dday: 'D-10', status: 'upcoming' },
   { id: 'T5', title: '반환보증 가입', when: '보증기관 가입 마감 기준', status: 'upcoming' },
   { id: 'T7', title: '갱신 또는 이사 의사 통보', when: '2028.09.19 · 만기 2개월 전', status: 'later' },
   { id: 'T9', title: '보증금 반환 확인 → 갈아타기', when: '2028.11.19 · 만기일', status: 'later', href: '/switch' },

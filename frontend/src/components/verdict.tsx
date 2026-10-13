@@ -6,8 +6,8 @@ import { AppText } from '@/components/AppText';
 import { Icon, type IconName } from '@/components/Icon';
 import { Card, DashedBox } from '@/components/layout';
 import { Colors, Radius, Touch } from '@/constants/theme';
-import type { SpecialTerm } from '@/data/demo';
 import type { MatchedRule, UncheckedItem, VerdictLevel } from '@/lib/check';
+import type { ShownTerm } from '@/lib/special-terms';
 
 /** 판정 3단계. 색만으로 구분하지 않고 아이콘과 글자를 같이 쓴다. "안전합니다"는 쓰지 않는다. */
 export const verdictStyle: Record<VerdictLevel, { label: string; fg: string; bg: string; icon: IconName }> = {
@@ -161,7 +161,7 @@ export function useCopy(text: string) {
   return { copied, copy };
 }
 
-export function SpecialTermRow({ term }: { term: SpecialTerm }) {
+export function SpecialTermRow({ term }: { term: ShownTerm }) {
   const { copied, copy } = useCopy(term.text);
   return (
     <Card padding={0} style={styles.termRow}>

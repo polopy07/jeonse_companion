@@ -7,18 +7,34 @@ import { Icon } from '@/components/Icon';
 import { Button, Card, Disclaimer, Screen, StepProgress } from '@/components/layout';
 import { useCopy } from '@/components/verdict';
 import { Colors, Radius, Touch } from '@/constants/theme';
-import { siteCheckDemo, specialTerms } from '@/data/demo';
+import { checkResult, siteCheckDemo } from '@/data/demo';
+import { useLatestCheck } from '@/lib/check';
 import { siteCheckItems, useSiteCheck } from '@/lib/site-check';
+import {
+  setSpecialTermResults,
+  termsFor,
+  useSpecialTermResults,
+  type ShownTerm,
+  type SpecialTermId,
+  type SpecialTermResult,
+} from '@/lib/special-terms';
 
-type Pick = 'in' | 'out';
+type Picks = Partial<Record<SpecialTermId, SpecialTermResult>>;
 
 /** UI-03 계약 당일 체크: 현장 확인 → 특약 예시 → "넣음/거절당함" 기록 (특약 반영 분기) */
 export default function ContractDayScreen() {
-  const term = specialTerms[0];
-  const [pick, setPick] = useState<Pick>('out');
-  const { copied, copy } = useCopy(term.text);
+  const check = useLatestCheck() ?? checkResult;
+  const terms = check.block_payment ? [] : termsFor(check.matched);
+  // 처음에는 아무것도 고르지 않은 상태. 전에 골랐던 값이 있으면 이어서 보여 준다
+  const [picks, setPicks] = useState<Picks>(useSpecialTermResults());
   // 현장 확인을 거치지 않고 열면(시연) 모두 확인한 시연 값을 보여 준다
   const items = siteCheckItems(useSiteCheck() ?? siteCheckDemo);
+
+  const allPicked = !check.block_payment && terms.every((t) => picks[t.id]);
+  const next = () => {
+    setSpecialTermResults(Object.fromEntries(terms.map((t) => [t.id, picks[t.id]])) as Picks);
+    router.push('/todos');
+  };
 
   return (
     <Screen
@@ -26,9 +42,17 @@ export default function ContractDayScreen() {
       footer={
         <>
           <Disclaimer style={{ paddingTop: 0, marginBottom: 12 }}>
-            특약 예시는 공공 자료를 바탕으로 한 참고 문구이며 법률 자문이 아닙니다.
+            {check.block_payment
+              ? '"문제 항목" 판정이라 패키지를 시작할 수 없어요.'
+              : terms.length && !allPicked
+                ? '특약마다 "넣음" 또는 "거절당함"을 골라 주세요.'
+                : '특약 예시는 공공 자료를 바탕으로 한 참고 문구이며 법률 자문이 아닙니다.'}
           </Disclaimer>
-          <Button label="다음 · 계약 날짜 입력" href="/todos" />
+          <Button
+            label="다음 · 계약 날짜 입력"
+            onPress={allPicked ? next : undefined}
+            style={{ opacity: allPicked ? 1 : 0.4 }}
+          />
         </>
       }>
       <StepProgress current={3} total={5} label="특약 반영 기록" />
@@ -46,19 +70,51 @@ export default function ContractDayScreen() {
         </Card>
       </Pressable>
 
-      <AppText size={18} weight="bold" style={{ marginTop: 18 }}>
-        이 특약, 계약서에 넣었나요?
-      </AppText>
-      <AppText size={13} color={Colors.textSub} style={{ marginTop: 4 }}>
-        넣었는지에 따라 앞으로 할 일이 달라져요.
-      </AppText>
+      {check.block_payment ? (
+        <View style={[styles.result, { backgroundColor: Colors.dangerBg }]}>
+          <AppText size={14} weight="bold" color={Colors.dangerDeep}>
+            결제 전에 멈추세요
+          </AppText>
+          <AppText size={13} color={Colors.dangerText} leading={1.6} style={{ marginTop: 6 }}>
+            &quot;문제 항목&quot; 판정은 특약으로 해결되지 않아요. 계약을 다시 검토하고 공공 상담 창구에 물어보세요.
+          </AppText>
+        </View>
+      ) : terms.length ? (
+        <>
+          <AppText size={18} weight="bold" style={{ marginTop: 18 }}>
+            {terms.length > 1 ? `이 특약 ${terms.length}개, 계약서에 넣었나요?` : '이 특약, 계약서에 넣었나요?'}
+          </AppText>
+          <AppText size={13} color={Colors.textSub} style={{ marginTop: 4 }}>
+            넣었는지에 따라 앞으로 할 일이 달라져요.
+          </AppText>
+          {terms.map((t) => (
+            <TermCard key={t.id} term={t} pick={picks[t.id]} onPick={(v) => setPicks((p) => ({ ...p, [t.id]: v }))} />
+          ))}
+        </>
+      ) : (
+        <View style={[styles.result, { backgroundColor: Colors.primarySoft, marginTop: 18 }]}>
+          <AppText size={14} weight="bold" color={Colors.primary}>
+            이 판정에 맞는 특약 예시가 없어요
+          </AppText>
+          <AppText size={13} color={Colors.primarySoftText} leading={1.6} style={{ marginTop: 6 }}>
+            걸린 항목이 없어 기본 할 일로 진행해요. 확인 못 한 항목은 따로 챙겨 주세요.
+          </AppText>
+        </View>
+      )}
+    </Screen>
+  );
+}
 
+function TermCard({ term, pick, onPick }: { term: ShownTerm; pick?: SpecialTermResult; onPick: (v: SpecialTermResult) => void }) {
+  const { copied, copy } = useCopy(term.text);
+  return (
+    <>
       <Card padding={18} style={{ marginTop: 12, borderRadius: Radius.lg }}>
         <AppText size={15} weight="bold">
           {term.title}
         </AppText>
         <AppText size={12} color={Colors.textSub} style={{ marginTop: 2 }}>
-          근저당 있음 항목과 연결
+          {term.link}
         </AppText>
         <View style={styles.termText}>
           <AppText size={13} leading={1.7}>
@@ -74,35 +130,46 @@ export default function ContractDayScreen() {
           style={{ marginTop: 10 }}
         />
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }} accessibilityRole="radiogroup">
-          <PickButton label="넣음" selected={pick === 'in'} color={Colors.primary} onPress={() => setPick('in')} />
-          <PickButton label="거절당함" selected={pick === 'out'} color={Colors.cautionStrong} onPress={() => setPick('out')} />
+          <PickButton label="넣음" selected={pick === 'inserted'} color={Colors.primary} onPress={() => onPick('inserted')} />
+          <PickButton
+            label="거절당함"
+            selected={pick === 'rejected'}
+            color={Colors.cautionStrong}
+            onPress={() => onPick('rejected')}
+          />
         </View>
       </Card>
+      {pick ? <Outcome term={term} pick={pick} /> : null}
+    </>
+  );
+}
 
-      {pick === 'out' ? (
-        <View style={[styles.result, { backgroundColor: Colors.cautionBg }]}>
-          <AppText size={14} weight="bold" color={Colors.caution}>
-            할 일이 이렇게 바뀌어요
-          </AppText>
-          <AppText size={13} color={Colors.cautionText} leading={1.6} style={{ marginTop: 6 }}>
-            잔금 당일 설정되는 담보는 잔금일 등기부 재비교로 잡을 수 없어요. 잔금일 당일 전입신고로 대항력을 확보하세요.
-          </AppText>
-          <View style={{ gap: 6, marginTop: 12 }}>
-            <Change tag="앞당김" text="전입신고 · 잔금일 당일 필수" />
-            <Change tag="강조" text="잔금일 아침 등기부 재비교" />
-          </View>
+/** 고른 결과에 따라 바뀌는 것 (special_terms.yaml on_inserted / on_rejected) */
+function Outcome({ term, pick }: { term: ShownTerm; pick: SpecialTermResult }) {
+  const o = pick === 'rejected' ? term.ifRejected : term.ifInserted;
+  const rejected = pick === 'rejected';
+  return (
+    <View style={[styles.result, { backgroundColor: rejected ? Colors.cautionBg : Colors.primarySoft }]}>
+      <AppText size={14} weight="bold" color={rejected ? Colors.caution : Colors.primary}>
+        {rejected ? '할 일이 이렇게 바뀌어요' : '계약 기록에 남겼어요'}
+      </AppText>
+      {o.warnings.map((w) => (
+        <AppText key={w} size={13} color={rejected ? Colors.cautionText : Colors.primarySoftText} leading={1.6} style={{ marginTop: 6 }}>
+          {w}
+        </AppText>
+      ))}
+      {o.movesToTop.length || o.documents.length || o.linkCounsel ? (
+        <View style={{ gap: 6, marginTop: 12 }}>
+          {o.movesToTop.map((t) => (
+            <Change key={t} tag="맨 위로" text={t} />
+          ))}
+          {o.documents.map((d) => (
+            <Change key={d} tag="기록함" text={`${d} 올리기`} color={Colors.primary} />
+          ))}
+          {o.linkCounsel ? <Change tag="상담" text="공공 상담 창구 안내를 함께 보여 드려요" /> : null}
         </View>
-      ) : (
-        <View style={[styles.result, { backgroundColor: Colors.primarySoft }]}>
-          <AppText size={14} weight="bold" color={Colors.primary}>
-            계약 기록에 남겼어요
-          </AppText>
-          <AppText size={13} color={Colors.primarySoftText} leading={1.6} style={{ marginTop: 6 }}>
-            잔금일 아침 등기부 재비교에서 새 담보가 보이면, 이 특약으로 계약을 해제할 수 있다는 안내를 함께 보여 드려요.
-          </AppText>
-        </View>
-      )}
-    </Screen>
+      ) : null}
+    </View>
   );
 }
 
@@ -123,15 +190,17 @@ function PickButton({ label, selected, color, onPress }: { label: string; select
   );
 }
 
-function Change({ tag, text }: { tag: string; text: string }) {
+function Change({ tag, text, color = Colors.cautionStrong }: { tag: string; text: string; color?: string }) {
   return (
     <View style={styles.change}>
-      <View style={styles.tag}>
+      <View style={[styles.tag, { backgroundColor: color }]}>
         <AppText size={11} weight="bold" color="#FFFFFF">
           {tag}
         </AppText>
       </View>
-      <AppText size={13}>{text}</AppText>
+      <AppText size={13} style={{ flex: 1 }}>
+        {text}
+      </AppText>
     </View>
   );
 }
@@ -149,5 +218,5 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.card,
     borderRadius: Radius.input,
   },
-  tag: { paddingVertical: 2, paddingHorizontal: 6, borderRadius: 4, backgroundColor: Colors.cautionStrong },
+  tag: { paddingVertical: 2, paddingHorizontal: 6, borderRadius: 4 },
 });

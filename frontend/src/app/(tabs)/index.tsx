@@ -78,19 +78,18 @@ export default function HomeScreen() {
       <SectionLabel>지금 할 일</SectionLabel>
       <View style={styles.nowCard}>
         <AppText size={12} color="rgba(255,255,255,0.85)">
-          11월 20일(금) 아침 · 잔금 보내기 전
+          11월 20일(금) · 잔금 보낸 직후
         </AppText>
         <AppText size={21} weight="bold" color="#FFFFFF" style={{ marginTop: 6 }}>
-          잔금일 아침 등기부 재비교
+          전입신고
         </AppText>
         <AppText size={14} color="rgba(255,255,255,0.92)" leading={1.55} style={{ marginTop: 8 }}>
-          계약 당일 등기부와 비교해 새 근저당·압류가 생겼는지 확인해요. 담보 설정 금지 특약이 거절돼서 이 확인이 더
-          중요해요.
+          잔금을 보낸 날 바로 전입신고를 해야 다음 날부터 대항력이 생겨요. 주민센터나 정부24에서 할 수 있어요.
         </AppText>
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
           <Pressable style={[styles.nowButton, { flex: 1, backgroundColor: '#FFFFFF' }]} onPress={() => router.push('/todos')}>
             <AppText size={15} weight="semibold" color={Colors.primary}>
-              등기부 올리기
+              증빙 남기기
             </AppText>
           </Pressable>
           <Pressable style={[styles.nowButton, styles.nowButtonGhost]} onPress={() => router.push('/todos')}>

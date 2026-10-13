@@ -9,7 +9,7 @@ import { Button, Card, Disclaimer, Screen, SectionLabel, StepProgress } from '@/
 import { Colors, Radius, Touch } from '@/constants/theme';
 import { checkResult } from '@/data/demo';
 import { useLatestCheck } from '@/lib/check';
-import { emptySiteCheck, nameMatches, setSiteCheck, siteCheckItems, useSiteCheck, type SiteCheckState } from '@/lib/site-check';
+import { emptySiteCheck, nameMatches, nameMismatch, setSiteCheck, siteCheckItems, useSiteCheck, type SiteCheckState } from '@/lib/site-check';
 
 /** UI-03 계약 당일 체크 2/5 · 현장 확인 (FR-047). 소유자 본인인지, 대리인이면 위임 서류, 계약금 계좌 예금주 */
 export default function SiteCheckScreen() {
@@ -18,8 +18,13 @@ export default function SiteCheckScreen() {
   const [s, setS] = useState<SiteCheckState>(saved ?? emptySiteCheck);
   const set = (patch: Partial<SiteCheckState>) => setS((prev) => ({ ...prev, ...patch }));
 
+  // 칸을 벗어나면(입력 마침) true, 다시 고치기 시작하면 false. 저장된 값으로 다시 열면 마친 것으로 본다
+  const [idDone, setIdDone] = useState(Boolean(saved?.idName));
+  const [accountDone, setAccountDone] = useState(Boolean(saved?.accountHolder));
   const idMatch = nameMatches(owner, s.idName);
   const accountMatch = nameMatches(owner, s.accountHolder);
+  const idWrong = nameMismatch(owner, s.idName, idDone);
+  const accountWrong = nameMismatch(owner, s.accountHolder, accountDone);
   const items = siteCheckItems(s);
   const unchecked = items.filter((i) => !i.checked).length;
   const agent = s.attendee === 'agent';
@@ -85,9 +90,13 @@ export default function SiteCheckScreen() {
           <TextField
             label={agent ? '위임장에 적힌 임대인 이름' : '임대인 신분증 이름'}
             value={s.idName}
-            onChange={(idName) => set({ idName })}
+            onChange={(idName) => {
+              setIdDone(false);
+              set({ idName });
+            }}
+            onBlur={() => setIdDone(true)}
             placeholder="보이는 대로 입력"
-            error={idMatch === false ? '등기부 소유자와 이름이 달라요' : undefined}
+            error={idWrong ? '등기부 소유자와 이름이 달라요' : undefined}
             helper={idMatch ? '등기부 소유자와 같아요' : undefined}
           />
           <CheckItem
@@ -98,7 +107,7 @@ export default function SiteCheckScreen() {
         </Card>
       ) : null}
 
-      {idMatch === false ? (
+      {idWrong ? (
         <Warning title="계약을 멈추세요">
           등기부 소유자가 아닌 사람과 계약하면 보증금을 지킬 수 없어요. 소유자 본인이나 정식 위임을 받은 대리인인지 다시
           확인하세요.
@@ -144,9 +153,13 @@ export default function SiteCheckScreen() {
         <TextField
           label="예금주"
           value={s.accountHolder}
-          onChange={(accountHolder) => set({ accountHolder })}
+          onChange={(accountHolder) => {
+            setAccountDone(false);
+            set({ accountHolder });
+          }}
+          onBlur={() => setAccountDone(true)}
           placeholder="이체 화면에 나온 이름"
-          error={accountMatch === false ? '등기부 소유자와 예금주가 달라요' : undefined}
+          error={accountWrong ? '등기부 소유자와 예금주가 달라요' : undefined}
           helper={accountMatch ? '등기부 소유자와 같아요' : '이체 전 받는 사람 이름을 확인하세요'}
         />
         <CheckItem
@@ -156,7 +169,7 @@ export default function SiteCheckScreen() {
         />
       </Card>
 
-      {accountMatch === false ? (
+      {accountWrong ? (
         <Warning title="이 계좌로 보내지 마세요">
           계약금·잔금은 등기부 소유자 명의 계좌로 보내야 해요. 대리인이나 중개사 계좌로 보내 달라고 하면 이유를 묻고, 소유자
           명의 계좌를 요청하세요.

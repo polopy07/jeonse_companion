@@ -6,6 +6,7 @@
  * 입력 필드 이름은 백엔드 CheckInput과 같다.
  */
 import { formatWon } from '@/lib/format';
+import { termTitleFor } from '@/lib/special-terms';
 import { createStore } from '@/lib/store';
 
 export type HousingType = 'apartment' | 'row_house' | 'officetel' | 'multi_household' | 'detached';
@@ -48,6 +49,8 @@ export type MatchedRule = {
   label: string;
   level: VerdictLevel;
   explanation: string;
+  /** linkage.yaml id. 계약 당일 특약 예시를 고를 때 쓴다 */
+  linkage?: string;
   specialTerm?: string;
 };
 
@@ -72,22 +75,25 @@ export type CheckView = {
   disclaimer: string;
 };
 
-// alert.yaml: 추정 주택가격 = 공시가격 × 140%, 실거래가가 있으면 둘 중 낮은 값
-const OFFICIAL_MULTIPLIER = 1.4;
+/**
+ * alert.yaml: 추정 주택가격 = 공시가격 × 140%, 실거래가가 있으면 둘 중 낮은 값.
+ * official * 1.4는 부동소수점 때문에 1원 작게 나오는 값이 있어(비율 경계에서 백엔드 Decimal 계산과 갈림) 정수로 계산한다.
+ */
+export const estimateFromOfficial = (official: number) => Math.floor((official * 14) / 10);
 
 type Rule = {
   id: string;
   label: string;
   when: (v: Values) => boolean;
   explanation: (v: Values) => string;
-  specialTerm?: string;
+  linkage?: string;
 };
 
 type Values = CheckInput & { deposit_ratio: number | null };
 
 const won = (n: number) => formatWon(n);
 
-// verdict.yaml의 단계별 규칙. 설명 문장과 특약 예시는 화면용 문구다 (서버가 내려줄지 2주차에 정한다).
+// verdict.yaml의 단계별 규칙. 설명 문장은 화면용 문구, 특약 예시는 연동 규칙(linkage)으로 lib/special-terms.ts에서 고른다.
 const problemRules: Rule[] = [
   {
     id: 'P-1',
@@ -122,27 +128,28 @@ const checkRules: Rule[] = [
     when: (v) => v.registry?.mortgage === true,
     explanation: (v) =>
       `채권최고액 ${won(v.registry?.mortgage_amount ?? 0)} 원. 집이 경매로 넘어가면 은행이 내 보증금보다 먼저 받아 가요.`,
-    specialTerm: '잔금일 다음 날까지 담보 설정 금지',
+    linkage: 'L-MORTGAGE',
   },
   {
     id: 'C-2',
     label: '내 보증금 비율 90% 이상',
     when: (v) => v.deposit_ratio !== null && v.deposit_ratio >= 0.9,
     explanation: () => '반환보증 가입이 어려운 구간이에요. 계약 전에 보증기관에 가입 가능 여부를 먼저 물어보세요.',
-    specialTerm: '보증·대출 거절 시 계약 해제',
+    linkage: 'L-RATIO90',
   },
   {
     id: 'C-3',
     label: '신탁등기 (동의서 확인 전)',
     when: (v) => v.registry?.trust === true && v.trust_consent === 'unknown',
     explanation: () => '집의 실제 소유자는 신탁회사예요. 계약 전에 신탁사 동의서를 받을 수 있는지 확인하세요.',
+    linkage: 'L-TRUST',
   },
   {
     id: 'C-4',
     label: '위반건축물 (보증기관 상담 전)',
     when: (v) => v.building_violation === true && v.guarantor_consult === 'not_yet',
     explanation: () => '위반건축물은 반환보증 가입이 거절될 수 있어요. 보증기관에 먼저 상담해 보세요.',
-    specialTerm: '보증·대출 거절 시 계약 해제',
+    linkage: 'L-VIOLATION',
   },
 ];
 
@@ -192,7 +199,7 @@ export function runCheckLocal(
   const isMinimum = input.registry === null;
 
   if (input.official_price) {
-    const fromOfficial = Math.floor(input.official_price * OFFICIAL_MULTIPLIER);
+    const fromOfficial = estimateFromOfficial(input.official_price);
     estimated = input.trade_price ? Math.min(fromOfficial, input.trade_price) : fromOfficial;
     const senior = input.registry?.mortgage_amount ?? 0;
     ratio = (input.deposit + senior) / estimated;
@@ -216,7 +223,8 @@ export function runCheckLocal(
     label: r.label,
     level,
     explanation: r.explanation(values),
-    specialTerm: r.specialTerm,
+    linkage: r.linkage,
+    specialTerm: termTitleFor(r.linkage),
   });
 
   let level: VerdictLevel;

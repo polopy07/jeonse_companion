@@ -8,11 +8,13 @@ import { Disclaimer, Screen } from '@/components/layout';
 import { Colors, Radius } from '@/constants/theme';
 import { recordDocs, siteCheckDemo, type RecordDoc } from '@/data/demo';
 import { siteCheckItems, useSiteCheck } from '@/lib/site-check';
+import { specialTermRules, useSpecialTermResults } from '@/lib/special-terms';
 
 /** UI-05 전세 기록함: 평소엔 계약 기록, 비상 모드에선 청구에 빠진 서류만 빨간 칸으로 */
 export default function RecordsScreen() {
   const [emergency, setEmergency] = useState(false);
-  const missing = recordDocs.filter((d) => d.needForClaim && !d.filled).length;
+  const docs = [...recordDocs, ...useTermDocs()];
+  const missing = docs.filter((d) => d.needForClaim && !d.filled).length;
 
   return (
     <Screen inTabs>
@@ -42,7 +44,7 @@ export default function RecordsScreen() {
       {!emergency ? <SiteCheckRecord /> : null}
 
       <View style={styles.grid}>
-        {recordDocs.map((d) => (
+        {docs.map((d) => (
           <DocSlot key={d.name} doc={d} emergency={emergency} />
         ))}
       </View>
@@ -51,6 +53,15 @@ export default function RecordsScreen() {
       <Disclaimer>반환 확인 후 3개월 동안 보관해요. 주민등록번호는 가리고 올려 주세요.</Disclaimer>
     </Screen>
   );
+}
+
+/** 계약 당일 "넣음"으로 고른 특약이 요구하는 서류 (special_terms.yaml on_inserted require_document) */
+function useTermDocs(): RecordDoc[] {
+  const results = useSpecialTermResults();
+  const names = specialTermRules
+    .filter((t) => results[t.id] === 'inserted')
+    .flatMap((t) => t.ifInserted.documents);
+  return [...new Set(names)].map((name) => ({ name, meta: '계약 당일', filled: false, needForClaim: true }));
 }
 
 /** 계약 당일 현장 확인 기록 (FR-047). 체크하지 않은 항목은 "확인 안 함"으로 남긴다 */

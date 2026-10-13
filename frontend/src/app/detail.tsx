@@ -4,7 +4,8 @@ import { AppText } from '@/components/AppText';
 import { Card, DashedBox, Disclaimer, Screen, SectionLabel } from '@/components/layout';
 import { SpecialTermRow, verdictStyle } from '@/components/verdict';
 import { Colors, Radius } from '@/constants/theme';
-import { detailRows, specialTerms } from '@/data/demo';
+import { checkResult, detailRows } from '@/data/demo';
+import { termsFor } from '@/lib/special-terms';
 
 /** UI-02 판정 상세 (정적) */
 export default function DetailScreen() {
@@ -57,8 +58,8 @@ export default function DetailScreen() {
 
       <SectionLabel>이 판정에 맞는 특약 예시</SectionLabel>
       <View style={{ gap: 8 }}>
-        {specialTerms.map((t) => (
-          <SpecialTermRow key={t.title} term={t} />
+        {termsFor(checkResult.matched).map((t) => (
+          <SpecialTermRow key={t.id} term={t} />
         ))}
       </View>
 
