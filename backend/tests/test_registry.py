@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from app.registry import RegistryParseError, parse_registry_pdf, parse_summary_text
+from app.registry.pdf import page_text
 
 FIXTURES = Path(__file__).parent / "fixtures" / "registry"
 
@@ -77,6 +78,57 @@ def test_missing_section_warns():
 def test_not_a_summary_page(text):
     with pytest.raises(RegistryParseError):
         parse_summary_text(text)
+
+
+def test_iros_summary_apartment_with_two_mortgages():
+    # 인터넷등기소 "부동산정보요약"을 PDF로 저장한 실제 샘플 (이름·주소·번호는 가림)
+    s = parse_summary_text(load("iros_apartment_mortgage.txt"))
+    assert s.owners == ["김가상"]
+    assert [(m.rank, m.amount, m.holder) for m in s.mortgages] == [
+        ("15", 38_500_000, "주식회사부산은행"),
+        ("16", 51_700_000, "주식회사부산은행"),
+    ]
+    assert s.to_fields() == {"seizure": False, "mortgage": True, "mortgage_amount": 90_200_000, "trust": False}
+    assert s.others == [] and s.warnings == []
+    # 순위번호 줄보다 위에 찍힌 접수일은 그 행에 붙는다
+    assert "2021년8월20일" in s.mortgages[0].text and "2024년8월22일" not in s.mortgages[0].text
+    assert "2024년8월22일" in s.mortgages[1].text
+
+
+def test_iros_summary_coowners_without_records():
+    s = parse_summary_text(load("iros_villa_coowners.txt"))
+    assert s.owners == ["이가상", "박가상"]
+    assert s.to_fields() == {"seizure": False, "mortgage": False, "mortgage_amount": 0, "trust": False}
+    assert s.others == [] and s.warnings == []
+
+
+def test_iros_summary_pending_registration_warns():
+    text = load("iros_apartment_mortgage.txt").replace(
+        "이 부동산 등기기록에 기재된 신청사건 접수 정보는 없습니다.", "2026년10월13일 제00000호 근저당권설정 처리 중")
+    assert any("처리 중인 등기 신청" in w for w in parse_summary_text(text).warnings)
+
+
+def test_iros_summary_ignores_checklists_after_summary():
+    # 권리변동 예정사항 뒤의 점검사항 안내 글은 읽지 않는다
+    text = load("iros_villa_coowners.txt") + "임대차 관련 주요 점검사항\n신탁 등기, 압류 등기가 있는지 확인하세요\n"
+    assert parse_summary_text(text).to_fields()["trust"] is False
+    assert parse_summary_text(text).to_fields()["seizure"] is False
+
+
+class _FakePage:
+    def __init__(self, chars):
+        self.chars = chars
+
+
+def _chars(text: str, x: float, top: float, width: float = 11.0) -> list[dict]:
+    return [{"text": t, "x0": x + i * width, "x1": x + i * width + width - 1, "top": top} for i, t in enumerate(text)]
+
+
+def test_page_text_keeps_overflowing_column_apart():
+    # 근저당권자 칸이 대상소유자 칸까지 넘쳐 x 좌표가 섞여도, PDF에 적힌 순서대로 두 조각으로 읽는다
+    chars = (_chars("근저당권자", 476, 54) + _chars("주식회사부산은행", 534.2, 54)
+             + _chars("김가상", 579.4, 54) + _chars("2021년8월20일", 218, 48, 7))
+    assert page_text(_FakePage(chars)) == "2021년8월20일\n근저당권자 주식회사부산은행 김가상"
 
 
 def test_pdf_finds_summary_page():
