@@ -45,11 +45,14 @@ DATE_ONLY = re.compile(r"^\d{4}\s*년\s*\d{1,2}\s*월\s*\d{1,2}\s*일$")
 
 ENTRY_START = re.compile(r"^\s*(\d+(?:-\d+)*)\s+([가-힣()]+)")
 OWNER = re.compile(r"(\S+)\s*\(\s*(소유자|공유자|수탁자)\s*\)")
+ID_LINE = re.compile(r"^\d{6}\s*-")                 # 주민등록번호(법인등록번호) 줄
+NAME_PART = re.compile(r"^[^\s\d()]+$")           # 이름 조각만 있는 줄
 MAX_AMOUNT = re.compile(r"채\s*권\s*최\s*고\s*액\s*금\s*([\d,]+)\s*원")
 MORTGAGEE = re.compile(r"근저당권자\s*(\S+)")
 
 SEIZURE_WORDS = ("압류", "가처분", "경매개시결정")   # "압류"는 가압류도 포함
 TRUST_WORD = "신탁"
+TRUST_NOTICE = "신탁원부"
 MORTGAGE_WORDS = ("근저당권설정", "저당권설정")
 
 
@@ -161,10 +164,16 @@ def _entries(section: str) -> list[Entry]:
 
 
 def _parse_owners(section: str, result: RegistrySummary) -> None:
-    for name, role in OWNER.findall(section):
-        result.owners.append(name)
-        if role == "수탁자":
-            result.trustee_owner = True
+    lines = [line.strip() for line in section.splitlines() if line.strip()]
+    for i, line in enumerate(lines):
+        for n, m in enumerate(OWNER.finditer(line)):
+            name, role = m.groups()
+            # 부동산정보요약은 긴 이름(신탁회사 등)이 주민등록번호 줄 위아래로 나뉜다: "국제자산신탁주" / 번호 줄 / "식회사 (수탁자)"
+            if n == 0 and m.start() == 0 and i >= 2 and ID_LINE.match(lines[i - 1]) and NAME_PART.match(lines[i - 2]):
+                name = lines[i - 2] + name
+            result.owners.append(name)
+            if role == "수탁자":
+                result.trustee_owner = True
     if not result.owners:
         result.warnings.append("소유자를 찾지 못했습니다. 등기부의 소유자 이름을 직접 입력하세요")
 
@@ -175,6 +184,9 @@ def _parse_gapgu(section: str, result: RegistrySummary) -> None:
             result.seizures.append(e)
         elif TRUST_WORD in e.purpose:
             result.trusts.append(e)
+        elif TRUST_NOTICE in e.text:
+            # 신탁 주의사항 부기 (부동산정보요약은 등기목적 "약정/금지사항/환매특약"이 행 위아래로 갈라져 나옴)
+            result.trusts.append(Entry(rank=e.rank, purpose="신탁 주의사항", text=e.text))
         else:
             result.others.append(e)
             result.warnings.append(f"갑구 {e.rank}번 '{e.purpose}' 등기는 자동으로 판단하지 않았습니다. 직접 확인하세요")
