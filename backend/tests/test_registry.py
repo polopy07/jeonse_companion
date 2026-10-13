@@ -85,14 +85,14 @@ def test_iros_summary_apartment_with_two_mortgages():
     s = parse_summary_text(load("iros_apartment_mortgage.txt"))
     assert s.owners == ["김가상"]
     assert [(m.rank, m.amount, m.holder) for m in s.mortgages] == [
-        ("15", 38_500_000, "주식회사부산은행"),
-        ("16", 51_700_000, "주식회사부산은행"),
+        ("15", 40_200_000, "주식회사가상은행"),
+        ("16", 50_000_000, "주식회사가상은행"),
     ]
     assert s.to_fields() == {"seizure": False, "mortgage": True, "mortgage_amount": 90_200_000, "trust": False}
     assert s.others == [] and s.warnings == []
     # 순위번호 줄보다 위에 찍힌 접수일은 그 행에 붙는다
-    assert "2021년8월20일" in s.mortgages[0].text and "2024년8월22일" not in s.mortgages[0].text
-    assert "2024년8월22일" in s.mortgages[1].text
+    assert "2021년10월26일" in s.mortgages[0].text and "2024년10월28일" not in s.mortgages[0].text
+    assert "2024년10월28일" in s.mortgages[1].text
 
 
 def test_iros_summary_coowners_without_records():
@@ -106,7 +106,7 @@ def test_iros_summary_trust():
     # 신탁회사 공매 중인 다세대 (실제 샘플). 수탁자 이름이 법인번호 줄 위아래로 갈라지고,
     # 갑구 신탁 주의사항은 등기목적("약정/금지사항/환매특약")이 행 위아래로 갈라져 나온다
     s = parse_summary_text(load("iros_trust.txt"))
-    assert s.owners == ["국제자산신탁주식회사"] and s.trustee_owner
+    assert s.owners == ["가상자산신탁주식회사"] and s.trustee_owner
     assert [(e.rank, e.purpose) for e in s.trusts] == [("2-1", "신탁 주의사항")]
     assert s.to_fields() == {"seizure": False, "mortgage": False, "mortgage_amount": 0, "trust": True}
     assert s.others == [] and s.warnings == []
@@ -151,18 +151,35 @@ def test_iros_summary_seizures_and_auctions():
         ("9", "압류"), ("10", "가압류"), ("11", "가압류"), ("12", "강제경매개시결정"), ("13", "압류"),
         ("14", "가압류"), ("15", "가압류"), ("16", "압류"), ("17", "임의경매개시결정"),
     ]
-    assert [(m.rank, m.amount, m.holder) for m in s.mortgages] == [("3", 220_000_000, "주식회사하나은행")]
+    assert [(m.rank, m.amount, m.holder) for m in s.mortgages] == [("3", 220_000_000, "주식회사가상은행")]
     assert s.to_fields() == {"seizure": True, "mortgage": True, "mortgage_amount": 220_000_000, "trust": False}
     assert s.others == [] and s.warnings == []
     # 각 행에 자기 접수일이 붙는다 (다음 행 날짜가 섞이지 않음)
-    assert "2024년11월20일" in s.seizures[0].text and "2024년12월5일" not in s.seizures[0].text
-    assert "2025년12월16일" in s.seizures[-1].text
+    assert "2024년10월10일" in s.seizures[0].text and "2024년10월25일" not in s.seizures[0].text
+    assert "2025년11월5일" in s.seizures[-1].text
 
 
 def test_iros_summary_holder_stuck_to_owner_name():
     # 근저당권자와 대상소유자가 띄어쓰기 없이 붙어 나와도 근저당권자만 남긴다
-    text = load("iros_seizures_auction.txt").replace("주식회사하나은행 최가상", "주식회사하나은행최가상")
-    assert parse_summary_text(text).mortgages[0].holder == "주식회사하나은행"
+    text = load("iros_seizures_auction.txt").replace("주식회사가상은행 최가상", "주식회사가상은행최가상")
+    assert parse_summary_text(text).mortgages[0].holder == "주식회사가상은행"
+
+
+def test_iros_summary_holder_with_space():
+    # "주식회사 하나은행"처럼 띄어 쓴 근저당권자도 이름 전체를 남긴다 (갑구에는 실제로 이렇게 나옴)
+    text = load("iros_seizures_auction.txt").replace("근저당권자 주식회사가상은행 최가상", "근저당권자 주식회사 가상은행 최가상")
+    assert parse_summary_text(text).mortgages[0].holder == "주식회사 가상은행"
+
+
+def test_iros_summary_three_line_row():
+    # 주요등기사항이 길어 행이 세 줄이면 첫 줄이 "날짜 + 채권최고액"이다. 다음 항목(15번)에 붙여야 금액을 읽는다
+    text = load("iros_apartment_mortgage.txt").replace(
+        "2021년10월26일\n15 근저당권설정 채권최고액 금40,200,000원 근저당권자 주식회사가상은행 김가상",
+        "2021년10월26일 채권최고액 금40,200,000원\n15 근저당권설정 근저당권자 주식회사가상은행 김가상")
+    s = parse_summary_text(text)
+    assert [(m.rank, m.amount, m.holder) for m in s.mortgages] == [
+        ("15", 40_200_000, "주식회사가상은행"), ("16", 50_000_000, "주식회사가상은행")]
+    assert s.warnings == []
 
 
 class _FakePage:
@@ -176,9 +193,9 @@ def _chars(text: str, x: float, top: float, width: float = 11.0) -> list[dict]:
 
 def test_page_text_keeps_overflowing_column_apart():
     # 근저당권자 칸이 대상소유자 칸까지 넘쳐 x 좌표가 섞여도, PDF에 적힌 순서대로 두 조각으로 읽는다
-    chars = (_chars("근저당권자", 476, 54) + _chars("주식회사부산은행", 534.2, 54)
-             + _chars("김가상", 579.4, 54) + _chars("2021년8월20일", 218, 48, 7))
-    assert page_text(_FakePage(chars)) == "2021년8월20일\n근저당권자 주식회사부산은행 김가상"
+    chars = (_chars("근저당권자", 476, 54) + _chars("주식회사가상은행", 534.2, 54)
+             + _chars("김가상", 579.4, 54) + _chars("2021년10월26일", 218, 48, 7))
+    assert page_text(_FakePage(chars)) == "2021년10월26일\n근저당권자 주식회사가상은행 김가상"
 
 
 def test_pdf_finds_summary_page():

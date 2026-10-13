@@ -66,10 +66,10 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/engine/special_terms.py` | 판정에 맞는 특약 예시와 넣음/거절당함 결과 (special_terms.yaml, linkage.yaml) |
 | `app/api/checks.py` | `POST /api/checks`, `GET /api/checks/{id}`, `GET /api/checks/{id}/special-terms` |
 | `app/api/contracts.py` | `POST /api/contracts`, `GET /api/contracts/{id}` |
-| `app/registry/pdf.py` | 등기부 PDF → "주요 등기사항 요약" 페이지 글자 (pdfplumber) |
+| `app/registry/pdf.py` | 등기부 PDF → 요약 페이지 글자 ("부동산정보요약" 또는 증명서의 "주요 등기사항 요약", pdfplumber) |
 | `app/registry/parser.py` | 요약 글자 → 소유자, 근저당 채권최고액, 압류 등, 신탁 (규칙 파서) |
 | `app/api/registry.py` | `POST /api/registry/parse` |
-| `tests/fixtures/registry/` | 등기부 요약 가상 샘플 (실제 샘플이 오면 추가) |
+| `tests/fixtures/registry/` | 등기부 요약 샘플 (실제 샘플은 집을 찾을 수 없게 바꿈, 가상 샘플) |
 
 ## API
 
@@ -193,4 +193,4 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - 읽는 양식: 인터넷등기소에서 열람한 뒤 **"부동산정보요약"을 PDF로 저장한 파일**(사용자 안내 기본값), 또는 등기사항증명서 끝에 "주요 등기사항 요약"이 붙은 파일. 둘 중 하나만 올리면 된다. 요약 없이 본문(갑구·을구)만 있는 전부증명서는 읽지 않는다
 - 부동산정보요약의 "권리변동 예정사항"에 처리 중인 등기 신청이 있으면 `warnings`에 알린다 (새 근저당·압류일 수 있음)
 - 요약 페이지를 못 읽으면 422, `detail.hint`에 부동산정보요약으로 다시 올리기·수동 입력 안내
-- 실제 샘플 2건(부동산정보요약, 이름·주소·번호를 가림)과 가상 샘플 3건으로 테스트한다 (`tests/fixtures/registry/README.md`)
+- 실제 샘플 5건(부동산정보요약, 집을 찾을 수 없게 바꿈)과 가상 샘플 3건으로 테스트한다 (`tests/fixtures/registry/README.md`)
