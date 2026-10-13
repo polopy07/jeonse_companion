@@ -109,7 +109,10 @@ class _Builder:
             return shift(self.guarantee_deadline(), spec)
         base = self.anchor(spec["anchor"])
         later = spec.get("if_later")
-        if later and base is not None:
+        if later and base is None:
+            # 기준일을 모르면(대출은 있는데 실행일을 비워 둠) 늦은 쪽 기준으로 대신 정한다 (T5: 전입신고 다음 날)
+            return shift(self.anchor(later["anchor"]), later)
+        if later:
             # 기준일보다 다른 날이 늦으면 그 날 기준 (T5: 전입신고가 대출 실행보다 늦으면 전입신고 다음 날, Q9)
             other = self.anchor(later["anchor"])
             if other is not None and other > base:

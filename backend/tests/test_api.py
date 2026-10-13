@@ -221,3 +221,15 @@ def test_special_terms_no_problem_and_not_found(client):
     r = client.get("/api/checks/999/special-terms")
     assert r.status_code == 404
     assert r.json()["detail"]["code"] == "NOT_FOUND"
+
+
+def test_special_terms_blocked_for_problem(client):
+    # 압류 + 근저당: "문제 항목"(결제 전 멈춤)이면 특약 예시를 주지 않는다 (POST /api/contracts의 CHECK_BLOCKED와 같은 기준)
+    check = client.post("/api/checks", json={
+        "housing_type": "row_house", "deposit": 150_000_000, "official_price": 2 * EOK,
+        "registry": {"seizure": True, "mortgage": True, "mortgage_amount": 120_000_000},
+    }).json()
+    assert check["level"] == "problem"
+    r = client.get(f"/api/checks/{check['id']}/special-terms")
+    assert r.status_code == 409
+    assert _detail(r)["code"] == "CHECK_BLOCKED"
