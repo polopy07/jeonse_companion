@@ -4,9 +4,9 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
-import { ChoiceChips, TextField, ToggleRow } from '@/components/form';
+import { ChoiceChips, TextField, Toggle, ToggleRow } from '@/components/form';
 import { Icon } from '@/components/Icon';
-import { Button, Card, DashedBox, Screen, SectionLabel } from '@/components/layout';
+import { Button, Card, DashedBox, DemoTag, Screen, SectionLabel } from '@/components/layout';
 import { ratioBand } from '@/components/verdict';
 import { Colors, Radius, Touch } from '@/constants/theme';
 import { demoHouses, type DemoHouse } from '@/data/demo';
@@ -19,6 +19,7 @@ import {
   type CheckInput,
   type GuarantorConsult,
   type HousingType,
+  type RegistryLease,
   type TrustConsent,
 } from '@/lib/check';
 import { formatWon, parseManwon, parseNumber } from '@/lib/format';
@@ -27,6 +28,16 @@ const steps = ['집 정보', '공시가격', '등기부', '확인·수정'];
 
 type Violation = 'unknown' | 'no' | 'yes';
 type RegistryMode = 'none' | 'loading' | 'filled' | 'manual';
+/** 등기부에서 읽은 임차권·전세권 한 건. included = 선순위 채권에 넣음 (기본), amountText = 보증금을 못 읽었을 때 직접 입력 */
+type LeaseRow = RegistryLease & { included: boolean; amountText: string };
+
+/** 등기부 올리기 안내 (인터넷등기소 "부동산정보요약"을 PDF로 저장) */
+const uploadSteps = [
+  '인터넷등기소(iros.go.kr)에서 이 집 등기부를 열람해요 (700원)',
+  '열람 화면에서 "부동산정보요약"을 눌러요',
+  '인쇄 → "PDF로 저장"으로 저장해요',
+  '아래에서 저장한 PDF를 골라요',
+];
 
 const todayText = () => {
   const d = new Date();
@@ -57,6 +68,9 @@ export default function PrecheckScreen() {
   const [mortgage, setMortgage] = useState(false);
   const [mortgageText, setMortgageText] = useState('');
   const [trust, setTrust] = useState(false);
+  const [leases, setLeases] = useState<LeaseRow[]>([]);
+  const [leaseOn, setLeaseOn] = useState(false); // 직접 입력: 임차권·전세권 등기 있음
+  const [leaseText, setLeaseText] = useState('');
   const [trustConsent, setTrustConsent] = useState<TrustConsent>('unknown');
   const [violation, setViolation] = useState<Violation>('unknown');
   const [guarantorConsult, setGuarantorConsult] = useState<GuarantorConsult>('not_yet');
@@ -64,6 +78,17 @@ export default function PrecheckScreen() {
   const deposit = parseManwon(depositText);
   const official = preset ? preset.official_price : parseManwon(officialText);
   const mortgageAmount = parseManwon(mortgageText);
+  // 임차권·전세권 보증금은 선순위 채권. 등기부에서 읽은 목록이 있으면 넣은 항목만, 없으면 직접 입력한 합계
+  const leaseRowAmount = (l: LeaseRow) => l.amount ?? parseManwon(l.amountText);
+  const manualLeaseAmount = parseManwon(leaseText);
+  const leaseAmount = leases.length
+    ? leases.reduce((sum, l) => sum + (l.included ? (leaseRowAmount(l) ?? 0) : 0), 0)
+    : leaseOn
+      ? (manualLeaseAmount ?? 0)
+      : 0;
+  const leasesReady = leases.length ? leases.every((l) => !l.included || !!leaseRowAmount(l)) : !leaseOn || !!manualLeaseAmount;
+  const updateLease = (i: number, patch: Partial<LeaseRow>) =>
+    setLeases((rows) => rows.map((row, j) => (j === i ? { ...row, ...patch } : row)));
   const na = housingType !== null && isNotApplicable(housingType);
 
   const fillPreset = (h: DemoHouse) => {
@@ -91,10 +116,14 @@ export default function PrecheckScreen() {
       setMortgage(h.registry.mortgage);
       setMortgageText(toManwonText(h.registry.mortgage_amount));
       setTrust(h.registry.trust);
+      setLeases(h.registry.leases.map((l) => ({ ...l, included: true, amountText: '' })));
       setRegistryMode('filled');
     } else {
+      setLeases([]);
       setRegistryMode('manual');
     }
+    setLeaseOn(false);
+    setLeaseText('');
     setStep(3);
   };
 
@@ -115,14 +144,19 @@ export default function PrecheckScreen() {
       official_price: official,
       trade_price: preset?.trade_price ?? null,
       exclusive_area: parseNumber(areaText),
-      registry: withRegistry ? { seizure, mortgage, mortgage_amount: mortgage ? (mortgageAmount ?? 0) : 0, trust } : null,
+      registry: withRegistry
+        ? { seizure, mortgage, mortgage_amount: mortgage ? (mortgageAmount ?? 0) : 0, lease_amount: leaseAmount, trust }
+        : null,
       trust_consent: trust ? trustConsent : 'unknown',
       building_violation: violation === 'unknown' ? null : violation === 'yes',
       guarantor_consult: violation === 'yes' ? guarantorConsult : 'not_yet',
     };
     const typeLabel = housingTypes.find((t) => t.value === housingType)?.label ?? '';
     const label = `${preset ? preset.label : address.trim()} · ${typeLabel}`;
-    setLatestCheck(runCheckLocal(input, label, todayText(), withRegistry && owner.trim() ? owner.trim() : null));
+    setLatestCheck({
+      ...runCheckLocal(input, label, todayText(), withRegistry && owner.trim() ? owner.trim() : null),
+      virtualMortgage: withRegistry && registryMode === 'filled' && mortgage && !!preset?.registry.virtualMortgage,
+    });
     router.push('/check');
   };
 
@@ -131,7 +165,7 @@ export default function PrecheckScreen() {
     address.trim().length > 0 && housingType !== null && !!deposit,
     !!official,
     false, // 등기부 단계는 아래 버튼들로 넘어간다
-    !mortgage || !!mortgageAmount,
+    (!mortgage || !!mortgageAmount) && leasesReady,
   ][step];
 
   const next = () => {
@@ -283,8 +317,26 @@ export default function PrecheckScreen() {
             등기부를 올려 주세요
           </AppText>
           <AppText size={13} color={Colors.textSub} leading={1.6} style={{ marginTop: 4 }}>
-            인터넷등기소에서 뗀 등기부의 &quot;주요 등기사항 요약&quot; 페이지만 읽어요. 근저당·압류·신탁을 찾아 판정에 써요.
+            인터넷등기소 &quot;부동산정보요약&quot;만 읽어요. 근저당·압류·신탁·임차권을 찾아 판정에 써요.
           </AppText>
+
+          <Card style={{ marginTop: 14, gap: 10 }}>
+            <AppText size={13} weight="semibold">
+              등기부 올리는 방법
+            </AppText>
+            {uploadSteps.map((text, i) => (
+              <View key={text} style={{ flexDirection: 'row', gap: 10 }}>
+                <View style={styles.stepNo}>
+                  <AppText size={11} weight="bold" color={Colors.primary}>
+                    {i + 1}
+                  </AppText>
+                </View>
+                <AppText size={13} color={Colors.textSub} leading={1.6} style={{ flex: 1 }}>
+                  {text}
+                </AppText>
+              </View>
+            ))}
+          </Card>
 
           <Pressable accessibilityRole="button" onPress={pickPdf} disabled={registryMode === 'loading'}>
             <DashedBox style={styles.upload}>
@@ -293,7 +345,7 @@ export default function PrecheckScreen() {
                 {registryMode === 'loading' ? '읽는 중이에요…' : '등기부 PDF 고르기'}
               </AppText>
               <AppText size={12} color={Colors.textHint} style={{ marginTop: 4 }}>
-                {fileName ?? '주민등록번호는 가리고 올려 주세요'}
+                {fileName ?? '부동산정보요약 PDF (요약이 붙은 등기사항증명서도 돼요)'}
               </AppText>
             </DashedBox>
           </Pressable>
@@ -322,9 +374,12 @@ export default function PrecheckScreen() {
 
           {registryMode === 'filled' && preset ? (
             <Card style={{ marginTop: 14 }}>
-              <AppText size={11} color={Colors.textHint}>
-                등기부 주요 등기사항 요약 · 원문
-              </AppText>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <AppText size={11} color={Colors.textHint}>
+                  등기부 요약 · 원문
+                </AppText>
+                {preset.registry.virtualMortgage ? <DemoTag label="시연용 가상 근저당" /> : null}
+              </View>
               <View style={styles.source}>
                 {preset.registry.source.map((line) => (
                   <AppText key={line} size={12} color={Colors.textCode} leading={1.7}>
@@ -351,6 +406,74 @@ export default function PrecheckScreen() {
                 helper={mortgageAmount ? `= ${formatWon(mortgageAmount)} 원` : undefined}
               />
             </ToggleRow>
+            {leases.length ? (
+              <View style={[styles.leases, styles.dividerBottom]}>
+                <AppText size={14} weight="semibold">
+                  임차권·전세권 {leases.length}건
+                </AppText>
+                <AppText size={12} color={Colors.textHint} leading={1.6}>
+                  앞 세입자 보증금이라 내 보증금보다 먼저 돌려받아요. 선순위 채권에 넣었어요. 이미 돌려받았거나 내 계약이면 빼 주세요.
+                </AppText>
+                {leases.map((l, i) => {
+                  const amount = leaseRowAmount(l);
+                  return (
+                    <View key={l.rank} style={styles.leaseItem}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: Touch.min }}>
+                        <View style={{ flex: 1 }}>
+                          <AppText size={13} weight="semibold" color={l.included ? Colors.text : Colors.textHint}>
+                            을구 {l.rank} · {l.purpose}
+                          </AppText>
+                          <AppText size={12} color={Colors.textHint} style={{ marginTop: 2 }}>
+                            {l.included ? '선순위 채권에 넣음' : '뺐어요 · 비율에 넣지 않아요'}
+                            {l.amount ? ` · 보증금 ${formatWon(l.amount)} 원` : ''}
+                            {l.holder ? ` · ${l.holder}` : ''}
+                          </AppText>
+                        </View>
+                        <Toggle
+                          value={l.included}
+                          onChange={(v) => updateLease(i, { included: v })}
+                          label={`을구 ${l.rank} ${l.purpose} 보증금을 선순위 채권에 넣기`}
+                        />
+                      </View>
+                      {l.included && l.amount === null ? (
+                        <TextField
+                          label="보증금 (읽지 못했어요)"
+                          value={l.amountText}
+                          onChange={(v) => updateLease(i, { amountText: v })}
+                          suffix="만 원"
+                          keyboardType="number-pad"
+                          error={amount ? undefined : '보증금을 입력하거나 빼 주세요'}
+                          helper={amount ? `= ${formatWon(amount)} 원` : undefined}
+                        />
+                      ) : null}
+                    </View>
+                  );
+                })}
+                <AppText size={12} color={Colors.textSub}>
+                  선순위 채권에 넣은 보증금 합계 {formatWon(leaseAmount)} 원
+                </AppText>
+              </View>
+            ) : (
+              <ToggleRow
+                label="임차권·전세권"
+                sub="을구에 임차권설정·주택임차권·전세권설정이 있나요?"
+                value={leaseOn}
+                onChange={setLeaseOn}>
+                <TextField
+                  label="보증금 (여러 건이면 합계)"
+                  value={leaseText}
+                  onChange={setLeaseText}
+                  suffix="만 원"
+                  keyboardType="number-pad"
+                  error={leaseOn && !manualLeaseAmount ? '보증금을 입력해 주세요' : undefined}
+                  helper={
+                    manualLeaseAmount
+                      ? `= ${formatWon(manualLeaseAmount)} 원 · 이미 돌려받았거나 내 계약이면 넣지 마세요`
+                      : undefined
+                  }
+                />
+              </ToggleRow>
+            )}
             <ToggleRow label="압류·가압류·가처분·경매" sub="갑구에 이런 등기가 있나요?" value={seizure} onChange={setSeizure} />
             <ToggleRow label="신탁등기" sub="소유자가 신탁회사인가요?" value={trust} onChange={setTrust} last>
               <ChoiceChips
@@ -438,7 +561,7 @@ function MinimumPreview({ deposit, official, trade }: { deposit: number; officia
         </AppText>
       </View>
       <AppText size={12} color={Colors.textSub} leading={1.6} style={{ marginTop: 4 }}>
-        근저당을 0원으로 둔 값이에요. 등기부를 올리면 근저당까지 더해 다시 계산해요.
+        근저당을 0원으로 둔 값이에요. 등기부를 올리면 근저당·임차권·전세권 보증금까지 더해 다시 계산해요.
       </AppText>
     </View>
   );
@@ -471,4 +594,16 @@ const styles = StyleSheet.create({
   skip: { minHeight: Touch.min, justifyContent: 'center', marginTop: 8 },
   source: { marginTop: 6, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: Colors.bg, borderRadius: 8 },
   divider: { height: 1, backgroundColor: Colors.divider },
+  dividerBottom: { borderBottomWidth: 1, borderBottomColor: Colors.divider },
+  leases: { paddingVertical: 12, gap: 8 },
+  leaseItem: { gap: 8, paddingTop: 4 },
+  stepNo: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: Colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
 });

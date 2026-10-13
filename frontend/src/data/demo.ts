@@ -5,7 +5,7 @@
  */
 
 import type { SiteCheckState } from '@/lib/site-check';
-import { runCheckLocal, type CheckInput, type CheckView, type HousingType, type VerdictLevel } from '@/lib/check';
+import { runCheckLocal, type CheckInput, type CheckView, type HousingType, type RegistryLease, type VerdictLevel } from '@/lib/check';
 
 export const house = {
   name: '수영구 ○○동 빌라 201호',
@@ -37,7 +37,18 @@ export type DemoHouse = {
   officialBasis: string;
   trade_price: number | null;
   building_violation: boolean;
-  registry: { owner: string; seizure: boolean; mortgage: boolean; mortgage_amount: number; trust: boolean; source: string[] };
+  registry: {
+    owner: string;
+    seizure: boolean;
+    mortgage: boolean;
+    mortgage_amount: number;
+    /** 을구 임차권·전세권 (확인 화면에서 항목별로 뺄 수 있음) */
+    leases: RegistryLease[];
+    trust: boolean;
+    source: string[];
+    /** 근저당이 실제 등기부에 없는 시연용 가상 값 (docs/validation/경보계산_정답표.md). 화면에 "시연용 가상 근저당"으로 표시 */
+    virtualMortgage?: boolean;
+  };
 };
 
 export const demoHouses: DemoHouse[] = [
@@ -58,7 +69,9 @@ export const demoHouses: DemoHouse[] = [
       seizure: false,
       mortgage: true,
       mortgage_amount: 36_000_000,
+      leases: [],
       trust: false,
+      virtualMortgage: true,
       source: ['갑구 1 · 소유권보존 · 소유자 김○○', '을구 1 · 근저당권설정 · 채권최고액 금36,000,000원 · 근저당권자 ○○은행'],
     },
   },
@@ -79,6 +92,7 @@ export const demoHouses: DemoHouse[] = [
       seizure: false,
       mortgage: false,
       mortgage_amount: 0,
+      leases: [],
       trust: false,
       source: ['갑구 1 · 소유권이전 · 소유자 이○○', '을구 · 기록사항 없음'],
     },
@@ -92,7 +106,7 @@ const villaInput: CheckInput = {
   official_price: villa.official_price,
   trade_price: villa.trade_price,
   exclusive_area: Number(villa.area),
-  registry: { seizure: false, mortgage: true, mortgage_amount: house.mortgage, trust: false },
+  registry: { seizure: false, mortgage: true, mortgage_amount: house.mortgage, lease_amount: 0, trust: false },
   trust_consent: 'unknown',
   building_violation: false,
   guarantor_consult: 'not_yet',
@@ -101,6 +115,7 @@ const villaInput: CheckInput = {
 /** 홈에서 "결과 다시 보기"로 여는 시연 집 결과 (계약 전 확인 2026.10.09) */
 export const checkResult: CheckView = {
   ...runCheckLocal(villaInput, `${house.name} · ${house.type}`, '2026.10.09', villa.registry.owner),
+  virtualMortgage: villa.registry.virtualMortgage,
   summary: '근저당이 있는 집이에요. 아래 확인 항목과 특약 예시를 계약 당일에 챙기면 돼요.',
   disclaimer: '조회 2026.10.09 · 공시가격 2026.01.01 기준. 정보 제공이며 보증하지 않습니다.',
 };

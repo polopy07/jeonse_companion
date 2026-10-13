@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
-import { Button, Disclaimer, Screen, SectionLabel } from '@/components/layout';
+import { Button, DemoTag, Disclaimer, Screen, SectionLabel } from '@/components/layout';
 import { MatchedItem, RatioGauge, UncheckedBox, VerdictCard } from '@/components/verdict';
 import { Colors, Radius } from '@/constants/theme';
 import { checkResult } from '@/data/demo';
@@ -34,6 +34,7 @@ export default function CheckScreen() {
       <AppText size={13} color={Colors.textSub} style={{ marginTop: 10 }}>
         {r.houseLabel}
       </AppText>
+      {r.virtualMortgage ? <DemoTag label="시연용 가상 근저당" style={{ marginTop: 6 }} /> : null}
 
       <View style={{ marginTop: 12 }}>
         <VerdictCard level={r.level} title={r.next_step} summary={r.summary} />
