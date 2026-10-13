@@ -124,6 +124,40 @@ def test_iros_summary_auction_with_registered_lease():
     assert s.warnings == ["을구 5번 임차권설정 보증금 90,000,000원을 선순위 채권에 넣었습니다. 이미 돌려받았거나 내 계약이면 빼세요"]
 
 
+def test_iros_summary_apartment_jeonse():
+    # 강제경매 중인 구축 아파트 (실제 샘플). 을구 전세권설정 전세금을 선순위 채권에 넣는다
+    s = parse_summary_text(load("iros_apartment_jeonse.txt"))
+    assert s.owners == ["정가상"]
+    assert [(e.rank, e.purpose) for e in s.seizures] == [("2", "가압류"), ("3", "가압류"), ("4", "강제경매개시결정")]
+    assert [(lease.rank, lease.purpose, lease.amount, lease.holder) for lease in s.leases] == [("15", "전세권설정", 150_000_000, "윤가상")]
+    assert s.to_fields() == {"seizure": True, "mortgage": False, "mortgage_amount": 0, "lease_amount": 150_000_000, "trust": False}
+    assert s.others == []
+
+
+def test_iros_summary_six_mortgages():
+    # 근저당 6건이 남은 아파트 (실제 샘플). 근저당권 변경 부기는 요약에 따로 나오지 않고, 지금 유효한 근저당만 나온다
+    s = parse_summary_text(load("iros_apartment_six_mortgages.txt"))
+    assert s.owners == ["한가상"]
+    assert [(e.rank, e.purpose) for e in s.seizures] == [("7", "임의경매개시결정")]
+    assert [(m.rank, m.amount) for m in s.mortgages] == [
+        ("6", 52_000_000), ("8", 13_000_000), ("9", 156_000_000), ("10", 60_500_000), ("11", 45_000_000), ("12", 818_000_000)]
+    assert [m.holder for m in s.mortgages] == ["주식회사가상은행"] * 5 + ["주식회사나라은행"]
+    assert s.to_fields() == {"seizure": True, "mortgage": True, "mortgage_amount": 1_144_500_000, "lease_amount": 0, "trust": False}
+    assert s.others == [] and s.warnings == []
+
+
+def test_iros_summary_jeonse_and_lease_of_same_deposit():
+    # 같은 세입자 보증금이 전세권과 임차권(돌려받지 못한 금액)으로 함께 남은 다세대 (실제 샘플)
+    # PDF에서 임차권 줄 끝이 잘려 임차권자 이름이 없다 (저장한 PDF 자체에 글자가 없음)
+    s = parse_summary_text(load("iros_villa_jeonse_and_lease.txt"))
+    assert s.owners == ["오가상"]
+    assert [(e.rank, e.purpose) for e in s.seizures] == [
+        ("5", "가압류"), ("6", "강제경매개시결정"), ("7", "압류"), ("8", "압류"), ("9", "압류")]
+    assert [(lease.rank, lease.purpose, lease.amount, lease.holder) for lease in s.leases] == [
+        ("1", "전세권설정", 120_000_000, "가상엘리베이터주식회사"), ("2", "임차권설정", 110_000_000, None)]
+    assert "보증금120,000,000원 중 반환되지" in s.leases[1].text
+
+
 def test_owner_name_split_only_around_id_line():
     # 이름 조각 → 번호 줄 → 나머지 이름일 때만 붙인다. 앞 사람 주소가 줄바꿈된 경우는 붙이지 않는다
     section = "센텀아이파크\n김가상 (공유자) 000000-******* 2분의 1 3\n"
