@@ -11,6 +11,8 @@ from app.engine.todos import add_months
 from app.models import Trade
 from app.trades.client import TradeRecord, fetch_month
 
+LOOKUP_CHUNK = 1000
+
 
 @dataclass
 class CollectResult:
@@ -54,7 +56,11 @@ def save(db: Session, records: list[TradeRecord], source: str, fetched_at: datet
     records는 한 번에 받은 거래 전체(같은 달은 빠짐없이)여야 순번이 맞는다.
     """
     keys = numbered_keys(records)
-    existing = {t.deal_key: t for t in db.scalars(select(Trade).where(Trade.deal_key.in_(keys)))}
+    key_list = list(keys)
+    existing = {}
+    for i in range(0, len(key_list), LOOKUP_CHUNK):   # IN (...) 바인드 파라미터 한도(PostgreSQL 65,535)에 닿지 않게 나눠 조회
+        chunk = key_list[i:i + LOOKUP_CHUNK]
+        existing.update({t.deal_key: t for t in db.scalars(select(Trade).where(Trade.deal_key.in_(chunk)))})
     added = 0
     for key, r in keys.items():
         if key in existing:

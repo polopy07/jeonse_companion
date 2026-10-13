@@ -107,6 +107,8 @@ class CheckInput(BaseModel):
     @model_validator(mode="after")
     def complex_needs_area(self):
         if self.complex is not None:
+            if self.housing_type not in ("apartment", "row_house"):
+                raise ValueError("실거래 단지 조회는 아파트·연립다세대만 됩니다")
             if self.exclusive_area is None:
                 raise ValueError("단지로 실거래를 찾으려면 전용면적을 입력해야 합니다")
             if self.housing_type == "row_house" and not self.complex.jibun:

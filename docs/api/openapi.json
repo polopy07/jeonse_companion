@@ -362,15 +362,35 @@
         ],
         "summary": "Collect Trades",
         "operationId": "collect_trades_api_admin_trades_post",
+        "parameters": [
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "환경 변수 ADMIN_TOKEN과 같은 값",
+              "title": "X-Admin-Token"
+            },
+            "description": "환경 변수 ADMIN_TOKEN과 같은 값"
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/TradeCollectInput"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -383,35 +403,65 @@
               }
             }
           },
-          "422": {
-            "description": "Unprocessable Content",
+          "401": {
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
           },
           "502": {
-            "description": "Bad Gateway",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            }
+            },
+            "description": "Bad Gateway"
           },
           "503": {
-            "description": "Service Unavailable",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            }
+            },
+            "description": "Service Unavailable"
           }
         }
       }

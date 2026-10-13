@@ -137,6 +137,7 @@ def fetch_month(client: httpx.Client, service_key: str, housing_type: str, kind:
             raise TradeApiError(f"공공데이터포털에 연결하지 못했습니다: {type(e).__name__}") from None
         batch, total = parse_response(resp.text, housing_type, kind, lawd_cd)
         records.extend(batch)
-        if not batch or page * PAGE_SIZE >= total:
+        # 걸러 낸 뒤의 건수(batch)가 아니라 전체 건수로 끝을 정한다. 한 페이지가 모두 걸러져도 다음 페이지는 받는다
+        if page * PAGE_SIZE >= total:
             return records
         page += 1

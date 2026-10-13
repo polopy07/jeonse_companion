@@ -54,6 +54,21 @@ def test_auth_error_and_bad_code():
         parse_response("<html>", "apartment", "trade", "26350")
 
 
+ADMIN = "test-admin-token"
+
+
+@pytest.fixture(autouse=True)
+def admin_env(monkeypatch):
+    monkeypatch.setenv("ADMIN_TOKEN", ADMIN)
+
+
+@pytest.fixture
+def client(client):
+    # 관리자 API는 X-Admin-Token이 있어야 부를 수 있다
+    client.headers["X-Admin-Token"] = ADMIN
+    return client
+
+
 def test_fetch_month_sends_params_and_pages(monkeypatch):
     monkeypatch.setattr("app.trades.client.PAGE_SIZE", 2)
     seen = []
@@ -233,7 +248,7 @@ def _store(records):
     from app.db import get_sessionmaker
     from app.trades.collect import save
     with get_sessionmaker()() as db:
-        save(db, records, "api", datetime(2026, 10, 1, tzinfo=timezone.utc))
+        return save(db, records, "api", datetime(2026, 10, 1, tzinfo=timezone.utc))
 
 
 def test_check_uses_trade_price_and_nearby_jeonse(client):
@@ -336,3 +351,66 @@ def test_identical_deals_are_kept(client):
 def _rules():
     from app.rules.loader import get_rules
     return get_rules()["alert"]
+
+
+def test_fetch_month_keeps_paging_when_page_is_filtered(monkeypatch):
+    # 한 페이지가 모두 걸러져도(면적 누락) 전체 건수(totalCount)가 남았으면 다음 페이지를 받는다
+    monkeypatch.setattr("app.trades.client.PAGE_SIZE", 2)
+    pages = []
+
+    def handler(request: httpx.Request):
+        page = request.url.params["pageNo"]
+        pages.append(page)
+        if page == "1":
+            return httpx.Response(200, text=re.sub(r"<excluUseAr>.*?</excluUseAr>", "", _xml("apt_trade.xml")))
+        return httpx.Response(200, text=re.sub(r"<item>.*?</item>", "", _xml("apt_trade.xml"), count=2))
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        records = fetch_month(client, "k", "apartment", "trade", "26350", "202609")
+    assert pages == ["1", "2"]
+    assert len(records) == 1
+
+
+def test_admin_needs_token(client, fake_portal, monkeypatch):
+    monkeypatch.setenv("DATA_GO_KR_SERVICE_KEY", "test-key")
+    body = {"lawd_cd": "26350", "end_month": "2026-10", "months": 1}
+    for headers in ({"X-Admin-Token": "wrong"}, {"X-Admin-Token": ""}):
+        r = client.post("/api/admin/trades", json=body, headers=headers)
+        assert r.status_code == 401
+        assert r.json()["detail"]["code"] == "ADMIN_TOKEN_INVALID"
+    monkeypatch.delenv("ADMIN_TOKEN")
+    r = client.post("/api/admin/trades", json=body)
+    assert r.status_code == 403
+    assert r.json()["detail"]["code"] == "ADMIN_DISABLED"
+    assert fake_portal == []                                   # 막히면 포털을 부르지 않는다
+
+
+def test_collect_conflict_is_409(client, monkeypatch):
+    # 같은 거래를 동시에 수집해 unique 위반이 나면 500이 아니라 409
+    from sqlalchemy.exc import IntegrityError
+    monkeypatch.setenv("DATA_GO_KR_SERVICE_KEY", "test-key")
+
+    def clash(*args, **kwargs):
+        raise IntegrityError("INSERT INTO trades", {}, Exception("uq_trades_deal_key"))
+
+    monkeypatch.setattr("app.api.admin.collect", clash)
+    r = client.post("/api/admin/trades", json={"lawd_cd": "26350", "end_month": "2026-10", "months": 1})
+    assert r.status_code == 409
+    assert r.json()["detail"]["code"] == "TRADES_COLLECT_CONFLICT"
+
+
+def test_save_looks_up_existing_in_chunks(client, monkeypatch):
+    # 기존 거래 조회를 나눠 해도 이미 있는 거래는 다시 저장하지 않는다
+    monkeypatch.setattr("app.trades.collect.LOOKUP_CHUNK", 2)
+    records, _ = parse_response(_xml("apt_trade.xml"), "apartment", "trade", "26350")
+    assert _store(records) == 3
+    assert _store(records) == 0
+
+
+def test_check_complex_only_for_supported_types(client):
+    r = client.post("/api/checks", json={
+        "housing_type": "officetel", "deposit": 100_000_000, "official_price": 200_000_000, "exclusive_area": 30,
+        "complex": {"lawd_cd": "26350", "umd_name": "우동", "complex_name": "어떤오피스텔"},
+    })
+    assert r.status_code == 422
+    assert r.json()["detail"]["fields"] == [{"field": "body", "message": "실거래 단지 조회는 아파트·연립다세대만 됩니다"}]

@@ -116,11 +116,13 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - 응답: 입력한 계약 조건 + `id`, `check_id`, `level`(시작할 때의 판정 단계), 판정에서 가져온 주택 정보, `report_required`(임대차 신고 대상), `alert_level`(판정 때 비율로 정한 경보 단계, 정상이면 null), `todos`(할 일 목록)
 - `todos`는 `sort_order` 순서다: 맨 위 규칙(특약 거절·경보, `moved_to_top`) → 고정(T5~T9, `pinned`) → 기한 빠른 순. 재알림(T6·T8)은 `due_date` 대신 `remind_date`, HF·SGI 반환보증(T5)은 기관 기준이 없어 `due_date`가 null. 대출은 있는데 `loan_execution_date`를 비우면 T5 시작일은 전입신고(T4) 다음 날
 - 기한 계산은 `docs/validation/기한계산_정답표.md`의 계산 약속을 따르고, `tests/test_todos.py`가 정답표(`deadline_scenarios.yaml`) S1~S10·재계산 3개와 대조한다
-- `contracts` 테이블에 `check_id`(unique)·`email`·`report_required`·`alert_level`, `todos`에 새 칸들을 넣었다. 예전에 만든 DB는 위 안내대로 다시 만든다
+- `contracts` 테이블에 `check_id`(unique)·`email`·`report_required`·`alert_level`, `todos`에 새 칸들을, `verdicts`에 `market` 칸과 `trades` 테이블을 넣었다. 금액 칸은 BigInteger로 바꿨다. 예전에 만든 DB는 위 안내대로 다시 만든다
 
 ### `POST /api/admin/trades` 실거래가 수집 (FR-046)
 
 공공데이터포털 인증키가 있어야 한다 (`.env.example`). 시연 집이 있는 구를 한 번 받아 두면 판정·검증은 저장본으로 한다.
+
+한 번에 공공데이터포털을 수십 번 부르므로 서버 환경 변수 `ADMIN_TOKEN`과 같은 값을 `X-Admin-Token` 헤더로 보내야 한다. `ADMIN_TOKEN`이 없으면 관리자 API는 꺼진다(403 `ADMIN_DISABLED`), 헤더가 없거나 다르면 401 `ADMIN_TOKEN_INVALID`. 같은 구를 동시에 두 번 수집해 겹치면 409 `TRADES_COLLECT_CONFLICT`(다시 부르면 이미 저장된 거래는 건너뜀).
 
 ```json
 {"lawd_cd": "26500", "end_month": "2026-10", "months": 12, "housing_types": ["apartment", "row_house"]}
@@ -140,6 +142,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - 주변 전세 시세: 같은 조건의 전세(월세 0원) 보증금 중앙값. 갱신 계약은 빼고 신규·구분 없음만 쓴다. 3건 미만이면 표본 부족
 - 기준일은 오늘, `X-Virtual-Today` 헤더가 있으면 그날. 응답 `as_of`에 남는다
 - 연립다세대는 같은 이름이 많아 지번(`jibun`)이 필요하다
+- `complex`는 아파트·연립다세대만 받는다. 오피스텔·다가구·단독이면 422 (수집하는 실거래 자료가 없음)
 
 ### `GET /api/checks/{id}/special-terms` 특약 예시 (FR-039)
 
