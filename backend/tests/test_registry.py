@@ -102,6 +102,26 @@ def test_iros_summary_coowners_without_records():
     assert s.others == [] and s.warnings == []
 
 
+def test_iros_summary_large_mortgage():
+    # 공시가격 6,010만 집에 근저당 3억 3,150만 (문제 항목 샘플)
+    s = parse_summary_text(load("iros_villa_large_mortgage.txt"))
+    assert s.owners == ["윤가상"]
+    assert [(m.rank, m.amount, m.holder) for m in s.mortgages] == [("3", 331_500_000, "가상새마을금고")]
+    assert s.others == [] and s.warnings == []
+
+
+def test_demo_houses_registry_matches_answer_sheet():
+    # 시연 집 2채: 파서 결과가 docs/validation/demo_houses.yaml의 등기부 입력·소유자와 같아야 한다
+    import yaml
+    root = Path(__file__).resolve().parents[2]
+    demo = yaml.safe_load((root / "docs" / "validation" / "demo_houses.yaml").read_text(encoding="utf-8"))
+    for house in demo["houses"]:
+        s = parse_summary_text((root / house["registry_fixture"]).read_text(encoding="utf-8"))
+        assert s.to_fields() == house["input"]["registry"], house["id"]
+        assert s.owners == [house["registry_owner"]], house["id"]
+        assert s.others == [] and s.warnings == [], house["id"]
+
+
 def test_iros_summary_pending_registration_warns():
     text = load("iros_apartment_mortgage.txt").replace(
         "이 부동산 등기기록에 기재된 신청사건 접수 정보는 없습니다.", "2026년10월13일 제00000호 근저당권설정 처리 중")
