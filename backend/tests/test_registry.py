@@ -122,6 +122,23 @@ def test_demo_houses_registry_matches_answer_sheet():
         assert s.others == [] and s.warnings == [], house["id"]
 
 
+def test_iros_summary_trust():
+    # 신탁회사 공매 중인 다세대 (실제 샘플). 수탁자 이름이 법인번호 줄 위아래로 갈라지고,
+    # 갑구 신탁 주의사항은 등기목적("약정/금지사항/환매특약")이 행 위아래로 갈라져 나온다
+    s = parse_summary_text(load("iros_trust.txt"))
+    assert s.owners == ["국제자산신탁주식회사"] and s.trustee_owner
+    assert [(e.rank, e.purpose) for e in s.trusts] == [("2-1", "신탁 주의사항")]
+    assert s.to_fields() == {"seizure": False, "mortgage": False, "mortgage_amount": 0, "trust": True}
+    assert s.others == [] and s.warnings == []
+
+
+def test_owner_name_split_only_around_id_line():
+    # 이름 조각 → 번호 줄 → 나머지 이름일 때만 붙인다. 앞 사람 주소가 줄바꿈된 경우는 붙이지 않는다
+    section = "센텀아이파크\n김가상 (공유자) 000000-******* 2분의 1 3\n"
+    text = "부동산정보요약\n소유지분현황(갑구)\n" + section + "소유지분을 제외한 소유권에 대한 사항 (갑구)\n- 기록사항 없음\n"
+    assert parse_summary_text(text).owners == ["김가상"]
+
+
 def test_iros_summary_pending_registration_warns():
     text = load("iros_apartment_mortgage.txt").replace(
         "이 부동산 등기기록에 기재된 신청사건 접수 정보는 없습니다.", "2026년10월13일 제00000호 근저당권설정 처리 중")
