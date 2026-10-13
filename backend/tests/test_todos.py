@@ -111,6 +111,14 @@ def test_non_mvp_linkage_does_not_change_todos(rules):
     assert violation["T2"].prerequisites == ["T1"]
 
 
+def test_loan_without_execution_date(rules):
+    # 대출은 있는데 실행일을 비워 두면 T5 시작은 전입신고(T4) 다음 날 (대출 없을 때와 같음)
+    s1 = BY_ID["S1"]
+    todos = {t.rule_id: t for t in _build(rules, s1, inp={**s1["input"], "loan_execution_date": None})}
+    assert todos["T5"].start_date == date(2026, 12, 16)
+    assert todos["T5"].due_date == date.fromisoformat(s1["expected"]["T5"]["due"])
+
+
 def test_moved_to_top_and_pinned(rules):
     s7 = _build(rules, BY_ID["S7"])
     assert [t.rule_id for t in s7 if t.moved_to_top] == ["T4"]    # AC-016

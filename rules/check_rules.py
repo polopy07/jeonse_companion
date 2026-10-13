@@ -102,6 +102,23 @@ def main():
             if p not in todo_ids:
                 errors.append(f"todos.yaml:{tid['id']}: 없는 선행 할 일 '{p}'")
 
+    # 특약 결과로 맨 위로 올리는 할 일은 두 곳에 적는다: 화면 안내(special_terms.yaml on_*)와 할 일 엔진(todos.yaml move_to_top_when)
+    by_terms = {
+        (t["id"], result, a["todo"])
+        for t in data["special_terms"]["terms"]
+        for result in ("inserted", "rejected")
+        for a in t.get(f"on_{result}", []) if a["action"] == "move_to_top"
+    }
+    by_todos = {
+        (c["special_term"], c["result"], t["id"])
+        for t in data["todos"]["todos"]
+        for c in t.get("move_to_top_when", []) if "special_term" in c
+    }
+    for term, result, todo in sorted(by_terms - by_todos):
+        errors.append(f"todos.yaml:{todo}: special_terms.yaml {term} {result}의 move_to_top이 move_to_top_when에 없음")
+    for term, result, todo in sorted(by_todos - by_terms):
+        errors.append(f"special_terms.yaml:{term}: todos.yaml {todo}의 move_to_top_when({result})이 on_{result}에 없음")
+
     mvp_linkage = [r["id"] for r in data["linkage"]["rules"] if r.get("mvp")]
     mvp_terms = [t["id"] for t in data["special_terms"]["terms"] if t.get("mvp")]
 
