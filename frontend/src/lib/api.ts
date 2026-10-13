@@ -223,3 +223,8 @@ export function postContract(input: ApiContractInput) {
     body: JSON.stringify(input),
   });
 }
+
+/** 계약 정보와 할 일 목록 (앱을 다시 켰을 때 이어 보기) */
+export function getContract(contractId: number) {
+  return request<ApiContract>(`/api/contracts/${contractId}`, { method: 'GET' });
+}

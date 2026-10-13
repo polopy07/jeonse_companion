@@ -1,13 +1,45 @@
 /**
  * 패키지 시작으로 만든 계약 (POST /api/contracts 응답). 할 일 탭이 이 계약의 할 일을 그린다.
  * 없으면 할 일 탭은 시연 데이터(data/demo.ts)를 보여 준다.
+ * 계약 id는 휴대폰에 저장해 두고, 앱을 다시 켜면 GET /api/contracts/{id}로 다시 불러온다.
  */
-import type { ApiContract, ApiTodo } from '@/lib/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { ApiError, apiEnabled, getContract, type ApiContract, type ApiTodo } from '@/lib/api';
 import { createStore } from '@/lib/store';
 
+const CONTRACT_ID_KEY = 'jeonse.contractId';
+
 const latestContract = createStore<ApiContract | null>(null);
-export const setLatestContract = latestContract.set;
 export const useLatestContract = latestContract.use;
+
+/** 새 계약을 보여 주고 id를 저장한다. null이면 지운다 (시연 할 일로) */
+export function setLatestContract(contract: ApiContract | null) {
+  latestContract.set(contract);
+  const save = contract ? AsyncStorage.setItem(CONTRACT_ID_KEY, String(contract.id)) : AsyncStorage.removeItem(CONTRACT_ID_KEY);
+  save.catch(() => {}); // 저장에 실패해도 이번 실행 동안은 계약을 보여 준다
+}
+
+/**
+ * 앱을 켤 때 한 번: 저장한 계약 id가 있으면 서버에서 다시 불러온다.
+ * 서버에 그 계약이 없으면(DB를 다시 만든 경우 등, 404) 저장한 id를 지우고, 연결 실패면 id는 남겨 다음에 다시 시도한다.
+ */
+export async function restoreContract(): Promise<void> {
+  if (!apiEnabled || latestContract.get()) return;
+  let id: number;
+  try {
+    id = Number(await AsyncStorage.getItem(CONTRACT_ID_KEY));
+  } catch {
+    return;
+  }
+  if (!Number.isInteger(id) || id <= 0) return;
+  try {
+    const contract = await getContract(id);
+    if (!latestContract.get()) latestContract.set(contract);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) AsyncStorage.removeItem(CONTRACT_ID_KEY).catch(() => {});
+  }
+}
 
 /** 할 일 화면 상태: 완료 / 지금 할 일 / 다음 / 아직 시작 전(고정 할 일) */
 export type TodoViewStatus = 'done' | 'current' | 'upcoming' | 'later';
