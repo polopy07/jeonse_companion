@@ -5,6 +5,7 @@
  * rules/verdict.yaml·alert.yaml을 그대로 옮겼다(선순위 채권 = 근저당 + 임차권·전세권 보증금, alert.yaml v1.2). 2주차에 POST /api/checks 응답으로 바꾸고 이 계산은 지운다.
  * 입력 필드 이름은 백엔드 CheckInput과 같다.
  */
+import type { ApiCheckResult } from '@/lib/api';
 import { formatWon } from '@/lib/format';
 import { termTitleFor } from '@/lib/special-terms';
 import { createStore } from '@/lib/store';
@@ -69,6 +70,10 @@ export type UncheckedItem = { label: string; guide: string };
 
 /** 결과 화면(UI-01)이 그리는 값 */
 export type CheckView = {
+  /** 서버에 저장된 판정 id (POST /api/checks). 앱에서 임시 계산했으면 null */
+  id: number | null;
+  /** 서버에 연결하지 못해 앱에서 계산한 경우 등 화면 위에 보여 줄 안내 */
+  notice?: string;
   houseLabel: string;
   /** 시연 빌라처럼 근저당이 시연용 가상 값이면 true ("시연용 가상 근저당" 표시) */
   virtualMortgage?: boolean;
@@ -200,6 +205,26 @@ const uncheckedOtherDeposits: UncheckedItem = {
   guide: '등기부에 나오지 않아요. 임대인에게 다른 세대의 보증금과 계약 기간을 서면으로 받아 두세요.',
 };
 
+/** 결과 화면의 계산식 줄. estimated = 추정 집값, tradePrice = 비교에 쓴 매매 실거래가 */
+function buildFormula(input: CheckInput, estimated: number, tradePrice: number | null): string[] {
+  if (!input.official_price) return [];
+  const isMinimum = input.registry === null;
+  const mortgageAmount = input.registry?.mortgage_amount ?? 0;
+  const leaseAmount = input.registry?.lease_amount ?? 0;
+  return [
+    isMinimum
+      ? `보증금 ${won(input.deposit)} ÷ 추정 집값 ${won(estimated)} (등기부 전이라 근저당 0원)`
+      : leaseAmount
+        ? `(보증금 ${won(input.deposit)} + 근저당 ${won(mortgageAmount)} + 임차권·전세권 보증금 ${won(leaseAmount)}) ÷ 추정 집값 ${won(estimated)}`
+        : `(보증금 ${won(input.deposit)} + 근저당 ${won(mortgageAmount)}) ÷ 추정 집값 ${won(estimated)}`,
+    `공시가격 ${won(input.official_price)} × 140% = ${won(estimateFromOfficial(input.official_price))}`,
+    tradePrice ? `실거래가 ${won(tradePrice)} · 둘 중 낮은 값 사용` : '실거래가: 같은 단지·비슷한 면적 표본 부족',
+  ];
+}
+
+const disclaimerText = (today: string, isMinimum: boolean) =>
+  `조회 ${today}${isMinimum ? ' · 등기부 전 최소 추정치' : ''}. 정보 제공이며 보증하지 않습니다.`;
+
 export function runCheckLocal(
   input: CheckInput,
   houseLabel: string,
@@ -208,7 +233,7 @@ export function runCheckLocal(
 ): CheckView {
   let ratio: number | null = null;
   let estimated: number | null = null;
-  const formula: string[] = [];
+  let formula: string[] = [];
   const isMinimum = input.registry === null;
 
   if (input.official_price) {
@@ -217,20 +242,7 @@ export function runCheckLocal(
     const mortgageAmount = input.registry?.mortgage_amount ?? 0;
     const leaseAmount = input.registry?.lease_amount ?? 0;
     ratio = (input.deposit + mortgageAmount + leaseAmount) / estimated;
-
-    formula.push(
-      isMinimum
-        ? `보증금 ${won(input.deposit)} ÷ 추정 집값 ${won(estimated)} (등기부 전이라 근저당 0원)`
-        : leaseAmount
-          ? `(보증금 ${won(input.deposit)} + 근저당 ${won(mortgageAmount)} + 임차권·전세권 보증금 ${won(leaseAmount)}) ÷ 추정 집값 ${won(estimated)}`
-          : `(보증금 ${won(input.deposit)} + 근저당 ${won(mortgageAmount)}) ÷ 추정 집값 ${won(estimated)}`,
-    );
-    formula.push(`공시가격 ${won(input.official_price)} × 140% = ${won(fromOfficial)}`);
-    formula.push(
-      input.trade_price
-        ? `실거래가 ${won(input.trade_price)} · 둘 중 낮은 값 사용`
-        : '실거래가: 같은 단지·비슷한 면적 표본 부족',
-    );
+    formula = buildFormula(input, estimated, input.trade_price);
   }
 
   const values: Values = { ...input, deposit_ratio: ratio };
@@ -255,8 +267,8 @@ export function runCheckLocal(
   }
 
   const t = levelText[level];
-  const asOf = `조회 ${today}`;
   return {
+    id: null,
     houseLabel,
     owner,
     level,
@@ -270,7 +282,57 @@ export function runCheckLocal(
     formula,
     matched,
     unchecked: level === 'na' ? [uncheckedOtherDeposits, uncheckedTax] : [uncheckedTax],
-    disclaimer: `${asOf}${isMinimum ? ' · 등기부 전 최소 추정치' : ''}. 정보 제공이며 보증하지 않습니다.`,
+    disclaimer: disclaimerText(today, isMinimum),
+  };
+}
+
+/** 서버 판정 단계 id(rules/verdict.yaml) → 화면 단계 */
+const levelFromApi: Record<ApiCheckResult['level'], VerdictLevel> = {
+  not_applicable: 'na',
+  problem: 'problem',
+  check_needed: 'check',
+  no_problem: 'ok',
+};
+
+/**
+ * POST /api/checks 응답 → 결과 화면 값. 판정·비율·걸린 항목·확인 못 한 항목은 서버 값을 쓰고,
+ * 단계 이름·다음 할 일·요약 문장과 계산식 줄은 화면 문구로 채운다.
+ */
+export function checkViewFromApi(
+  r: ApiCheckResult,
+  input: CheckInput,
+  houseLabel: string,
+  today: string,
+  owner: string | null = null,
+): CheckView {
+  const level = levelFromApi[r.level] ?? 'check';
+  const t = levelText[level];
+  const localRules = new Map([...problemRules, ...checkRules].map((rule) => [rule.id, rule]));
+  const values: Values = { ...input, deposit_ratio: r.deposit_ratio };
+  const tradePrice = r.trade_basis?.price ?? input.trade_price;
+  return {
+    id: r.id,
+    houseLabel,
+    owner,
+    level,
+    label: t.label,
+    next_step: t.next_step,
+    summary: t.summary,
+    block_payment: r.block_payment,
+    deposit_ratio: level === 'na' ? null : r.deposit_ratio,
+    ratio_is_minimum: r.ratio_is_minimum,
+    estimated_price: r.estimated_price,
+    formula: r.estimated_price ? buildFormula(input, r.estimated_price, tradePrice) : [],
+    matched: r.matched.map((m) => ({
+      key: m.id,
+      label: m.label,
+      level: levelFromApi[m.level] ?? 'check',
+      explanation: m.explanation ?? localRules.get(m.id)?.explanation(values) ?? '',
+      linkage: m.linkage ?? undefined,
+      specialTerm: termTitleFor(m.linkage ?? undefined),
+    })),
+    unchecked: r.unchecked.map((u) => ({ label: u.label, guide: u.guide ?? '' })),
+    disclaimer: disclaimerText(today, r.ratio_is_minimum),
   };
 }
 

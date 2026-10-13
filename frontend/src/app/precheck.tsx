@@ -10,13 +10,16 @@ import { Button, Card, DashedBox, DemoTag, Screen, SectionLabel } from '@/compon
 import { ratioBand } from '@/components/verdict';
 import { Colors, Radius, Touch } from '@/constants/theme';
 import { demoHouses, type DemoHouse } from '@/data/demo';
+import { ApiError, apiEnabled, parseRegistry, postCheck, type ApiRegistryParseResult } from '@/lib/api';
 import {
+  checkViewFromApi,
   estimateFromOfficial,
   housingTypes,
   isNotApplicable,
   runCheckLocal,
   setLatestCheck,
   type CheckInput,
+  type CheckView,
   type GuarantorConsult,
   type HousingType,
   type RegistryLease,
@@ -27,7 +30,8 @@ import { formatWon, parseManwon, parseNumber } from '@/lib/format';
 const steps = ['집 정보', '공시가격', '등기부', '확인·수정'];
 
 type Violation = 'unknown' | 'no' | 'yes';
-type RegistryMode = 'none' | 'loading' | 'filled' | 'manual';
+// filled = 시연 등기부, parsed = 서버가 PDF에서 읽은 값, manual = 직접 입력
+type RegistryMode = 'none' | 'loading' | 'filled' | 'parsed' | 'manual';
 /** 등기부에서 읽은 임차권·전세권 한 건. included = 선순위 채권에 넣음 (기본), amountText = 보증금을 못 읽었을 때 직접 입력 */
 type LeaseRow = RegistryLease & { included: boolean; amountText: string };
 
@@ -71,6 +75,11 @@ export default function PrecheckScreen() {
   const [leases, setLeases] = useState<LeaseRow[]>([]);
   const [leaseOn, setLeaseOn] = useState(false); // 직접 입력: 임차권·전세권 등기 있음
   const [leaseText, setLeaseText] = useState('');
+  const [registryError, setRegistryError] = useState<string | null>(null);
+  const [registryWarnings, setRegistryWarnings] = useState<string[]>([]);
+  const [sourceLines, setSourceLines] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [trustConsent, setTrustConsent] = useState<TrustConsent>('unknown');
   const [violation, setViolation] = useState<Violation>('unknown');
   const [guarantorConsult, setGuarantorConsult] = useState<GuarantorConsult>('not_yet');
@@ -124,20 +133,49 @@ export default function PrecheckScreen() {
     }
     setLeaseOn(false);
     setLeaseText('');
+    setRegistryWarnings([]);
+    setSourceLines([]);
+    setStep(3);
+  };
+
+  /** 서버가 PDF에서 읽은 값으로 확인 화면을 채운다 (FR-005~006) */
+  const fillFromParse = (r: ApiRegistryParseResult) => {
+    setOwner(r.owners.join(', '));
+    setSeizure(r.fields.seizure);
+    setMortgage(r.fields.mortgage);
+    setMortgageText(toManwonText(r.fields.mortgage_amount));
+    setTrust(r.fields.trust);
+    setLeases((r.leases ?? []).map((l) => ({ ...l, included: true, amountText: '' })));
+    setLeaseOn(false);
+    setLeaseText('');
+    setSourceLines([...r.seizures, ...r.trusts, ...r.mortgages, ...(r.leases ?? []), ...r.others].map((e) => e.text));
+    setRegistryWarnings(r.warnings);
+    setRegistryMode('parsed');
     setStep(3);
   };
 
   const pickPdf = async () => {
     const res = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true });
     if (res.canceled) return;
-    setFileName(res.assets[0].name);
+    const asset = res.assets[0];
+    setFileName(asset.name);
+    setRegistryError(null);
     setRegistryMode('loading');
-    // 백엔드 연결 전: POST /api/registry/parse 대신 시연 집이면 시연 등기부 값으로, 아니면 직접 입력으로 넘긴다
-    setTimeout(() => fillRegistry(preset), 600);
+    if (!apiEnabled) {
+      // 서버 주소가 없으면: 시연 집이면 시연 등기부 값으로, 아니면 직접 입력으로 넘긴다
+      setTimeout(() => fillRegistry(preset), 600);
+      return;
+    }
+    try {
+      fillFromParse(await parseRegistry(asset));
+    } catch (e) {
+      setRegistryMode('none');
+      setRegistryError(e instanceof ApiError ? [e.message, e.hint].filter(Boolean).join('. ') : '등기부를 읽지 못했어요');
+    }
   };
 
-  const submit = (withRegistry: boolean) => {
-    if (!housingType || !deposit) return;
+  const submit = async (withRegistry: boolean) => {
+    if (!housingType || !deposit || submitting) return;
     const input: CheckInput = {
       housing_type: housingType,
       deposit,
@@ -153,10 +191,29 @@ export default function PrecheckScreen() {
     };
     const typeLabel = housingTypes.find((t) => t.value === housingType)?.label ?? '';
     const label = `${preset ? preset.label : address.trim()} · ${typeLabel}`;
-    setLatestCheck({
-      ...runCheckLocal(input, label, todayText(), withRegistry && owner.trim() ? owner.trim() : null),
-      virtualMortgage: withRegistry && registryMode === 'filled' && mortgage && !!preset?.registry.virtualMortgage,
-    });
+    const ownerName = withRegistry && owner.trim() ? owner.trim() : null;
+    const virtualMortgage = withRegistry && registryMode === 'filled' && mortgage && !!preset?.registry.virtualMortgage;
+
+    let view: CheckView;
+    if (apiEnabled) {
+      setSubmitting(true);
+      setSubmitError(null);
+      try {
+        view = checkViewFromApi(await postCheck(input), input, label, todayText(), ownerName);
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.code !== 'NETWORK_ERROR') {
+          // 입력 오류 등 서버가 답한 오류는 앱 계산으로 덮지 않고 보여 준다
+          setSubmitError(e instanceof ApiError ? [e.message, e.hint].filter(Boolean).join('. ') : '판정을 받지 못했어요');
+          return;
+        }
+        view = { ...runCheckLocal(input, label, todayText(), ownerName), notice: '서버에 연결하지 못해 앱에서 임시로 계산했어요' };
+      } finally {
+        setSubmitting(false);
+      }
+    } else {
+      view = runCheckLocal(input, label, todayText(), ownerName);
+    }
+    setLatestCheck({ ...view, virtualMortgage });
     router.push('/check');
   };
 
@@ -183,9 +240,9 @@ export default function PrecheckScreen() {
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <Button variant="outline" label="이전" onPress={back} style={{ paddingHorizontal: 20 }} />
         <Button
-          label={step === 3 || (step === 0 && na) ? '결과 보기' : '다음'}
-          onPress={canNext ? next : undefined}
-          style={{ flex: 1, opacity: canNext ? 1 : 0.4 }}
+          label={submitting ? '판정 받는 중…' : step === 3 || (step === 0 && na) ? '결과 보기' : '다음'}
+          onPress={canNext && !submitting ? next : undefined}
+          style={{ flex: 1, opacity: canNext && !submitting ? 1 : 0.4 }}
         />
       </View>
     );
@@ -201,6 +258,11 @@ export default function PrecheckScreen() {
         <AppText size={12} color={Colors.textSub} style={{ marginTop: 8 }}>
           {step + 1} / {steps.length} · {steps[step]} · 무료
         </AppText>
+        {submitError ? (
+          <AppText size={13} color={Colors.danger} leading={1.6} style={{ marginTop: 8 }}>
+            {submitError}
+          </AppText>
+        ) : null}
       </View>
 
       {step === 0 ? (
@@ -349,6 +411,11 @@ export default function PrecheckScreen() {
               </AppText>
             </DashedBox>
           </Pressable>
+          {registryError ? (
+            <AppText size={13} color={Colors.danger} leading={1.6} style={{ marginTop: 8 }}>
+              {registryError}
+            </AppText>
+          ) : null}
 
           <View style={{ gap: 8, marginTop: 12 }}>
             {preset ? <Button variant="outline" height={Touch.min} label="시연 등기부 불러오기" onPress={() => fillRegistry(preset)} /> : null}
@@ -366,7 +433,7 @@ export default function PrecheckScreen() {
       {step === 3 ? (
         <>
           <AppText size={18} weight="bold" style={{ marginTop: 18 }}>
-            {registryMode === 'filled' ? '읽은 내용이 맞는지 확인해 주세요' : '등기부 내용을 입력해 주세요'}
+            {registryMode === 'filled' || registryMode === 'parsed' ? '읽은 내용이 맞는지 확인해 주세요' : '등기부 내용을 입력해 주세요'}
           </AppText>
           <AppText size={13} color={Colors.textSub} leading={1.6} style={{ marginTop: 4 }}>
             판정은 여기서 확인한 값으로 해요. 원문과 다르면 고쳐 주세요.
@@ -387,6 +454,26 @@ export default function PrecheckScreen() {
                   </AppText>
                 ))}
               </View>
+            </Card>
+          ) : null}
+
+          {registryMode === 'parsed' ? (
+            <Card style={{ marginTop: 14 }}>
+              <AppText size={11} color={Colors.textHint}>
+                등기부 요약 · 읽은 원문
+              </AppText>
+              <View style={styles.source}>
+                {(sourceLines.length ? sourceLines : ['갑구·을구 기록사항 없음']).map((line, i) => (
+                  <AppText key={`${i}-${line}`} size={12} color={Colors.textCode} leading={1.7}>
+                    {line}
+                  </AppText>
+                ))}
+              </View>
+              {registryWarnings.map((w) => (
+                <AppText key={w} size={12} color={Colors.textSub} leading={1.6} style={{ marginTop: 6 }}>
+                  · {w}
+                </AppText>
+              ))}
             </Card>
           ) : null}
 

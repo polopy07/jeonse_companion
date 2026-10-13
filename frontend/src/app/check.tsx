@@ -35,6 +35,11 @@ export default function CheckScreen() {
         {r.houseLabel}
       </AppText>
       {r.virtualMortgage ? <DemoTag label="시연용 가상 근저당" style={{ marginTop: 6 }} /> : null}
+      {r.notice ? (
+        <AppText size={12} color={Colors.textHint} style={{ marginTop: 6 }}>
+          {r.notice}
+        </AppText>
+      ) : null}
 
       <View style={{ marginTop: 12 }}>
         <VerdictCard level={r.level} title={r.next_step} summary={r.summary} />

@@ -13,7 +13,18 @@ npx expo start --web    # 웹만
 
 - 검사: `npx tsc --noEmit` (타입), `npx expo lint` (린트). PR 올리기 전에 둘 다 통과시킨다.
 - 패키지 추가는 `npm install` 대신 `npx expo install <패키지>` (SDK에 맞는 버전으로 설치됨).
-- 지금은 백엔드에 연결하지 않고 `src/data/demo.ts`의 시연 데이터(부산 근저당 빌라, 담보 설정 금지 특약 "거절당함")로 그린다.
+- 시연은 앱(Expo Go 등)으로 한다. 서버 주소(`EXPO_PUBLIC_API_URL`)를 넣으면 계약 전 확인이 백엔드를 부르고, 비워 두면 `src/data/demo.ts` 시연 데이터와 앱 안 임시 계산으로 동작한다.
+
+### 백엔드 연결 (휴대폰에서)
+
+1. PC에서 백엔드를 외부 접속 가능하게 띄운다: `cd backend && uvicorn app.main:app --host 0.0.0.0 --port 8000`
+2. `frontend/.env.example`을 `frontend/.env.local`로 복사하고 `EXPO_PUBLIC_API_URL`에 PC의 내부 IP를 넣는다 (Windows `ipconfig`의 IPv4 주소, 예: `http://192.168.0.10:8000`). 휴대폰에서 `localhost`는 휴대폰 자신이다
+3. PC와 휴대폰을 같은 와이파이에 두고 `npx expo start`. 안 되면 휴대폰 브라우저로 `http://<PC IP>:8000/health`를 열어 보고, 안 열리면 Windows 방화벽에서 8000번 포트(Python)를 허용한다
+4. `.env.local`을 바꾸면 `npx expo start -c`로 다시 띄운다 (`EXPO_PUBLIC_` 값은 번들에 들어감)
+
+- 연결된 것: 등기부 PDF → `POST /api/registry/parse`(확인 화면을 서버가 읽은 값·원문·경고로 채움), 계약 전 확인 → `POST /api/checks`(판정·비율·걸린 항목은 서버 값, 문구는 화면 것)
+- 서버에 연결하지 못하면(`NETWORK_ERROR`) 앱 안 임시 계산으로 결과를 보여 주고 결과 화면에 그렇게 표시한다. 서버가 답한 오류(입력 오류 등)는 화면에 그대로 보여 준다
+- Expo Go가 아닌 설치 파일(APK·개발 빌드)로 시연하면 Android가 `http://` 주소를 막을 수 있다. 그때는 https 서버를 쓰거나 `app.json`에서 허용을 켠다
 
 ## 구조
 
@@ -41,7 +52,8 @@ src/
     verdict.tsx           VerdictBadge/Card, RatioGauge, MatchedItem, UncheckedBox, SpecialTermRow
     form.tsx              TextField(단위·안내), ChoiceChips, Toggle, ToggleRow
   constants/theme.ts      색·모서리·터치 영역 토큰 (docs/design/README.md 디자인 규칙)
-  lib/check.ts            계약 전 확인 임시 계산 (백엔드 engine·rules v1.0을 옮긴 것, 2주차에 POST /api/checks로 교체)
+  lib/api.ts              백엔드 호출 (EXPO_PUBLIC_API_URL, 오류 형식 detail.code·message·hint)
+  lib/check.ts            계약 전 확인 결과 값: 서버 응답 → 화면 값(checkViewFromApi), 서버가 없을 때 쓰는 임시 계산(runCheckLocal)
   lib/site-check.ts       현장 확인 항목·이름 대조(가린 글자 ○는 어떤 글자와도 같다고 봄)
   lib/store.ts            화면 사이 값 전달용 작은 저장소 (앱을 다시 켜면 사라짐)
   lib/format.ts           금액 표기 (1억 4,000만), 만 원 입력 변환
@@ -67,7 +79,7 @@ src/
 
 ## 다음에 할 일
 
-- 백엔드 API 연결 (`docs/api/API_명세.md`): 등기부 PDF → `POST /api/registry/parse`, 입력값 → `POST /api/checks`(그 뒤 `lib/check.ts` 임시 계산 삭제), 할 일 → UI-04
+- 백엔드 API 연결 나머지 (`docs/api/API_명세.md`): 특약 예시 `GET /api/checks/{id}/special-terms`(UI-03), 계약 생성 `POST /api/contracts`·할 일 `GET /api/contracts/{id}`(UI-04). 시연 집은 `complex`(단지)를 보내 저장된 실거래로 매매가·주변 전세 시세 받기
 - 걸린 항목 설명·확인 못 한 항목 안내 문장을 서버가 내려줄지 정하기 (지금은 `lib/check.ts`에 화면 문구로 있음)
 - UI-03 나머지 단계: 1/5 테스트 결제, 3/5 계약 당일 등기부 재비교(FR-048), 5/5 계약서·이체 내역 업로드와 계약 날짜 입력(FR-014, FR-051)
 - 가상 날짜 전환(`X-Virtual-Today`)으로 시연 날짜 바꾸기
