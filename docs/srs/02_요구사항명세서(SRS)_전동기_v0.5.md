@@ -134,7 +134,7 @@ Software Requirements Specification (SRS)
 
 2.1 제품 관점 (Product Perspective)
 
-전동기는 독립형 모바일 웹 서비스(PWA)다. 보증기관 등 공식 창구 시스템과 직접 연동하지 않고, 공공 데이터(실거래가는 공공데이터포털 API, 공시가격·건축물대장은 파일)와 사용자가 올린 자료로 계산한 뒤 공식 창구는 링크로 연결한다.
+전동기는 독립형 서비스로, MVP는 모바일 웹(PWA)으로 제공하고 이후 같은 코드(Expo)로 안드로이드·iOS 앱을 낸다. 보증기관 등 공식 창구 시스템과 직접 연동하지 않고, 공공 데이터(실거래가는 공공데이터포털 API, 공시가격·건축물대장은 파일)와 사용자가 올린 자료로 계산한 뒤 공식 창구는 링크로 연결한다.
 
 | **외부 요소**                                                         | **관계**                                              |
 |-----------------------------------------------------------------------|-------------------------------------------------------|
@@ -160,7 +160,7 @@ Software Requirements Specification (SRS)
 
 2.3 운영 환경 (Operating Environment)
 
-- **Client:** 모바일 웹(PWA) — iOS Safari, Android Chrome 최신 버전 / 데스크톱 Chrome·Edge 최신 버전
+- **Client:** MVP는 모바일 웹(PWA) — iOS Safari, Android Chrome 최신 버전 / 데스크톱 Chrome·Edge 최신 버전. 이후 같은 코드로 안드로이드·iOS 앱
 
 - **Frontend:** Expo(React Native, Expo Router). 한 코드로 웹(PWA)·안드로이드·iOS를 내고, MVP는 웹(PWA)으로 시연
 
