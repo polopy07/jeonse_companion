@@ -56,7 +56,7 @@ levels:
         linkage: L-MORTGAGE
       - id: C-2
         label: 내 보증금 비율 90% 이상 (반환보증 가입이 어려운 구간)
-        explanation: 반환보증 가입이 어려운 구간이에요. 계약 전에 보증기관에 가입 가능 여부를 먼저 물어보세요.
+        explanation: 보증기관은 보통 (보증금 + 선순위 채권)이 집값의 90% 이내일 때만 반환보증 가입을 받아요. 계약 전에 보증기관에 가입 가능 여부를 먼저 물어보세요.
         when: {field: deposit_ratio, op: ">=", value: 0.9}
         linkage: L-RATIO90
       - id: C-3

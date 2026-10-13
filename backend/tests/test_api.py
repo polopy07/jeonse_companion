@@ -231,7 +231,7 @@ def test_check_result_has_explanations(client):
     created = r.json()
     explained = {m["id"]: m["explanation"] for m in created["matched"]}
     assert explained["C-1"].startswith("집이 경매로 넘어가면")
-    assert explained["C-2"].startswith("반환보증 가입이 어려운 구간")
+    assert explained["C-2"].startswith("보증기관은 보통 (보증금 + 선순위 채권)")
     assert created["unchecked"][0]["id"] == "U-TAX"
     assert "완납증명서" in created["unchecked"][0]["guide"]
     assert created["rules_version"] == "1.1"
@@ -245,3 +245,15 @@ def test_not_applicable_explanation(client):
     assert "다른 세대의 보증금" in created["matched"][0]["explanation"]
     assert [u["id"] for u in created["unchecked"]] == ["U-TAX", "U-OTHER-DEPOSITS"]
     assert all(u["guide"] for u in created["unchecked"])
+
+
+def test_special_terms_blocked_for_problem(client):
+    # 압류 + 근저당: "문제 항목"(결제 전 멈춤)이면 특약 예시를 주지 않는다 (POST /api/contracts의 CHECK_BLOCKED와 같은 기준)
+    check = client.post("/api/checks", json={
+        "housing_type": "row_house", "deposit": 150_000_000, "official_price": 2 * EOK,
+        "registry": {"seizure": True, "mortgage": True, "mortgage_amount": 120_000_000},
+    }).json()
+    assert check["level"] == "problem"
+    r = client.get(f"/api/checks/{check['id']}/special-terms")
+    assert r.status_code == 409
+    assert _detail(r)["code"] == "CHECK_BLOCKED"

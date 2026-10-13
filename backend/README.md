@@ -22,6 +22,7 @@ uvicorn app.main:app --reload
 - 테이블은 서버 시작 때 자동으로 만든다 (MVP). 스키마가 자주 바뀌기 시작하면 Alembic으로 옮긴다.
 - 배포 서버에서는 `DATABASE_URL`만 그 서버의 PostgreSQL 주소로 바꾸면 된다.
 - 환경 변수는 `.env.example`을 참고한다. 실거래가 조회(2주차)에는 공공데이터포털 인증키가 필요하다 (`export DATA_GO_KR_SERVICE_KEY=...`, 포털의 일반 인증키 중 **Decoding 키**).
+- 테이블은 서버가 시작할 때 `create_all`로 만들기 때문에 **이미 있는 테이블에는 새 칸이 생기지 않는다**. 모델(`app/models.py`)이 바뀐 브랜치를 받으면 로컬 DB를 다시 만든다: `docker compose down -v && docker compose up -d` (SQLite는 파일을 지운다). 배포 전까지는 이렇게 하고, 배포 서버에 데이터가 쌓이기 시작하면 Alembic을 들인다
 
 ## 테스트
 
@@ -105,9 +106,9 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - 날짜: 잔금일 ≥ 계약일, 만기일 > 잔금일. 대출이 없으면 `loan_execution_date`를 비워 둔다
 - "문제 항목" 판정이면 409 `CHECK_BLOCKED`, 한 판정으로 계약을 두 번 만들면 409 `CHECK_ALREADY_USED`
 - 응답: 입력한 계약 조건 + `id`, `check_id`, `level`(시작할 때의 판정 단계), 판정에서 가져온 주택 정보, `report_required`(임대차 신고 대상), `alert_level`(판정 때 비율로 정한 경보 단계, 정상이면 null), `todos`(할 일 목록)
-- `todos`는 `sort_order` 순서다: 맨 위 규칙(특약 거절·경보, `moved_to_top`) → 고정(T5~T9, `pinned`) → 기한 빠른 순. 재알림(T6·T8)은 `due_date` 대신 `remind_date`, HF·SGI 반환보증(T5)은 기관 기준이 없어 `due_date`가 null
+- `todos`는 `sort_order` 순서다: 맨 위 규칙(특약 거절·경보, `moved_to_top`) → 고정(T5~T9, `pinned`) → 기한 빠른 순. 재알림(T6·T8)은 `due_date` 대신 `remind_date`, HF·SGI 반환보증(T5)은 기관 기준이 없어 `due_date`가 null. 대출은 있는데 `loan_execution_date`를 비우면 T5 시작일은 전입신고(T4) 다음 날
 - 기한 계산은 `docs/validation/기한계산_정답표.md`의 계산 약속을 따르고, `tests/test_todos.py`가 정답표(`deadline_scenarios.yaml`) S1~S10·재계산 3개와 대조한다
-- `contracts.email`, `todos`의 새 칸들을 넣었다. 예전에 만든 PostgreSQL DB는 테이블이 자동으로 바뀌지 않으니 `docker compose down -v` 후 다시 띄운다
+- `contracts` 테이블에 `check_id`(unique)·`email`·`report_required`·`alert_level`, `todos`에 새 칸들을 넣었다. 예전에 만든 DB는 위 안내대로 다시 만든다
 
 ### `POST /api/admin/trades` 실거래가 수집 (FR-046)
 
@@ -159,6 +160,8 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - 사용자가 고른 넣음/거절당함은 `terms[].id`를 키로 `POST /api/contracts`의 `special_term_result`에 보낸다 (`inserted` / `rejected`)
 - MVP는 근저당·비율 90% 이상·신탁 연동 규칙에 연결된 특약 2개(담보 설정 금지, 보증·대출 거절 시 해제)만 나온다. 신탁은 특약 대신 `checks`에 "신탁사 동의서 확인"
 - 걸린 항목이 없으면(문제 항목 없음, 대상 아님) `terms`가 빈 목록
+- "문제 항목"(결제 전 멈춤) 판정이면 409 `CHECK_BLOCKED`, 판정 단계가 지금 규칙에 없으면 409 `CHECK_OUTDATED`
+- 판정의 `linkages`는 만들 때 저장한 값이고, 특약 예시·경고는 지금 규칙 파일로 만든다. `rules_version`은 `special_terms.yaml` 버전이다 (`warnings`·`checks`는 `linkage.yaml`에서 오지만 지금은 두 파일 버전이 같이 움직인다)
 
 ### `POST /api/registry/parse` 등기부 요약 추출 (FR-005·006)
 
