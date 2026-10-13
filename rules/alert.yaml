@@ -16,7 +16,7 @@ estimated_price:
 
 deposit_ratio:
   # 내 보증금 비율 = (보증금 + 선순위 채권) ÷ 추정 주택가격
-  numerator: [deposit, registry.mortgage_amount, registry.lease_amount]   # 선순위 채권 = 근저당 + 임차권·전세권 보증금 (PO 결정 2026-10-13)
+  numerator: [deposit, registry.mortgage_amount, registry.lease_amount]   # 선순위 채권 = 근저당 + 임차권·전세권 보증금 (PO 결정 2026-10-13). 같은 보증금이 전세권·임차권으로 함께 있으면 한 번만
   denominator: estimated_price
   before_registry_upload:
     senior_debt: 0

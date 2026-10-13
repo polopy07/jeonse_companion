@@ -71,7 +71,7 @@ fields:
   registry.lease_amount:
     type: integer
     unit: 원
-    label: 을구 임차권·전세권 보증금 합계 (선순위 채권, 확인 화면에서 뺄 수 있음)
+    label: 을구 임차권·전세권 보증금 합계 (선순위 채권, 같은 보증금은 한 번만, 확인 화면에서 뺄 수 있음)
   registry.trust:
     type: boolean
     label: 신탁등기 있음

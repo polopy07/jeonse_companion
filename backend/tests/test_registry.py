@@ -155,7 +155,35 @@ def test_iros_summary_jeonse_and_lease_of_same_deposit():
         ("5", "가압류"), ("6", "강제경매개시결정"), ("7", "압류"), ("8", "압류"), ("9", "압류")]
     assert [(lease.rank, lease.purpose, lease.amount, lease.holder) for lease in s.leases] == [
         ("1", "전세권설정", 120_000_000, "가상엘리베이터주식회사"), ("2", "임차권설정", 110_000_000, None)]
-    assert "보증금120,000,000원 중 반환되지" in s.leases[1].text
+    # 임차권이 "보증금 1.2억 중 반환되지 않은 금액"이고 전세금이 1.2억이라 같은 보증금 → 못 돌려받은 1.1억만 넣는다
+    assert [lease.same_deposit_as for lease in s.leases] == ["2", None]
+    assert s.to_fields()["lease_amount"] == 110_000_000
+    assert s.warnings == [
+        "을구 1번 전세권설정 보증금 120,000,000원은 을구 2번 임차권설정과 같은 보증금으로 보여 한 번만 넣었습니다. 다른 보증금이면 다시 넣으세요",
+        "을구 2번 임차권설정 보증금 110,000,000원을 선순위 채권에 넣었습니다. 이미 돌려받았거나 내 계약이면 빼세요",
+    ]
+
+
+def test_lease_with_other_original_deposit_is_counted_twice():
+    # 임차권의 원래 보증금이 전세금과 다르면 다른 보증금으로 보고 둘 다 넣는다
+    text = load("iros_villa_jeonse_and_lease.txt").replace("(보증금120,000,000원 중", "(보증금130,000,000원 중")
+    s = parse_summary_text(text)
+    assert [lease.same_deposit_as for lease in s.leases] == [None, None]
+    assert s.to_fields()["lease_amount"] == 230_000_000
+
+
+def test_jeonse_and_lease_with_same_holder_and_amount_counted_once():
+    # 전세권과 임차권의 권리자·금액이 같으면 (기간이 끝나 전세권에 더해 임차권등기를 한 경우) 먼저 등기한 전세권만 넣는다
+    text = load("iros_villa_jeonse_and_lease.txt").replace(
+        "임차보증금 금110,000,000원 (보증금120,000,000원 중 반환되지 오가상",
+        "임차보증금 금120,000,000원 임차권자 가상엘리베이터주식회사 오가상")
+    s = parse_summary_text(text)
+    assert [(lease.holder, lease.same_deposit_as) for lease in s.leases] == [
+        ("가상엘리베이터주식회사", None), ("가상엘리베이터주식회사", "1")]
+    assert s.to_fields()["lease_amount"] == 120_000_000
+    # 권리자가 다르면 다른 세입자의 보증금이라 둘 다 넣는다
+    other = parse_summary_text(text.replace("임차권자 가상엘리베이터주식회사", "임차권자 나가상"))
+    assert other.to_fields()["lease_amount"] == 240_000_000
 
 
 def test_owner_name_split_only_around_id_line():
