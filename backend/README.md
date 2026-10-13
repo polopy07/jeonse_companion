@@ -21,6 +21,7 @@ uvicorn app.main:app --reload
 - API 문서: http://localhost:8000/docs
 - 테이블은 서버 시작 때 자동으로 만든다 (MVP). 스키마가 자주 바뀌기 시작하면 Alembic으로 옮긴다.
 - 배포 서버에서는 `DATABASE_URL`만 그 서버의 PostgreSQL 주소로 바꾸면 된다.
+- 환경 변수는 `.env.example`을 참고한다. 실거래가 조회(2주차)에는 공공데이터포털 인증키가 필요하다 (`export DATA_GO_KR_SERVICE_KEY=...`, 포털의 일반 인증키 중 **Decoding 키**).
 - 테이블은 서버가 시작할 때 `create_all`로 만들기 때문에 **이미 있는 테이블에는 새 칸이 생기지 않는다**. 모델(`app/models.py`)이 바뀐 브랜치를 받으면 로컬 DB를 다시 만든다: `docker compose down -v && docker compose up -d` (SQLite는 파일을 지운다). 배포 전까지는 이렇게 하고, 배포 서버에 데이터가 쌓이기 시작하면 Alembic을 들인다
 
 ## 테스트
@@ -37,7 +38,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | 경로 | 내용 |
 | --- | --- |
 | `app/main.py` | 앱, `/health` |
-| `app/config.py` | 환경 변수 (`DATABASE_URL`, `RULES_DIR`) |
+| `app/config.py` | 환경 변수 (`DATABASE_URL`, `RULES_DIR`, `DATA_GO_KR_SERVICE_KEY`) |
 | `app/db.py` | DB 연결, 세션 |
 | `app/models.py` | 데이터 모델: 계약(`contracts`), 판정(`verdicts`), 할 일(`todos`), 경보(`alerts`) |
 | `app/schemas.py` | API 입출력 형식 |
