@@ -4,3 +4,6 @@ __pycache__/
 .venv/
 .env
 *.db
+
+# 부산 전세 건수 집계 캐시 (docs/plan/figures/busan_jeonse_count.py)
+.busan_rent_cache/
