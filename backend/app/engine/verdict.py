@@ -16,6 +16,7 @@ class MatchedRule:
     label: str
     level: str
     linkage: str | None = None
+    explanation: str | None = None
 
 
 @dataclass
@@ -48,14 +49,15 @@ def judge(values: dict, verdict_rules: dict) -> VerdictResult:
     # 대상 아님(다가구·단독)은 점검 대상이 아니므로 다른 단계의 항목을 보여 주지 않는다.
     shown_levels = [chosen] if chosen["id"] == NOT_APPLICABLE else levels[chosen_index:]
     matched = [
-        MatchedRule(id=r["id"], label=r["label"], level=lv["id"], linkage=r.get("linkage"))
+        MatchedRule(id=r["id"], label=r["label"], level=lv["id"], linkage=r.get("linkage"),
+                    explanation=r.get("explanation"))
         for lv in shown_levels
         for r in hits_by_level[lv["id"]]
     ]
     linkages = list(dict.fromkeys(m.linkage for m in matched if m.linkage))
 
     unchecked = [
-        {"id": u["id"], "label": u["label"], "linkage": u.get("linkage")}
+        {"id": u["id"], "label": u["label"], "linkage": u.get("linkage"), "guide": u.get("guide")}
         for u in verdict_rules.get("unchecked_items", [])
         if "applies_when" not in u or evaluate(u["applies_when"], values)
     ]
