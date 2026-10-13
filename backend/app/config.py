@@ -13,3 +13,8 @@ def database_url() -> str:
 
 def rules_dir() -> Path:
     return Path(os.environ.get("RULES_DIR", REPO_ROOT / "rules"))
+
+
+def data_go_kr_service_key() -> str:
+    """공공데이터포털 일반 인증키 (Decoding 키). 없으면 빈 문자열."""
+    return os.environ.get("DATA_GO_KR_SERVICE_KEY", "")
