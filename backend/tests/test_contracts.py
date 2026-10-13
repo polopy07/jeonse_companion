@@ -241,6 +241,10 @@ def test_outdated_level_is_409(client):
     r = client.post("/api/contracts", json={"check_id": check["id"], **DATES})
     assert r.status_code == 409
     assert _detail(r)["code"] == "CHECK_OUTDATED"
+    # 판정 결과 조회도 500이 아니라 같은 409
+    r = client.get(f"/api/checks/{check['id']}")
+    assert r.status_code == 409
+    assert _detail(r)["code"] == "CHECK_OUTDATED"
 
 
 def test_get_keeps_values_from_creation(client, rules):

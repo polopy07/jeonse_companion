@@ -15,7 +15,11 @@ router = APIRouter(prefix="/api/checks", tags=["계약 전 확인"])
 
 
 def _level(rules: dict, level_id: str) -> dict:
-    return next(lv for lv in rules["verdict"]["levels"] if lv["id"] == level_id)
+    level = next((lv for lv in rules["verdict"]["levels"] if lv["id"] == level_id), None)
+    if level is None:   # 저장된 판정 단계가 지금 규칙 파일에 없음 (POST /api/contracts와 같은 기준)
+        raise api_error(409, "CHECK_OUTDATED", "판정 기준이 바뀌어 이 판정 결과를 보여 줄 수 없습니다",
+                        "계약 전 확인을 다시 하세요")
+    return level
 
 
 def _to_result(row: Verdict, rules: dict) -> CheckResult:
@@ -61,7 +65,7 @@ def create_check(inp: CheckInput, db: Session = Depends(get_db), rules: dict = D
     return _to_result(row, rules)
 
 
-@router.get("/{check_id}", response_model=CheckResult, responses=responses(404, 422))
+@router.get("/{check_id}", response_model=CheckResult, responses=responses(404, 409, 422))
 def get_check(check_id: int, db: Session = Depends(get_db), rules: dict = Depends(get_rules)):
     row = db.get(Verdict, check_id)
     if row is None:
