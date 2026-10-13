@@ -96,7 +96,9 @@ def create_contract(inp: ContractInput, db: Session = Depends(get_db), rules: di
         db.commit()
     except IntegrityError:   # 같은 판정으로 동시에 들어온 요청 중 늦은 쪽 (check_id unique)
         db.rollback()
-        first = db.query(Contract).filter_by(check_id=inp.check_id).one()
+        first = db.query(Contract).filter_by(check_id=inp.check_id).one_or_none()
+        if first is None:   # check_id가 아닌 다른 제약 위반이면 그대로 올린다
+            raise
         raise api_error(409, "CHECK_ALREADY_USED", "이미 계약을 만든 판정 결과입니다",
                         f"만든 계약은 GET /api/contracts/{first.id}로 볼 수 있습니다") from None
     return _to_out(row, db)

@@ -21,6 +21,7 @@ uvicorn app.main:app --reload
 - API 문서: http://localhost:8000/docs
 - 테이블은 서버 시작 때 자동으로 만든다 (MVP). 스키마가 자주 바뀌기 시작하면 Alembic으로 옮긴다.
 - 배포 서버에서는 `DATABASE_URL`만 그 서버의 PostgreSQL 주소로 바꾸면 된다.
+- 테이블은 서버가 시작할 때 `create_all`로 만들기 때문에 **이미 있는 테이블에는 새 칸이 생기지 않는다**. 모델(`app/models.py`)이 바뀐 브랜치를 받으면 로컬 DB를 다시 만든다: `docker compose down -v && docker compose up -d` (SQLite는 파일을 지운다). 배포 전까지는 이렇게 하고, 배포 서버에 데이터가 쌓이기 시작하면 Alembic을 들인다
 
 ## 테스트
 
@@ -97,7 +98,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - 날짜: 잔금일 ≥ 계약일, 만기일 > 잔금일. 대출이 없으면 `loan_execution_date`를 비워 둔다
 - "문제 항목" 판정이면 409 `CHECK_BLOCKED`, 한 판정으로 계약을 두 번 만들면 409 `CHECK_ALREADY_USED`
 - 응답: 입력한 계약 조건 + `id`, `check_id`, `level`(시작할 때의 판정 단계)과 판정에서 가져온 주택 정보. 할 일 생성은 다음 단계에서 붙인다
-- `contracts` 테이블에 `email` 칸을 새로 넣었다. 예전에 만든 PostgreSQL DB는 테이블이 자동으로 바뀌지 않으니 `docker compose down -v` 후 다시 띄운다
+- `contracts` 테이블에 `check_id`(unique)·`email` 칸을 새로 넣었다. 예전에 만든 DB는 위 안내대로 다시 만든다
 
 ### `POST /api/registry/parse` 등기부 요약 추출 (FR-005·006)
 

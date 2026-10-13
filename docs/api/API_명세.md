@@ -95,7 +95,7 @@
 | `HTTP_ERROR` | 그 외 | 위에 없는 상태 코드의 오류 |
 | `CHECK_BLOCKED` | 409 | "문제 항목" 판정이라 패키지를 시작할 수 없음 (FR-011) |
 | `CHECK_ALREADY_USED` | 409 | 이미 계약을 만든 판정 결과로 다시 계약을 만들려 함(동시 요청 포함). `hint`에 만든 계약 주소 |
-| `CHECK_OUTDATED` | 409 | 판정 기준(규칙 파일)이 바뀌어 저장된 판정 단계를 찾을 수 없음 → 계약 전 확인을 다시 |
+| `CHECK_OUTDATED` | 409 | 판정 기준(규칙 파일)이 바뀌어 저장된 판정 단계 id를 찾을 수 없음 → 계약 전 확인을 다시. 단계 id 기준이라 `rules_version`만 달라지고 단계 id가 남아 있으면 걸리지 않음. `GET /api/checks/{id}`·`POST /api/contracts` |
 
 `fields`의 규칙:
 
@@ -134,7 +134,7 @@ A = 개발 A(백엔드·규칙), B = 개발 B(화면). 주차는 노션 "할 일
 | --- | --- | --- | --- |
 | `GET /health` | 서버·규칙 파일 상태 | | |
 | `POST /api/checks` | 계약 전 확인: 입력 → 추정 주택가격·내 보증금 비율 → 판정. 결과 저장 | FR-001~003, 009~010 | UI-01, UI-02 |
-| `GET /api/checks/{id}` | 저장된 판정 결과 | FR-009 | UI-02 |
+| `GET /api/checks/{id}` | 저장된 판정 결과. 저장된 판정 단계가 지금 규칙에 없으면 409 `CHECK_OUTDATED` | FR-009 | UI-02 |
 | `POST /api/registry/parse` | 등기부 PDF → 요약 추출 결과 (저장 안 함). `fields`를 확인·수정해 `POST /api/checks`의 `registry`로 보낸다 | FR-005~006 | UI-01 |
 | `POST /api/contracts` | 패키지 시작: `check_id` + 계약 조건(계약일·잔금일·만기일·월세·대출·보증기관·중개·갱신·공동 계약·알림 이메일) + 특약 넣음/거절당함 → 계약 생성. 주택 유형·보증금·공시가격·전용면적은 판정 입력에서 가져온다. "문제 항목" 판정이면 409 `CHECK_BLOCKED`, 이미 계약을 만든 판정이면 409 `CHECK_ALREADY_USED`, 판정 기준이 바뀌었으면 409 `CHECK_OUTDATED`. 특약 결과는 그 판정에서 안내한 특약(MVP 연동 규칙의 특약 예시)만 받고 나머지는 422. 할 일 생성은 아직 안 함 (2주차에 추가) | FR-011, 014, 049 | UI-03 |
 | `GET /api/contracts/{id}` | 계약 정보 | FR-014 | UI-03 |
