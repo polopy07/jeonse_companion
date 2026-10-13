@@ -464,6 +464,7 @@
           },
           "deposit": {
             "type": "integer",
+            "maximum": 1000000000000.0,
             "exclusiveMinimum": 0.0,
             "title": "Deposit",
             "description": "보증금 (원)"
@@ -472,6 +473,7 @@
             "anyOf": [
               {
                 "type": "integer",
+                "maximum": 1000000000000.0,
                 "exclusiveMinimum": 0.0
               },
               {
@@ -485,6 +487,7 @@
             "anyOf": [
               {
                 "type": "integer",
+                "maximum": 1000000000000.0,
                 "exclusiveMinimum": 0.0
               },
               {
@@ -773,6 +776,7 @@
           },
           "monthly_rent": {
             "type": "integer",
+            "maximum": 1000000000000.0,
             "minimum": 0.0,
             "title": "Monthly Rent",
             "description": "월세 (원, 전세면 0)",
@@ -1296,6 +1300,7 @@
           },
           "mortgage_amount": {
             "type": "integer",
+            "maximum": 1000000000000.0,
             "minimum": 0.0,
             "title": "Mortgage Amount",
             "description": "근저당 채권최고액 합계 (원)",

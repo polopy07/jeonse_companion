@@ -24,10 +24,10 @@ class Contract(Base):
     # verdicts.contract_id와 서로 가리키므로 외래 키는 걸지 않는다
     check_id: Mapped[int] = mapped_column(Integer, unique=True)
     housing_type: Mapped[str] = mapped_column(String(32))
-    deposit: Mapped[int] = mapped_column(Integer)
-    monthly_rent: Mapped[int] = mapped_column(Integer, default=0)
+    deposit: Mapped[int] = mapped_column(BigInteger)
+    monthly_rent: Mapped[int] = mapped_column(BigInteger, default=0)
     exclusive_area: Mapped[float | None] = mapped_column(Float)
-    official_price: Mapped[int | None] = mapped_column(Integer)
+    official_price: Mapped[int | None] = mapped_column(BigInteger)
 
     contract_date: Mapped[date | None] = mapped_column(Date)
     balance_date: Mapped[date | None] = mapped_column(Date)
@@ -64,7 +64,7 @@ class Verdict(Base):
     contract_id: Mapped[int | None] = mapped_column(ForeignKey("contracts.id"))
 
     inputs: Mapped[dict] = mapped_column(JSONType)           # 판정에 쓴 입력 값 (fields.yaml 이름)
-    estimated_price: Mapped[int | None] = mapped_column(Integer)
+    estimated_price: Mapped[int | None] = mapped_column(BigInteger)
     deposit_ratio: Mapped[float | None] = mapped_column(Float)
     ratio_is_minimum: Mapped[bool] = mapped_column(Boolean, default=False)  # 등기부 전 최소 추정치
 
@@ -116,7 +116,7 @@ class Alert(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     contract_id: Mapped[int] = mapped_column(ForeignKey("contracts.id"))
     level: Mapped[str | None] = mapped_column(String(16))    # caution / warning / danger, 해당 없으면 None
-    estimated_price: Mapped[int] = mapped_column(Integer)
+    estimated_price: Mapped[int] = mapped_column(BigInteger)
     deposit_ratio: Mapped[float] = mapped_column(Float)
     basis: Mapped[dict] = mapped_column(JSONType, default=dict)   # 계산에 쓴 공시가격·실거래가·기준일
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
