@@ -13,7 +13,7 @@ from app.schemas import RegistryParseResult
 router = APIRouter(prefix="/api/registry", tags=["등기부 점검"])
 
 MAX_PDF_BYTES = 10 * 1024 * 1024
-MANUAL_INPUT_HINT = "등기부 요약을 읽지 못했습니다. 수동 입력 화면에서 직접 입력하세요"
+MANUAL_INPUT_HINT = '인터넷등기소에서 열람한 뒤 "부동산정보요약"을 PDF로 저장해 다시 올리거나, 수동 입력 화면에서 직접 입력하세요'
 
 
 @router.post("/parse", response_model=RegistryParseResult, responses=responses(413, 422))
