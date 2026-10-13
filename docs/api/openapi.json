@@ -12,15 +12,36 @@
         ],
         "summary": "Create Check",
         "operationId": "create_check_api_checks_post",
+        "parameters": [
+          {
+            "name": "x-virtual-today",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7)",
+              "title": "X-Virtual-Today"
+            },
+            "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7)"
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CheckInput"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -34,14 +55,14 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            }
+            },
+            "description": "Unprocessable Entity"
           }
         }
       }
@@ -71,6 +92,191 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CheckResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/api/checks/{check_id}/special-terms": {
+      "get": {
+        "tags": [
+          "계약 전 확인"
+        ],
+        "summary": "Get Special Terms",
+        "operationId": "get_special_terms_api_checks__check_id__special_terms_get",
+        "parameters": [
+          {
+            "name": "check_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Check Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpecialTermsResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/api/contracts": {
+      "post": {
+        "tags": [
+          "계약"
+        ],
+        "summary": "Create Contract",
+        "operationId": "create_contract_api_contracts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContractInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/contracts/{contract_id}": {
+      "get": {
+        "tags": [
+          "계약"
+        ],
+        "summary": "Get Contract",
+        "operationId": "get_contract_api_contracts__contract_id__get",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractOut"
                 }
               }
             }
@@ -149,6 +355,117 @@
         }
       }
     },
+    "/api/admin/trades": {
+      "post": {
+        "tags": [
+          "관리자"
+        ],
+        "summary": "Collect Trades",
+        "operationId": "collect_trades_api_admin_trades_post",
+        "parameters": [
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "환경 변수 ADMIN_TOKEN과 같은 값",
+              "title": "X-Admin-Token"
+            },
+            "description": "환경 변수 ADMIN_TOKEN과 같은 값"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TradeCollectInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeCollectResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -197,6 +514,7 @@
           },
           "deposit": {
             "type": "integer",
+            "maximum": 1000000000000.0,
             "exclusiveMinimum": 0.0,
             "title": "Deposit",
             "description": "보증금 (원)"
@@ -205,6 +523,7 @@
             "anyOf": [
               {
                 "type": "integer",
+                "maximum": 1000000000000.0,
                 "exclusiveMinimum": 0.0
               },
               {
@@ -218,6 +537,7 @@
             "anyOf": [
               {
                 "type": "integer",
+                "maximum": 1000000000000.0,
                 "exclusiveMinimum": 0.0
               },
               {
@@ -282,6 +602,17 @@
             ],
             "title": "Guarantor Consult",
             "default": "not_yet"
+          },
+          "complex": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComplexInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "주면 저장된 실거래에서 매매 실거래가(trade_price를 비워 둔 경우)와 주변 전세 시세를 찾는다. exclusive_area 필요"
           }
         },
         "type": "object",
@@ -368,6 +699,41 @@
           "rules_version": {
             "type": "string",
             "title": "Rules Version"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of",
+            "description": "실거래를 볼 때 쓴 기준일 (X-Virtual-Today가 있으면 그날). 단지를 주지 않았으면 null"
+          },
+          "trade_basis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TradeBasisOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "단지를 주고 매매 실거래를 찾았을 때만"
+          },
+          "nearby_jeonse": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NearbyJeonseOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "단지를 주었을 때만"
           }
         },
         "type": "object",
@@ -384,9 +750,357 @@
           "linkages",
           "unchecked",
           "disclaimer",
-          "rules_version"
+          "rules_version",
+          "as_of",
+          "trade_basis",
+          "nearby_jeonse"
         ],
         "title": "CheckResult"
+      },
+      "ComplexInput": {
+        "properties": {
+          "lawd_cd": {
+            "type": "string",
+            "pattern": "^\\d{5}$",
+            "title": "Lawd Cd",
+            "description": "법정동 시군구 코드 5자리"
+          },
+          "umd_name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Umd Name",
+            "description": "법정동 이름 (예: 광안동)"
+          },
+          "complex_name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Complex Name",
+            "description": "단지 이름 (아파트명·연립다세대명)"
+          },
+          "jibun": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jibun",
+            "description": "지번. 연립다세대는 같은 이름이 많아 필수"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lawd_cd",
+          "umd_name",
+          "complex_name"
+        ],
+        "title": "ComplexInput",
+        "description": "실거래를 찾을 단지 (공공데이터포털 실거래가의 이름 그대로). 시연 집은 미리 매칭해 둔다."
+      },
+      "ContractInput": {
+        "properties": {
+          "check_id": {
+            "type": "integer",
+            "title": "Check Id",
+            "description": "POST /api/checks로 만든 판정 결과 id"
+          },
+          "contract_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Contract Date",
+            "description": "계약일"
+          },
+          "balance_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Balance Date",
+            "description": "잔금일"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date",
+            "description": "만기일"
+          },
+          "monthly_rent": {
+            "type": "integer",
+            "maximum": 1000000000000.0,
+            "minimum": 0.0,
+            "title": "Monthly Rent",
+            "description": "월세 (원, 전세면 0)",
+            "default": 0
+          },
+          "loan": {
+            "type": "boolean",
+            "title": "Loan",
+            "description": "전세대출 유무",
+            "default": false
+          },
+          "loan_execution_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loan Execution Date",
+            "description": "대출 실행일, 모르면 비워 둠"
+          },
+          "guarantor": {
+            "type": "string",
+            "enum": [
+              "HUG",
+              "HF",
+              "SGI",
+              "none"
+            ],
+            "title": "Guarantor",
+            "description": "보증기관 (미가입은 none)",
+            "default": "none"
+          },
+          "brokered": {
+            "type": "boolean",
+            "title": "Brokered",
+            "description": "중개 거래 여부 (직거래면 false)",
+            "default": true
+          },
+          "renewal_right_used": {
+            "type": "boolean",
+            "title": "Renewal Right Used",
+            "description": "계약갱신요구권을 써서 갱신한 계약인지",
+            "default": false
+          },
+          "co_tenant": {
+            "type": "boolean",
+            "title": "Co Tenant",
+            "description": "공동 계약자(부부) 여부",
+            "default": false
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 254,
+                "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email",
+            "description": "알림 이메일"
+          },
+          "special_term_result": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "inserted",
+                "rejected"
+              ]
+            },
+            "type": "object",
+            "title": "Special Term Result",
+            "description": "특약별 넣음/거절당함 (special_terms.yaml의 id가 키)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "check_id",
+          "contract_date",
+          "balance_date",
+          "end_date"
+        ],
+        "title": "ContractInput",
+        "description": "패키지 시작·계약 당일 체크에서 입력하는 계약 조건 (FR-014, FR-049).\n\n주택 유형·보증금·공시가격·전용면적은 check_id의 판정 입력을 그대로 쓴다 (판정과 계약의 보증금이 갈리지 않게)."
+      },
+      "ContractOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "check_id": {
+            "type": "integer",
+            "title": "Check Id"
+          },
+          "level": {
+            "type": "string",
+            "title": "Level",
+            "description": "시작할 때의 판정 단계 (verdict.yaml levels[].id)"
+          },
+          "housing_type": {
+            "type": "string",
+            "enum": [
+              "apartment",
+              "row_house",
+              "officetel",
+              "multi_household",
+              "detached"
+            ],
+            "title": "Housing Type"
+          },
+          "deposit": {
+            "type": "integer",
+            "title": "Deposit"
+          },
+          "monthly_rent": {
+            "type": "integer",
+            "title": "Monthly Rent"
+          },
+          "exclusive_area": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclusive Area"
+          },
+          "official_price": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Official Price"
+          },
+          "contract_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Contract Date"
+          },
+          "balance_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Balance Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "loan": {
+            "type": "boolean",
+            "title": "Loan"
+          },
+          "loan_execution_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loan Execution Date"
+          },
+          "guarantor": {
+            "type": "string",
+            "enum": [
+              "HUG",
+              "HF",
+              "SGI",
+              "none"
+            ],
+            "title": "Guarantor"
+          },
+          "brokered": {
+            "type": "boolean",
+            "title": "Brokered"
+          },
+          "renewal_right_used": {
+            "type": "boolean",
+            "title": "Renewal Right Used"
+          },
+          "co_tenant": {
+            "type": "boolean",
+            "title": "Co Tenant"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "special_term_result": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "inserted",
+                "rejected"
+              ]
+            },
+            "type": "object",
+            "title": "Special Term Result"
+          },
+          "report_required": {
+            "type": "boolean",
+            "title": "Report Required",
+            "description": "임대차 신고 대상인지 (FR-015). 비대상이면 T1 없이 T4에서 확정일자를 함께 받는다"
+          },
+          "alert_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert Level",
+            "description": "시작할 때의 경보 단계 (alert.yaml levels[].id), 정상이면 null"
+          },
+          "todos": {
+            "items": {
+              "$ref": "#/components/schemas/TodoOut"
+            },
+            "type": "array",
+            "title": "Todos",
+            "description": "할 일 목록 (sort_order 순서)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "check_id",
+          "level",
+          "housing_type",
+          "deposit",
+          "monthly_rent",
+          "exclusive_area",
+          "official_price",
+          "contract_date",
+          "balance_date",
+          "end_date",
+          "loan",
+          "loan_execution_date",
+          "guarantor",
+          "brokered",
+          "renewal_right_used",
+          "co_tenant",
+          "email",
+          "special_term_result",
+          "report_required",
+          "alert_level",
+          "todos"
+        ],
+        "title": "ContractOut"
       },
       "ErrorDetail": {
         "properties": {
@@ -459,6 +1173,25 @@
         "title": "ErrorResponse",
         "description": "모든 오류 응답의 형식."
       },
+      "LinkedRuleOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "linkage.yaml id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "LinkedRuleOut"
+      },
       "MatchedRuleOut": {
         "properties": {
           "id": {
@@ -483,6 +1216,18 @@
               }
             ],
             "title": "Linkage"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation",
+            "description": "걸린 항목의 쉬운 말 설명 (verdict.yaml). 규칙 v1.0 때 저장한 판정은 null"
           }
         },
         "type": "object",
@@ -492,6 +1237,52 @@
           "level"
         ],
         "title": "MatchedRuleOut"
+      },
+      "NearbyJeonseOut": {
+        "properties": {
+          "median": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median",
+            "description": "표본 부족이면 null"
+          },
+          "sample_count": {
+            "type": "integer",
+            "title": "Sample Count"
+          },
+          "low_sample": {
+            "type": "boolean",
+            "title": "Low Sample",
+            "description": "3건 미만이면 true (\"표본 부족\")"
+          },
+          "below_deposit": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Below Deposit",
+            "description": "중앙값이 내 보증금보다 낮은지 (경보 주의 조건). 표본 부족이면 null"
+          }
+        },
+        "type": "object",
+        "required": [
+          "median",
+          "sample_count",
+          "low_sample",
+          "below_deposit"
+        ],
+        "title": "NearbyJeonseOut",
+        "description": "주변 전세 시세 (FR-004). 같은 단지·비슷한 면적의 최근 전세 거래 중앙값."
       },
       "RegistryEntryOut": {
         "properties": {
@@ -559,6 +1350,7 @@
           },
           "mortgage_amount": {
             "type": "integer",
+            "maximum": 1000000000000.0,
             "minimum": 0.0,
             "title": "Mortgage Amount",
             "description": "근저당 채권최고액 합계 (원)",
@@ -572,7 +1364,7 @@
         },
         "type": "object",
         "title": "RegistryInput",
-        "description": "등기부 \"주요 등기사항 요약\" 추출 결과 (사용자 확인값, FR-005)."
+        "description": "등기부 요약(\"부동산정보요약\" 또는 증명서의 \"주요 등기사항 요약\") 추출 결과 (사용자 확인값, FR-005)."
       },
       "RegistryMortgageOut": {
         "properties": {
@@ -682,6 +1474,446 @@
         "title": "RegistryParseResult",
         "description": "등기부 요약 추출 결과 (FR-005). 사용자가 확인·수정한 뒤 fields를 CheckInput.registry로 보낸다 (FR-006)."
       },
+      "SpecialTermOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "special_terms.yaml id. POST /api/contracts의 special_term_result 키"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "계약서에 옮겨 적을 특약 문구 (복사용)"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "문구 출처"
+          },
+          "linked": {
+            "items": {
+              "$ref": "#/components/schemas/LinkedRuleOut"
+            },
+            "type": "array",
+            "title": "Linked",
+            "description": "이 특약을 보여 주게 한 연동 규칙 (판정에 걸린 항목)"
+          },
+          "if_inserted": {
+            "$ref": "#/components/schemas/TermOutcomeOut",
+            "description": "\"넣음\"을 고르면 생기는 것"
+          },
+          "if_rejected": {
+            "$ref": "#/components/schemas/TermOutcomeOut",
+            "description": "\"거절당함\"을 고르면 생기는 것"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "text",
+          "source",
+          "linked",
+          "if_inserted",
+          "if_rejected"
+        ],
+        "title": "SpecialTermOut"
+      },
+      "SpecialTermsResult": {
+        "properties": {
+          "check_id": {
+            "type": "integer",
+            "title": "Check Id"
+          },
+          "level": {
+            "type": "string",
+            "title": "Level",
+            "description": "판정 단계 (verdict.yaml levels[].id)"
+          },
+          "terms": {
+            "items": {
+              "$ref": "#/components/schemas/SpecialTermOut"
+            },
+            "type": "array",
+            "title": "Terms",
+            "description": "판정에 맞는 특약 예시. 걸린 연동 규칙이 없으면 빈 목록"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "description": "연동 규칙이 계약 당일에 보여 주는 경고"
+          },
+          "checks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Checks",
+            "description": "연동 규칙이 계약 당일에 요구하는 확인 (예: 신탁사 동의서 확인)"
+          },
+          "disclaimer": {
+            "type": "string",
+            "title": "Disclaimer"
+          },
+          "rules_version": {
+            "type": "string",
+            "title": "Rules Version",
+            "description": "special_terms.yaml 버전"
+          }
+        },
+        "type": "object",
+        "required": [
+          "check_id",
+          "level",
+          "terms",
+          "warnings",
+          "checks",
+          "disclaimer",
+          "rules_version"
+        ],
+        "title": "SpecialTermsResult",
+        "description": "계약 당일 특약 예시 (FR-039). 공공 자료가 안내하는 예시이며 추천이 아니다."
+      },
+      "TermOutcomeOut": {
+        "properties": {
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "description": "보여 줄 경고"
+          },
+          "documents": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Documents",
+            "description": "기록함에 남길 서류"
+          },
+          "moves_to_top": {
+            "items": {
+              "$ref": "#/components/schemas/TodoRefOut"
+            },
+            "type": "array",
+            "title": "Moves To Top",
+            "description": "할 일 목록 맨 위로 올라가는 할 일"
+          },
+          "adds_todos": {
+            "items": {
+              "$ref": "#/components/schemas/TodoRefOut"
+            },
+            "type": "array",
+            "title": "Adds Todos",
+            "description": "새로 생기는 할 일 (todos.yaml extra_todos)"
+          },
+          "link_counsel": {
+            "type": "boolean",
+            "title": "Link Counsel",
+            "description": "공공 상담 창구 안내를 붙이는지"
+          }
+        },
+        "type": "object",
+        "required": [
+          "warnings",
+          "documents",
+          "moves_to_top",
+          "adds_todos",
+          "link_counsel"
+        ],
+        "title": "TermOutcomeOut"
+      },
+      "TodoOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "rule_id": {
+            "type": "string",
+            "title": "Rule Id",
+            "description": "todos.yaml id (T1~T9)"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail",
+            "description": "보증기관·직거래·갱신 계약 등에 따라 바뀌는 안내"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date",
+            "description": "기한. 기관 기준이 아직 없으면 null (HF·SGI 반환보증)"
+          },
+          "remind_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remind Date",
+            "description": "재알림(T6, T8)의 알림일. 다른 할 일은 null"
+          },
+          "prerequisites": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Prerequisites",
+            "description": "먼저 끝내야 하는 할 일 rule_id"
+          },
+          "required_checks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Required Checks",
+            "description": "연동 규칙이 붙인 필수 확인 (예: 근저당 금액 변동 비교)"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence",
+            "description": "완료 증빙으로 올릴 것"
+          },
+          "pinned": {
+            "type": "boolean",
+            "title": "Pinned",
+            "description": "맨 위 고정 할 일 (T5~T9). 시작일 전이면 화면에서 흐리게"
+          },
+          "moved_to_top": {
+            "type": "boolean",
+            "title": "Moved To Top",
+            "description": "특약 거절·경보로 맨 위에 올린 할 일"
+          },
+          "sort_order": {
+            "type": "integer",
+            "title": "Sort Order"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "todo / done / skipped"
+          },
+          "rules_version": {
+            "type": "string",
+            "title": "Rules Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "rule_id",
+          "title",
+          "detail",
+          "start_date",
+          "due_date",
+          "remind_date",
+          "prerequisites",
+          "required_checks",
+          "evidence",
+          "pinned",
+          "moved_to_top",
+          "sort_order",
+          "status",
+          "rules_version"
+        ],
+        "title": "TodoOut",
+        "description": "할 일 1개 (todos.yaml의 T1~T9). 목록은 sort_order 순서 (맨 위 규칙 → 고정 → 기한순)."
+      },
+      "TodoRefOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "todos.yaml id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "TodoRefOut"
+      },
+      "TradeBasisOut": {
+        "properties": {
+          "price": {
+            "type": "integer",
+            "title": "Price"
+          },
+          "deal_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Deal Date"
+          },
+          "exclusive_area": {
+            "type": "number",
+            "title": "Exclusive Area"
+          },
+          "sample_count": {
+            "type": "integer",
+            "title": "Sample Count",
+            "description": "기간 안 같은 단지·비슷한 면적 매매 건수"
+          },
+          "used": {
+            "type": "boolean",
+            "title": "Used",
+            "description": "공시가격 × 140%보다 낮아 추정 주택가격으로 썼는지"
+          }
+        },
+        "type": "object",
+        "required": [
+          "price",
+          "deal_date",
+          "exclusive_area",
+          "sample_count",
+          "used"
+        ],
+        "title": "TradeBasisOut",
+        "description": "추정 주택가격에 쓴 매매 실거래 (같은 단지·비슷한 면적, 가장 최근 거래)."
+      },
+      "TradeCollectInput": {
+        "properties": {
+          "lawd_cd": {
+            "type": "string",
+            "pattern": "^\\d{5}$",
+            "title": "Lawd Cd",
+            "description": "법정동 시군구 코드 5자리 (예: 부산 수영구)"
+          },
+          "end_month": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "title": "End Month",
+            "description": "마지막 계약년월 YYYY-MM. 이 달부터 거꾸로 months개월"
+          },
+          "months": {
+            "type": "integer",
+            "maximum": 24.0,
+            "minimum": 1.0,
+            "title": "Months",
+            "description": "받을 개월 수",
+            "default": 12
+          },
+          "housing_types": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "apartment",
+                "row_house"
+              ]
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Housing Types",
+            "description": "받을 주택 유형"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lawd_cd",
+          "end_month"
+        ],
+        "title": "TradeCollectInput",
+        "description": "실거래가 수집 (관리자, FR-046). 공공데이터포털 API로 받아 저장한다."
+      },
+      "TradeCollectResult": {
+        "properties": {
+          "lawd_cd": {
+            "type": "string",
+            "title": "Lawd Cd"
+          },
+          "months": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Months",
+            "description": "받은 계약년월 YYYYMM (오래된 달부터)"
+          },
+          "received": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Received",
+            "description": "\"주택 유형.거래 종류\"별 받은 건수 (apartment.trade 등)"
+          },
+          "added": {
+            "type": "integer",
+            "title": "Added",
+            "description": "새로 저장한 건수. 이미 있던 거래는 다시 저장하지 않는다"
+          },
+          "fetched_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Fetched At",
+            "description": "받은 시각 (기준일 고정 검증용으로 거래와 함께 저장)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lawd_cd",
+          "months",
+          "received",
+          "added",
+          "fetched_at"
+        ],
+        "title": "TradeCollectResult"
+      },
       "UncheckedItemOut": {
         "properties": {
           "id": {
@@ -702,6 +1934,18 @@
               }
             ],
             "title": "Linkage"
+          },
+          "guide": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Guide",
+            "description": "직접 확인하는 방법 (verdict.yaml). 규칙 v1.0 때 저장한 판정은 null"
           }
         },
         "type": "object",

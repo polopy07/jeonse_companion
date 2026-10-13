@@ -30,6 +30,11 @@ _STATUS_ERRORS = {
 _DEFAULT_HTTP_ERROR = ("HTTP_ERROR", "요청을 처리할 수 없습니다")
 
 
+def _num(value):
+    """큰 정수는 천 단위 쉼표 (1000000000000 → 1,000,000,000,000)."""
+    return f"{value:,}" if isinstance(value, int) else value
+
+
 def responses(*codes: int) -> dict:
     """라우터의 responses= 에 넣어 OpenAPI 문서에 오류 형식을 표시한다."""
     return {code: {"model": ErrorResponse} for code in codes}
@@ -94,14 +99,18 @@ def _message(error: dict) -> str:
             return "true 또는 false로 입력하세요"
         case "string_type":
             return "문자로 입력하세요"
+        case "string_pattern_mismatch":
+            return "형식이 올바르지 않습니다"
+        case "string_too_long":
+            return f"{ctx.get('max_length')}자 이하여야 합니다"
         case "greater_than":
-            return f"{ctx.get('gt')}보다 커야 합니다"
+            return f"{_num(ctx.get('gt'))}보다 커야 합니다"
         case "greater_than_equal":
-            return f"{ctx.get('ge')} 이상이어야 합니다"
+            return f"{_num(ctx.get('ge'))} 이상이어야 합니다"
         case "less_than":
-            return f"{ctx.get('lt')}보다 작아야 합니다"
+            return f"{_num(ctx.get('lt'))}보다 작아야 합니다"
         case "less_than_equal":
-            return f"{ctx.get('le')} 이하여야 합니다"
+            return f"{_num(ctx.get('le'))} 이하여야 합니다"
         case "json_invalid":
             return "JSON 형식이 올바르지 않습니다"
         case "model_attributes_type" | "dict_type":
