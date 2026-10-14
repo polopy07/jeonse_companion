@@ -5,6 +5,8 @@
  * rules/verdict.yaml·alert.yaml을 그대로 옮겼다(선순위 채권 = 근저당 + 임차권·전세권 보증금, alert.yaml v1.2). 2주차에 POST /api/checks 응답으로 바꾸고 이 계산은 지운다.
  * 입력 필드 이름은 백엔드 CheckInput과 같다.
  */
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import type { ApiCheckResult } from '@/lib/api';
 import { formatWon } from '@/lib/format';
 import { termTitleFor } from '@/lib/special-terms';
@@ -93,6 +95,14 @@ export type CheckView = {
   matched: MatchedRule[];
   unchecked: UncheckedItem[];
   disclaimer: string;
+  /** 판정에 쓴 입력값. 상세·경보 화면의 계산 근거에 쓴다 */
+  input: CheckInput;
+  /** 비교에 쓴 매매 실거래가 (없으면 null) */
+  tradePrice: number | null;
+  /** 조회일 "2026.10.09" */
+  checkedAt: string;
+  /** 확인 화면에서 본 등기부 원문 줄 (상세 화면 "쉬운 말로"에 보여 줌) */
+  sourceLines?: string[];
 };
 
 /**
@@ -285,6 +295,9 @@ export function runCheckLocal(
     matched,
     unchecked: level === 'na' ? [uncheckedOtherDeposits, uncheckedTax] : [uncheckedTax],
     disclaimer: disclaimerText(today, isMinimum),
+    input,
+    tradePrice: input.official_price ? input.trade_price : null,
+    checkedAt: today,
   };
 }
 
@@ -335,10 +348,66 @@ export function checkViewFromApi(
     })),
     unchecked: r.unchecked.map((u) => ({ label: u.label, guide: u.guide ?? '' })),
     disclaimer: disclaimerText(today, r.ratio_is_minimum),
+    input,
+    tradePrice,
+    checkedAt: today,
   };
 }
 
-// 입력 화면 → 결과 화면으로 넘기는 마지막 결과
+export type DetailRow = { label: string; value: string; level: VerdictLevel };
+
+/** 판정 상세(UI-02)의 항목별 결과 줄. 걸린 규칙(verdict.yaml id)과 입력값으로 만든다 */
+export function detailRowsFor(view: CheckView): DetailRow[] {
+  const hit = (...ids: string[]) => view.matched.find((m) => ids.includes(m.key));
+  const reg = view.input.registry;
+  const notRead: DetailRow['value'] = '등기부 전 · 확인 못 함';
+  const row = (label: string, ids: string[], has: boolean | null | undefined, hitText: string): DetailRow => {
+    const m = hit(...ids);
+    if (m) return { label, value: `있음 · ${m.level === 'problem' ? '문제 항목' : '확인 필요'}`, level: m.level };
+    if (has === null || has === undefined) return { label, value: notRead, level: 'check' };
+    return { label, value: has ? hitText : '없음', level: 'ok' };
+  };
+  const ratio = view.deposit_ratio;
+  const ratioHit = hit('P-2', 'C-2');
+  const ratioLevel: VerdictLevel = ratioHit ? ratioHit.level : ratio !== null && ratio >= 0.8 ? 'check' : 'ok';
+  const band = ratio === null ? '' : ratio >= 1 ? '위험 구간' : ratio >= 0.9 ? '경고 구간' : ratio >= 0.8 ? '주의 구간' : '80% 미만';
+  return [
+    row('압류·가압류·경매', ['P-1'], reg?.seizure, '있음'),
+    row('근저당', ['C-1'], reg?.mortgage, '있음'),
+    row('신탁등기', ['P-3', 'C-3'], reg?.trust, '있음 · 동의서 받음'),
+    {
+      label: '내 보증금 비율',
+      value:
+        ratio === null
+          ? '공시가격이 없어 계산 못 함'
+          : `${Math.round(ratio * 100)}% · ${band}${view.ratio_is_minimum ? ' (최소 추정치)' : ''}`,
+      level: ratio === null ? 'check' : ratioLevel,
+    },
+    view.input.building_violation === null
+      ? { label: '위반건축물', value: '확인 못 함', level: 'check' }
+      : row('위반건축물', ['P-4', 'C-4'], view.input.building_violation, '해당 · 보증 가능 답변'),
+  ];
+}
+
+// 입력 화면 → 결과 화면으로 넘기는 마지막 결과. 앱을 다시 켜도 홈·경보 화면이 이어 보이게 휴대폰에 저장한다
+const CHECK_KEY = 'jeonse.latestCheck';
 const latestCheck = createStore<CheckView | null>(null);
-export const setLatestCheck = latestCheck.set;
 export const useLatestCheck = latestCheck.use;
+
+export function setLatestCheck(view: CheckView | null) {
+  latestCheck.set(view);
+  const save = view ? AsyncStorage.setItem(CHECK_KEY, JSON.stringify(view)) : AsyncStorage.removeItem(CHECK_KEY);
+  save.catch(() => {}); // 저장에 실패해도 이번 실행 동안은 결과를 보여 준다
+}
+
+/** 앱을 켤 때 한 번: 저장해 둔 마지막 판정 결과를 불러온다 (입력값이 없는 예전 형식은 버린다) */
+export async function restoreCheck(): Promise<void> {
+  if (latestCheck.get()) return;
+  try {
+    const raw = await AsyncStorage.getItem(CHECK_KEY);
+    const view = raw ? (JSON.parse(raw) as CheckView) : null;
+    if (view?.input && !latestCheck.get()) latestCheck.set(view);
+  } catch {
+    // 읽지 못하면 시연 결과를 보여 준다
+  }
+}

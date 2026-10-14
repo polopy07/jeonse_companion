@@ -5,7 +5,7 @@
  */
 
 import type { SiteCheckState } from '@/lib/site-check';
-import { runCheckLocal, type CheckInput, type CheckView, type HousingType, type RegistryLease, type VerdictLevel } from '@/lib/check';
+import { runCheckLocal, type CheckInput, type CheckView, type HousingType, type RegistryLease } from '@/lib/check';
 
 export const house = {
   name: '수영구 ○○동 빌라 201호',
@@ -116,20 +116,10 @@ const villaInput: CheckInput = {
 export const checkResult: CheckView = {
   ...runCheckLocal(villaInput, `${house.name} · ${house.type}`, '2026.10.09', villa.registry.owner),
   virtualMortgage: villa.registry.virtualMortgage,
+  sourceLines: villa.registry.source,
   summary: '근저당이 있는 집이에요. 아래 확인 항목과 특약 예시를 계약 당일에 챙기면 돼요.',
   disclaimer: '조회 2026.10.09 · 공시가격 2026.01.01 기준. 정보 제공이며 보증하지 않습니다.',
 };
-
-export type DetailRow = { label: string; value: string; level: VerdictLevel };
-
-export const detailRows: DetailRow[] = [
-  { label: '압류·가압류·경매', value: '없음', level: 'ok' },
-  { label: '근저당', value: '있음 · 확인 필요', level: 'check' },
-  { label: '신탁등기', value: '없음', level: 'ok' },
-  { label: '내 보증금 비율', value: '84% · 주의 구간', level: 'check' },
-  { label: '위반건축물', value: '해당 없음', level: 'ok' },
-];
-
 
 /** 시연 집 계약 당일 현장 확인 (소유자 본인 참석, 모두 확인) */
 export const siteCheckDemo: SiteCheckState = {

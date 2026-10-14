@@ -213,7 +213,8 @@ export default function PrecheckScreen() {
     } else {
       view = runCheckLocal(input, label, todayText(), ownerName);
     }
-    setLatestCheck({ ...view, virtualMortgage });
+    const viewSource = !withRegistry ? [] : registryMode === 'filled' && preset ? preset.registry.source : sourceLines;
+    setLatestCheck({ ...view, virtualMortgage, sourceLines: viewSource });
     router.push('/check');
   };
 

@@ -12,6 +12,7 @@ import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Colors, MaxAppWidth } from '@/constants/theme';
+import { restoreCheck } from '@/lib/check';
 import { restoreContract } from '@/lib/contract';
 
 SplashScreen.preventAutoHideAsync();
@@ -28,8 +29,9 @@ export default function RootLayout() {
     if (loaded || error) SplashScreen.hideAsync();
   }, [loaded, error]);
 
-  // 전에 만든 계약이 있으면 서버에서 다시 불러온다 (할 일 탭이 이어서 보여 줌)
+  // 전에 만든 계약이 있으면 서버에서 다시 불러온다 (할 일 탭이 이어서 보여 줌). 마지막 판정 결과도 휴대폰에서 불러온다
   useEffect(() => {
+    restoreCheck();
     restoreContract();
   }, []);
 

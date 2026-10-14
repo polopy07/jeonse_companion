@@ -4,26 +4,32 @@ import { AppText } from '@/components/AppText';
 import { Card, DashedBox, DemoTag, Disclaimer, Screen, SectionLabel } from '@/components/layout';
 import { SpecialTermRow, verdictStyle } from '@/components/verdict';
 import { Colors, Radius } from '@/constants/theme';
-import { checkResult, demoHouses, detailRows } from '@/data/demo';
+import { checkResult } from '@/data/demo';
+import { detailRowsFor, useLatestCheck } from '@/lib/check';
+import { formatWon } from '@/lib/format';
 import { termsFor } from '@/lib/special-terms';
 
-/** UI-02 판정 상세 (정적) */
+/** UI-02 판정 상세: 마지막 판정 결과(없으면 시연 집 결과)를 항목별로 */
 export default function DetailScreen() {
+  const view = useLatestCheck() ?? checkResult;
+  const rows = detailRowsFor(view);
+  const mortgageAmount = view.input.registry?.mortgage ? view.input.registry.mortgage_amount : 0;
+  const mortgageLine = view.sourceLines?.find((line) => line.includes('근저당'));
+  const terms = termsFor(view.matched);
+
   return (
     <Screen title="판정 상세">
       <SectionLabel style={{ marginTop: 10 }}>항목별 결과</SectionLabel>
       <View style={styles.table}>
-        {detailRows.map((row, i) => {
+        {rows.map((row, i) => {
           const hit = row.level !== 'ok';
+          // 등기부에서 걸린 항목만 줄 전체를 칠한다 (목업: 근저당 줄)
+          const marked = hit && row.value.startsWith('있음');
           return (
             <View
               key={row.label}
-              style={[
-                styles.row,
-                i < detailRows.length - 1 && styles.divider,
-                hit && row.label === '근저당' && { backgroundColor: Colors.cautionRow },
-              ]}>
-              <AppText size={14} weight={hit && row.label === '근저당' ? 'semibold' : 'regular'}>
+              style={[styles.row, i < rows.length - 1 && styles.divider, marked && { backgroundColor: Colors.cautionRow }]}>
+              <AppText size={14} weight={marked ? 'semibold' : 'regular'}>
                 {row.label}
               </AppText>
               <AppText size={12} weight={hit ? 'bold' : 'semibold'} color={verdictStyle[row.level].fg}>
@@ -34,50 +40,62 @@ export default function DetailScreen() {
         })}
       </View>
 
-      <SectionLabel>근저당, 쉬운 말로</SectionLabel>
-      <Card>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          <AppText size={11} color={Colors.textHint}>
-            등기부 요약 · 을구 1
-          </AppText>
-          {demoHouses[0].registry.virtualMortgage ? <DemoTag label="시연용 가상 근저당" /> : null}
-        </View>
-        <View style={styles.source}>
-          <AppText size={12} color={Colors.textCode} leading={1.7}>
-            근저당권설정 · 채권최고액 금36,000,000원 · 근저당권자 ○○은행
-          </AppText>
-        </View>
-        <AppText size={14} leading={1.7} style={{ marginTop: 12 }}>
-          집주인이 이 집을 담보로 은행에서 돈을 빌렸어요. 집이 경매로 넘어가면 은행이{' '}
-          <AppText size={14} weight="bold">
-            최대 3,600만 원
-          </AppText>
-          을 내 보증금보다 먼저 가져가요.
-        </AppText>
-        <AppText size={12} color={Colors.textHint} style={{ marginTop: 8 }}>
-          자동 설명은 참고용이에요. 원문과 다르면 원문이 기준이에요.
-        </AppText>
-      </Card>
+      {mortgageAmount > 0 ? (
+        <>
+          <SectionLabel>근저당, 쉬운 말로</SectionLabel>
+          <Card>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <AppText size={11} color={Colors.textHint}>
+                등기부 요약 · 을구
+              </AppText>
+              {view.virtualMortgage ? <DemoTag label="시연용 가상 근저당" /> : null}
+            </View>
+            {mortgageLine ? (
+              <View style={styles.source}>
+                <AppText size={12} color={Colors.textCode} leading={1.7}>
+                  {mortgageLine}
+                </AppText>
+              </View>
+            ) : null}
+            <AppText size={14} leading={1.7} style={{ marginTop: 12 }}>
+              집주인이 이 집을 담보로 돈을 빌렸어요. 집이 경매로 넘어가면 근저당권자가{' '}
+              <AppText size={14} weight="bold">
+                최대 {formatWon(mortgageAmount)} 원
+              </AppText>
+              을 내 보증금보다 먼저 가져가요.
+            </AppText>
+            <AppText size={12} color={Colors.textHint} style={{ marginTop: 8 }}>
+              자동 설명은 참고용이에요. 원문과 다르면 원문이 기준이에요.
+            </AppText>
+          </Card>
+        </>
+      ) : null}
 
-      <SectionLabel>이 판정에 맞는 특약 예시</SectionLabel>
-      <View style={{ gap: 8 }}>
-        {termsFor(checkResult.matched).map((t) => (
-          <SpecialTermRow key={t.id} term={t} />
-        ))}
-      </View>
+      {terms.length ? (
+        <>
+          <SectionLabel>이 판정에 맞는 특약 예시</SectionLabel>
+          <View style={{ gap: 8 }}>
+            {terms.map((t) => (
+              <SpecialTermRow key={t.id} term={t} />
+            ))}
+          </View>
+        </>
+      ) : null}
 
-      <DashedBox style={{ marginTop: 20 }}>
-        <AppText size={14} weight="semibold">
-          확인 못 한 항목
-        </AppText>
-        <AppText size={13} color={Colors.textSub} leading={1.6} style={{ marginTop: 6 }}>
-          임대인 국세·지방세 체납 · HUG 안심전세앱에서 임대인 위험도를 함께 조회해 보세요.
-        </AppText>
-      </DashedBox>
+      {view.unchecked.map((u) => (
+        <DashedBox key={u.label} style={{ marginTop: 20 }}>
+          <AppText size={14} weight="semibold">
+            확인 못 한 항목 · {u.label}
+          </AppText>
+          <AppText size={13} color={Colors.textSub} leading={1.6} style={{ marginTop: 6 }}>
+            {u.guide}
+          </AppText>
+        </DashedBox>
+      ))}
 
       <View style={{ flex: 1 }} />
       <Disclaimer>
-        조회 2026.10.09 · 정보 제공이며 보증하지 않습니다. 개별 법률 판단이 필요하면 공공 상담 창구를 이용하세요.
+        조회 {view.checkedAt} · 정보 제공이며 보증하지 않습니다. 개별 법률 판단이 필요하면 공공 상담 창구를 이용하세요.
       </Disclaimer>
     </Screen>
   );
