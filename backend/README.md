@@ -69,6 +69,9 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/registry/pdf.py` | 등기부 PDF → 요약 페이지 글자 ("부동산정보요약" 또는 증명서의 "주요 등기사항 요약", pdfplumber) |
 | `app/registry/parser.py` | 요약 글자 → 소유자, 근저당 채권최고액, 압류 등, 신탁 (규칙 파서) |
 | `app/api/registry.py` | `POST /api/registry/parse` |
+| `app/api/demo.py` | `GET /api/demo-houses` 시연 집 2채 (`docs/validation/demo_houses.yaml`) |
+| `load_demo_trades.py` | 시연 집 정답표의 실거래 저장본을 DB에 넣기 |
+| `reset_demo_db.py` | 시연 전 DB 초기화 (모든 표를 다시 만들고 실거래 저장본 넣기) |
 | `tests/fixtures/registry/` | 등기부 요약 샘플 (실제 샘플은 집을 찾을 수 없게 바꿈, 가상 샘플) |
 
 ## API
@@ -143,6 +146,25 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - 기준일은 오늘, `X-Virtual-Today` 헤더가 있으면 그날. 응답 `as_of`에 남는다
 - 연립다세대는 같은 이름이 많아 지번(`jibun`)이 필요하다
 - `complex`는 아파트·연립다세대만 받는다. 오피스텔·다가구·단독이면 422 (수집하는 실거래 자료가 없음)
+
+### `GET /api/demo-houses` 시연 집 2채 (FR-001·046)
+
+`docs/validation/demo_houses.yaml`(경보 계산 정답표)의 시연 집 2채를 돌려준다. 화면은 받은 값을 그대로 다음 API에 넣는다.
+
+- `input` → `POST /api/checks` (단지·공시가격·전용면적·등기부 확인값 포함)
+- `registry`: 시연 등기부를 읽은 결과 (`POST /api/registry/parse`와 같은 형식). 등기부를 올린 것처럼 확인 화면을 채운다
+- `virtual`: 시연용 가상 값 (빌라의 근저당 1,440만). 화면에 "시연용 가상 근저당"으로 표시
+- `contract_day` → `POST /api/contracts` (계약일·잔금일·만기일, 특약 넣음/거절당함). 빌라만 있음
+
+정답표와 같은 결과(실거래 매매가·주변 전세 시세까지)를 보려면 실거래 저장본을 넣고 판정할 때 `X-Virtual-Today: 2026-10-13`(응답 `as_of`)을 보낸다. 실거래가 없어도 판정·비율·경보 단계는 같다 (두 집 모두 공시가격 × 140%가 매매가보다 낮음).
+
+```bash
+python load_demo_trades.py   # DATABASE_URL을 서버와 같게. 여러 번 실행해도 같은 거래는 한 번만
+```
+
+시연 리허설·시연 직전에는 `python reset_demo_db.py`로 판정·계약·할 일을 모두 지우고 실거래 저장본만 넣은 상태로 되돌린다 (확인을 묻고, `--yes`면 바로. SQLite는 서버를 끄고 실행).
+
+`tests/test_demo_houses.py`가 이 API의 입력으로 판정·계약을 만들어 정답표 기대값(비율·판정·연동 규칙·실거래·경보 단계·빌라의 할 일 순서)과 자동 대조한다.
 
 ### `GET /api/checks/{id}/special-terms` 특약 예시 (FR-039)
 

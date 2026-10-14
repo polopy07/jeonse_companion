@@ -322,3 +322,31 @@ class TradeCollectResult(BaseModel):
     received: dict[str, int] = Field(description="\"주택 유형.거래 종류\"별 받은 건수 (apartment.trade 등)")
     added: int = Field(description="새로 저장한 건수. 이미 있던 거래는 다시 저장하지 않는다")
     fetched_at: datetime = Field(description="받은 시각 (기준일 고정 검증용으로 거래와 함께 저장)")
+
+
+class DemoContractDay(BaseModel):
+    """시연 장면의 계약 날짜와 특약 결과. 그대로 POST /api/contracts에 넣는다."""
+
+    contract_date: date
+    balance_date: date
+    end_date: date
+    special_term_result: dict[str, SpecialTermResult]
+
+
+class DemoHouseOut(BaseModel):
+    """시연 집 1채 (docs/validation/demo_houses.yaml, 경보계산_정답표.md)."""
+
+    id: str
+    title: str
+    address: str = Field(description="단지 주소와 면적·층대. 어느 세대인지는 적지 않는다")
+    official_price_source: str = Field(description="공시가격 출처")
+    input: CheckInput = Field(description="계약 전 확인 입력값. 그대로 POST /api/checks로 보낸다")
+    registry: RegistryParseResult = Field(
+        description="시연 등기부를 읽은 결과 (POST /api/registry/parse와 같은 형식). 이름·주소는 가린 값이다")
+    virtual: list[str] = Field(description="실제 자료가 아닌 시연용 가상 값. 화면과 발표 자료에 \"시연용 가상\"으로 표시한다")
+    contract_day: DemoContractDay | None = Field(description="계약 당일 시연 장면. 없으면 계약 전 확인까지만 보여 주는 집")
+
+
+class DemoHousesResult(BaseModel):
+    as_of: date = Field(description="정답표 기대값의 실거래 기준일. 같은 결과를 보려면 실거래 저장본을 넣고 X-Virtual-Today에 이 날짜를 보낸다")
+    houses: list[DemoHouseOut]
