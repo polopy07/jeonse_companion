@@ -9,6 +9,7 @@ import { Colors } from '@/constants/theme';
 import { checkResult, house } from '@/data/demo';
 import { ApiError, apiEnabled, postContract, type Guarantor } from '@/lib/api';
 import { useLatestCheck } from '@/lib/check';
+import { parseManwon } from '@/lib/format';
 import { setLatestContract } from '@/lib/contract';
 import { useSpecialTermResults } from '@/lib/special-terms';
 
@@ -30,6 +31,9 @@ export default function ContractDatesScreen() {
   const [loanDate, setLoanDate] = useState('');
   const [guarantor, setGuarantor] = useState<Guarantor>('HUG');
   const [brokered, setBrokered] = useState(true);
+  const [rentText, setRentText] = useState('');
+  const [renewalUsed, setRenewalUsed] = useState(false);
+  const [coTenant, setCoTenant] = useState(false);
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +45,9 @@ export default function ContractDatesScreen() {
       : datesValid && endDate <= balanceDate
         ? '만기일은 잔금일보다 뒤여야 해요'
         : null;
-  const canSubmit = datesValid && !orderError && !submitting;
+  // 월세는 만 원 단위 (비우면 전세 0원)
+  const monthlyRent = rentText.trim() ? parseManwon(rentText) : 0;
+  const canSubmit = datesValid && !orderError && monthlyRent !== null && !submitting;
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -59,10 +65,13 @@ export default function ContractDatesScreen() {
         contract_date: contractDate,
         balance_date: balanceDate,
         end_date: endDate,
+        monthly_rent: monthlyRent ?? 0,
         loan,
         loan_execution_date: loan && loanDate ? loanDate : null,
         guarantor,
         brokered,
+        renewal_right_used: renewalUsed,
+        co_tenant: coTenant,
         email: email.trim() || null,
         special_term_result: Object.fromEntries(
           Object.entries(termResults).filter((e): e is [string, 'inserted' | 'rejected'] => !!e[1]),
@@ -123,7 +132,27 @@ export default function ContractDatesScreen() {
         <ToggleRow label="전세대출" sub="전세자금대출을 받나요?" value={loan} onChange={setLoan}>
           {dateField('대출 실행일 (모르면 비워 두세요)', loanDate, setLoanDate)}
         </ToggleRow>
-        <ToggleRow label="중개 거래" sub="공인중개사를 통해 계약했나요?" value={brokered} onChange={setBrokered} last />
+        <ToggleRow label="중개 거래" sub="공인중개사를 통해 계약했나요?" value={brokered} onChange={setBrokered} />
+        <ToggleRow
+          label="갱신 계약"
+          sub="계약갱신요구권을 써서 같은 집에 다시 계약했나요?"
+          value={renewalUsed}
+          onChange={setRenewalUsed}
+        />
+        <ToggleRow label="공동 계약자" sub="부부 등 두 사람이 함께 계약했나요?" value={coTenant} onChange={setCoTenant} last />
+      </Card>
+
+      <Card style={{ marginTop: 12 }}>
+        <TextField
+          label="월세 (전세면 비워 두세요)"
+          value={rentText}
+          onChange={setRentText}
+          placeholder="0"
+          suffix="만 원"
+          keyboardType="number-pad"
+          error={monthlyRent === null ? '숫자로 입력해 주세요' : undefined}
+          helper="보증금 6천만 원 이하·월세 30만 원 이하면 임대차 신고 대신 확정일자를 챙겨 드려요"
+        />
       </Card>
 
       <Card style={{ marginTop: 12, gap: 14 }}>
