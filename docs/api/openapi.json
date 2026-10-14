@@ -1416,6 +1416,18 @@
             ],
             "title": "Holder",
             "description": "임차권자·전세권자"
+          },
+          "same_deposit_as": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Same Deposit As",
+            "description": "다른 항목과 같은 보증금으로 보고 fields.lease_amount에서 뺐으면 남긴 항목의 순위번호. 확인 화면은 이 항목을 뺀 상태로 보여 주고, 다른 보증금이면 사용자가 다시 넣는다"
           }
         },
         "type": "object",
@@ -1424,7 +1436,8 @@
           "purpose",
           "text",
           "amount",
-          "holder"
+          "holder",
+          "same_deposit_as"
         ],
         "title": "RegistryLeaseOut"
       },
@@ -1500,7 +1513,7 @@
             },
             "type": "array",
             "title": "Leases",
-            "description": "을구 임차권·전세권. 보증금이 fields.lease_amount에 들어 있어 확인 화면에서 항목별로 뺄 수 있게 보여 준다"
+            "description": "을구 임차권·전세권. 보증금이 fields.lease_amount에 들어 있어 확인 화면에서 항목별로 뺄 수 있게 보여 준다 (same_deposit_as가 있는 항목은 같은 보증금이라 빠져 있음)"
           },
           "seizures": {
             "items": {

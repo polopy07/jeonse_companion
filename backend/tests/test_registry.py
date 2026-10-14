@@ -103,6 +103,28 @@ def test_iros_summary_coowners_without_records():
     assert s.others == [] and s.warnings == []
 
 
+def test_iros_summary_large_mortgage():
+    # 공시가격 6,010만 집에 근저당 3억 3,150만 (문제 항목 샘플)
+    s = parse_summary_text(load("iros_villa_large_mortgage.txt"))
+    assert s.owners == ["윤가상"]
+    assert [(m.rank, m.amount, m.holder) for m in s.mortgages] == [("3", 331_500_000, "가상새마을금고")]
+    assert s.others == [] and s.warnings == []
+
+
+def test_demo_houses_registry_matches_answer_sheet():
+    # 시연 집 2채: 파서 결과가 docs/validation/demo_houses.yaml의 등기부 입력·소유자와 같아야 한다
+    import yaml
+    root = Path(__file__).resolve().parents[2]
+    demo = yaml.safe_load((root / "docs" / "validation" / "demo_houses.yaml").read_text(encoding="utf-8"))
+    for house in demo["houses"]:
+        s = parse_summary_text((root / house["registry_fixture"]).read_text(encoding="utf-8"))
+        fields, expected = s.to_fields(), house["input"]["registry"]
+        assert {k: fields[k] for k in expected} == expected, house["id"]
+        assert not any(v for k, v in fields.items() if k not in expected), house["id"]   # 정답표에 없는 칸은 비어 있어야 함
+        assert s.owners == [house["registry_owner"]], house["id"]
+        assert s.others == [] and s.warnings == [], house["id"]
+
+
 def test_iros_summary_trust():
     # 신탁회사 공매 중인 다세대 (실제 샘플). 수탁자 이름이 법인번호 줄 위아래로 갈라지고,
     # 갑구 신탁 주의사항은 등기목적("약정/금지사항/환매특약")이 행 위아래로 갈라져 나온다
@@ -122,6 +144,85 @@ def test_iros_summary_auction_with_registered_lease():
     assert s.others == []
     assert s.to_fields() == {"seizure": True, "mortgage": False, "mortgage_amount": 0, "lease_amount": 90_000_000, "trust": False}
     assert s.warnings == ["을구 5번 임차권설정 보증금 90,000,000원을 선순위 채권에 넣었습니다. 이미 돌려받았거나 내 계약이면 빼세요"]
+
+
+def test_iros_summary_apartment_jeonse():
+    # 강제경매 중인 구축 아파트 (실제 샘플). 을구 전세권설정 전세금을 선순위 채권에 넣는다
+    s = parse_summary_text(load("iros_apartment_jeonse.txt"))
+    assert s.owners == ["정가상"]
+    assert [(e.rank, e.purpose) for e in s.seizures] == [("2", "가압류"), ("3", "가압류"), ("4", "강제경매개시결정")]
+    assert [(lease.rank, lease.purpose, lease.amount, lease.holder) for lease in s.leases] == [("15", "전세권설정", 150_000_000, "윤가상")]
+    assert s.to_fields() == {"seizure": True, "mortgage": False, "mortgage_amount": 0, "lease_amount": 150_000_000, "trust": False}
+    assert s.others == []
+
+
+def test_iros_summary_six_mortgages():
+    # 근저당 6건이 남은 아파트 (실제 샘플). 근저당권 변경 부기는 요약에 따로 나오지 않고, 지금 유효한 근저당만 나온다
+    s = parse_summary_text(load("iros_apartment_six_mortgages.txt"))
+    assert s.owners == ["한가상"]
+    assert [(e.rank, e.purpose) for e in s.seizures] == [("7", "임의경매개시결정")]
+    assert [(m.rank, m.amount) for m in s.mortgages] == [
+        ("6", 52_000_000), ("8", 13_000_000), ("9", 156_000_000), ("10", 60_500_000), ("11", 45_000_000), ("12", 818_000_000)]
+    assert [m.holder for m in s.mortgages] == ["주식회사가상은행"] * 5 + ["주식회사나라은행"]
+    assert s.to_fields() == {"seizure": True, "mortgage": True, "mortgage_amount": 1_144_500_000, "lease_amount": 0, "trust": False}
+    assert s.others == [] and s.warnings == []
+
+
+def test_iros_summary_jeonse_and_lease_of_same_deposit():
+    # 같은 세입자 보증금이 전세권과 임차권(돌려받지 못한 금액)으로 함께 남은 다세대 (실제 샘플)
+    # PDF에서 임차권 줄 끝이 잘려 임차권자 이름이 없다 (저장한 PDF 자체에 글자가 없음)
+    s = parse_summary_text(load("iros_villa_jeonse_and_lease.txt"))
+    assert s.owners == ["오가상"]
+    assert [(e.rank, e.purpose) for e in s.seizures] == [
+        ("5", "가압류"), ("6", "강제경매개시결정"), ("7", "압류"), ("8", "압류"), ("9", "압류")]
+    assert [(lease.rank, lease.purpose, lease.amount, lease.holder) for lease in s.leases] == [
+        ("1", "전세권설정", 120_000_000, "가상엘리베이터주식회사"), ("2", "임차권설정", 110_000_000, None)]
+    # 임차권이 "보증금 1.2억 중 반환되지 않은 금액"이고 전세금이 1.2억이라 같은 보증금 → 못 돌려받은 1.1억만 넣는다
+    assert [lease.same_deposit_as for lease in s.leases] == ["2", None]
+    assert s.to_fields()["lease_amount"] == 110_000_000
+    assert s.warnings == [
+        "을구 1번 전세권설정 보증금 120,000,000원은 을구 2번 임차권설정과 같은 보증금으로 보여 한 번만 넣었습니다. 다른 보증금이면 다시 넣으세요",
+        "을구 2번 임차권설정 보증금 110,000,000원을 선순위 채권에 넣었습니다. 이미 돌려받았거나 내 계약이면 빼세요",
+    ]
+
+
+def test_lease_with_other_original_deposit_is_counted_twice():
+    # 임차권의 원래 보증금이 전세금과 다르면 다른 보증금으로 보고 둘 다 넣는다
+    text = load("iros_villa_jeonse_and_lease.txt").replace("(보증금120,000,000원 중", "(보증금130,000,000원 중")
+    s = parse_summary_text(text)
+    assert [lease.same_deposit_as for lease in s.leases] == [None, None]
+    assert s.to_fields()["lease_amount"] == 230_000_000
+
+
+def test_original_deposit_match_with_other_holder_counts_both_and_warns():
+    # "보증금 N원 중"이 전세금과 같아도 두 권리자 이름이 다르면 다른 세입자일 수 있어 둘 다 넣고 (덜 위험하게 나오지 않게),
+    # 법인 명의 전세권 + 직원 임차권처럼 같은 돈일 수 있다고 알린다
+    text = load("iros_villa_jeonse_and_lease.txt").replace(
+        "(보증금120,000,000원 중 반환되지 오가상",
+        "(보증금120,000,000원 중 반환되지 아니한 금액) 임차권자 나가상 오가상")
+    s = parse_summary_text(text)
+    assert [(lease.holder, lease.same_deposit_as) for lease in s.leases] == [("가상엘리베이터주식회사", None), ("나가상", None)]
+    assert s.to_fields()["lease_amount"] == 230_000_000
+    assert s.warnings[-1] == (
+        "을구 2번 임차권설정은 을구 1번 전세권설정 전세금 중 못 돌려받은 금액으로 보이지만 권리자가 달라 둘 다 넣었습니다. "
+        "회사 명의 전세권처럼 같은 보증금이면 을구 1번을 빼세요")
+    # 같은 사람이면 지금처럼 못 돌려받은 금액만
+    same = parse_summary_text(text.replace("임차권자 나가상", "임차권자 가상엘리베이터주식회사"))
+    assert same.to_fields()["lease_amount"] == 110_000_000
+
+
+def test_jeonse_and_lease_with_same_holder_and_amount_counted_once():
+    # 전세권과 임차권의 권리자·금액이 같으면 (기간이 끝나 전세권에 더해 임차권등기를 한 경우) 먼저 등기한 전세권만 넣는다
+    text = load("iros_villa_jeonse_and_lease.txt").replace(
+        "임차보증금 금110,000,000원 (보증금120,000,000원 중 반환되지 오가상",
+        "임차보증금 금120,000,000원 임차권자 가상엘리베이터주식회사 오가상")
+    s = parse_summary_text(text)
+    assert [(lease.holder, lease.same_deposit_as) for lease in s.leases] == [
+        ("가상엘리베이터주식회사", None), ("가상엘리베이터주식회사", "1")]
+    assert s.to_fields()["lease_amount"] == 120_000_000
+    # 권리자가 다르면 다른 세입자의 보증금이라 둘 다 넣는다
+    other = parse_summary_text(text.replace("임차권자 가상엘리베이터주식회사", "임차권자 나가상"))
+    assert other.to_fields()["lease_amount"] == 240_000_000
 
 
 def test_owner_name_split_only_around_id_line():

@@ -21,6 +21,14 @@
 임차권·전세권 보증금은 새 세입자보다 먼저 돌려받는 돈이라 선순위 채권(lease_amount)에 넣고, 이미 돌려받았거나
 내 계약이면 확인 화면(FR-006)에서 빼도록 warnings로 알린다. 자동으로 판단하기 어려운 것(변경 등기 등)은
 합계에 넣지 않고 warnings로 돌려 사용자가 확인 화면에서 고치게 한다.
+
+보증금을 못 돌려받은 세입자는 전세권설정에 더해 임차권등기를 하기도 해서, 같은 보증금이 두 항목으로 나온다.
+같은 보증금으로 보이면 한 번만 넣는다 (PO 결정 2026-10-13):
+    1) 임차권 줄에 "보증금 N원 중 반환되지…"가 있고 전세금 N원인 전세권이 있으면 → 임차권 금액(못 돌려받은 금액)만.
+       두 권리자 이름이 모두 읽혔는데 다르면 다른 세입자일 수 있어 합치지 않고, 같은 보증금일 수 있다고만 알린다
+       (법인 명의 전세권 + 직원 임차권처럼 이름이 달라도 같은 돈인 경우가 있어 사용자가 고르게). 덜 위험하게 나오지 않게
+    2) 전세권과 임차권의 권리자·금액이 같으면 → 하나만
+뺀 항목은 same_deposit_as에 남긴 항목의 순위번호를 적고, 다른 보증금이면 확인 화면에서 다시 넣게 한다.
 """
 import re
 from dataclasses import dataclass, field
@@ -56,6 +64,8 @@ MORTGAGEE = re.compile(r"근저당권자\s*(.+)")
 HOLDER_END = re.compile(r"\s+(?:제\s*\d+\s*호|\d{4}\s*년|\d{6}\s*-|\*{3,}|[가-힣]+(?:특별시|광역시|특별자치시|도)\s)")
 LEASE_AMOUNT = re.compile(r"(?:임\s*차\s*보\s*증\s*금|전\s*세\s*금)\s*금\s*([\d,]+)\s*원")
 LESSEE = re.compile(r"(?:임차권자|전세권자)\s*(.+)")
+# 임차권 줄의 "(보증금115,000,000원 중 반환되지 아니한 금액)": 원래 보증금 중 못 돌려받은 금액을 등기했다는 뜻
+ORIGINAL_DEPOSIT = re.compile(r"보\s*증\s*금\s*금?\s*([\d,]+)\s*원\s*중")
 
 SEIZURE_WORDS = ("압류", "가처분", "경매개시결정")   # "압류"는 가압류도 포함
 TRUST_WORD = "신탁"
@@ -81,6 +91,7 @@ class Mortgage(Entry):
 class Lease(Entry):
     amount: int | None = None     # 임차보증금·전세금 (원)
     holder: str | None = None     # 임차권자·전세권자
+    same_deposit_as: str | None = None   # 같은 보증금으로 보고 합계에서 뺐으면 남긴 항목의 순위번호
 
 
 @dataclass
@@ -104,7 +115,7 @@ class RegistrySummary:
 
     @property
     def lease_amount(self) -> int:
-        return sum(lease.amount or 0 for lease in self.leases)
+        return sum(lease.amount or 0 for lease in self.leases if lease.same_deposit_as is None)
 
     def to_fields(self) -> dict:
         """fields.yaml의 registry.* 값 (schemas.RegistryInput과 같은 이름)."""
@@ -233,16 +244,52 @@ def _parse_eulgu(section: str, result: RegistrySummary) -> None:
                 holder=_holder(holder.group(1), result.owners) if holder else None,
             )
             result.leases.append(lease)
-            if lease.amount is None:
-                result.warnings.append(f"을구 {e.rank}번 {e.purpose}의 보증금을 읽지 못했습니다. 직접 입력하세요")
-            else:
-                result.warnings.append(
-                    f"을구 {e.rank}번 {e.purpose} 보증금 {lease.amount:,}원을 선순위 채권에 넣었습니다. "
-                    "이미 돌려받았거나 내 계약이면 빼세요")
         else:
             # 변경 등기(1-1 등) 등은 합계에 넣지 않고 사용자에게 확인을 맡긴다.
             result.others.append(e)
             result.warnings.append(f"을구 {e.rank}번 '{e.purpose}' 등기가 있습니다. 선순위 채권에 넣을지 직접 확인하세요")
+
+    maybe_same = _mark_same_deposits(result.leases)
+    by_rank = {lease.rank: lease for lease in result.leases}
+    for lease in result.leases:
+        if lease.amount is None:
+            result.warnings.append(f"을구 {lease.rank}번 {lease.purpose}의 보증금을 읽지 못했습니다. 직접 입력하세요")
+        elif lease.same_deposit_as is not None:
+            kept = by_rank[lease.same_deposit_as]
+            result.warnings.append(
+                f"을구 {lease.rank}번 {lease.purpose} 보증금 {lease.amount:,}원은 을구 {kept.rank}번 {kept.purpose}과 "
+                "같은 보증금으로 보여 한 번만 넣었습니다. 다른 보증금이면 다시 넣으세요")
+        else:
+            result.warnings.append(
+                f"을구 {lease.rank}번 {lease.purpose} 보증금 {lease.amount:,}원을 선순위 채권에 넣었습니다. "
+                "이미 돌려받았거나 내 계약이면 빼세요")
+    for t, j in maybe_same:
+        result.warnings.append(
+            f"을구 {t.rank}번 {t.purpose}은 을구 {j.rank}번 {j.purpose} 전세금 중 못 돌려받은 금액으로 보이지만 "
+            f"권리자가 달라 둘 다 넣었습니다. 회사 명의 전세권처럼 같은 보증금이면 을구 {j.rank}번을 빼세요")
+
+
+def _mark_same_deposits(leases: list[Lease]) -> list[tuple[Lease, Lease]]:
+    """같은 보증금이 전세권과 임차권으로 함께 나오면 한 항목만 남기고 나머지에 same_deposit_as를 적는다.
+
+    돌려주는 것: 1) 규칙에는 맞지만 권리자가 달라 합치지 않은 (임차권, 전세권) 쌍 (사용자 확인용)
+    """
+    jeonse = [lease for lease in leases if "전세권" in lease.purpose and lease.amount is not None]
+    tenancy = [lease for lease in leases if "임차권" in lease.purpose and lease.amount is not None]
+    maybe_same = []
+    for t in tenancy:
+        original = ORIGINAL_DEPOSIT.search(t.text)
+        for j in jeonse:
+            if j.same_deposit_as is not None or t.same_deposit_as is not None:
+                continue
+            if original and int(original.group(1).replace(",", "")) == j.amount:
+                if t.holder and j.holder and t.holder != j.holder:
+                    maybe_same.append((t, j))     # 다른 세입자일 수 있어 둘 다 센다
+                else:
+                    j.same_deposit_as = t.rank    # 못 돌려받은 금액(임차권)만 센다
+            elif t.holder and t.holder == j.holder and t.amount == j.amount:
+                t.same_deposit_as = j.rank        # 권리자·금액이 같으면 먼저 등기한 전세권 하나만
+    return maybe_same
 
 
 def _holder(rest: str, owners: list[str]) -> str:

@@ -145,7 +145,7 @@ A = 개발 A(백엔드·규칙), B = 개발 B(화면). 주차는 노션 "할 일
 | `GET /api/checks/{id}` | 저장된 판정 결과. 저장된 판정 단계가 지금 규칙에 없으면 409 `CHECK_OUTDATED` | FR-009 | UI-02 |
 | `GET /api/checks/{id}/special-terms` | 판정에 걸린 연동 규칙에 맞는 공공 자료 특약 예시(문구·출처·연결된 항목)와, 넣음/거절당함을 고르면 생기는 것(경고·서류·맨 위로 올라가는 할 일·상담 창구). 연동 규칙의 계약 당일 경고(`warnings`)·확인(`checks`)도 함께. MVP 연동 규칙(근저당, 비율 90% 이상, 신탁)에 연결된 MVP 특약만. "문제 항목"(결제 전 멈춤) 판정이면 409 `CHECK_BLOCKED`, 판정 단계가 지금 규칙에 없으면 409 `CHECK_OUTDATED`. 특약 예시는 지금 규칙 파일 기준 | FR-022, 039, 049~050 | UI-02, UI-03 |
 | `POST /api/admin/trades` | 실거래가 수집 (관리자): 공공데이터포털 API로 한 시군구(`lawd_cd`)의 아파트·연립다세대 매매·전월세를 `end_month`부터 거꾸로 `months`개월(기본 12) 받아 받은 시각(`fetched_at`)과 함께 저장. 같은 거래는 한 번만 저장. `X-Admin-Token` 헤더 = 서버 `ADMIN_TOKEN`이어야 함(없으면 401 `ADMIN_TOKEN_INVALID`, 서버에 `ADMIN_TOKEN`이 없으면 403 `ADMIN_DISABLED`). 인증키가 없으면 503 `SERVICE_KEY_MISSING`, 포털 오류는 502 `TRADE_API_ERROR`, 동시 수집이 겹치면 409 `TRADES_COLLECT_CONFLICT` | FR-046 | |
-| `POST /api/registry/parse` | 등기부 PDF → 요약 추출 결과 (저장 안 함). `fields`를 확인·수정해 `POST /api/checks`의 `registry`로 보낸다. 을구 임차권·전세권 보증금은 `fields.lease_amount`(선순위 채권)에 들어 있고, 이미 돌려받았거나 내 계약이면 확인 화면에서 `leases` 항목별로 빼서 보낸다 | FR-005~006 | UI-01 |
+| `POST /api/registry/parse` | 등기부 PDF → 요약 추출 결과 (저장 안 함). `fields`를 확인·수정해 `POST /api/checks`의 `registry`로 보낸다. 을구 임차권·전세권 보증금은 `fields.lease_amount`(선순위 채권)에 들어 있고, 이미 돌려받았거나 내 계약이면 확인 화면에서 `leases` 항목별로 빼서 보낸다. 같은 보증금이 전세권·임차권으로 함께 있으면 한 항목만 넣고 나머지는 `same_deposit_as`(남긴 항목의 순위번호)를 달아 뺀 상태로 준다 | FR-005~006 | UI-01 |
 | `POST /api/contracts` | 패키지 시작: `check_id` + 계약 조건(계약일·잔금일·만기일·월세·대출·보증기관·중개·갱신·공동 계약·알림 이메일) + 특약 넣음/거절당함 → 계약 생성. 주택 유형·보증금·공시가격·전용면적은 판정 입력에서 가져온다. "문제 항목" 판정이면 409 `CHECK_BLOCKED`, 이미 계약을 만든 판정이면 409 `CHECK_ALREADY_USED`, 판정 기준이 바뀌었으면 409 `CHECK_OUTDATED`. 특약 결과는 그 판정에서 안내한 특약(MVP 연동 규칙의 특약 예시)만 받고 나머지는 422. 계약을 만들면서 할 일 9종도 생성해 응답 `todos`에 순서대로 넣는다 (신고 대상 판별·조건별 분기·우선 노출·선행 조건, `rules/todos.yaml`). 응답에 `report_required`(신고 대상), `alert_level`(시작할 때의 경보 단계)도 넣는다 | FR-011, 014~015, 017~020, 049 | UI-03, UI-04 |
 | `GET /api/contracts/{id}` | 계약 정보와 할 일 목록 | FR-014, 017 | UI-03, UI-04 |
 
@@ -169,7 +169,6 @@ GitHub 이슈와 마일스톤(2주차·3주차·4주차)으로 진행을 관리�
 | `POST /api/contracts/{id}/move` | 갈아타기: 다음 집 날짜·보증금·계약금 → 자금 틈, 전입 순서 경고 (저장) | FR-025~028 | UI-07 | 3 | #48 |
 | `POST /api/admin/notifications/run` | 알림 스케줄러를 지정한 날(가상 날짜)로 한 번 실행. 이메일 1종 실제 발송 (시연용, 평소에는 서버 안 스케줄러) | FR-041, 044 | | 3 | #49 |
 | (공통) | 가상 날짜(`X-Virtual-Today`)를 할 일 상태·알림·경보 계산에도 적용 (1.7) | FR-044 | UI-04, UI-09 | 3 | #50 |
-| (공통) | `/api/admin/*` 관리자 토큰 확인. 배포 전에 처리 | FR-046 | | 3 | #55 |
 | `GET /api/contracts/{id}/timeline` | 계약 2년 기록을 날짜순으로 | FR-032 | UI-06 | 4 | #51 |
 | `GET /api/contracts/{id}/return-guide` | 반환 대응 단계, 청구 서류 대조 | FR-024, 034~035 | UI-08 | 4 | #52 |
 | `GET /api/contracts/{id}/alerts/latest` | 최근 역전세 경보 단계·계산 근거·기준일 | FR-036~038 | UI-09 | 4 | #53 |
