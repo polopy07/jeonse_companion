@@ -52,6 +52,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/schemas.py` | API 입출력 형식 |
 | `app/errors.py` | 오류 응답 형식 (`{"detail": {code, message, hint, fields}}`) |
 | `export_openapi.py` | `docs/api/openapi.json` 다시 만들기 |
+| `measure_registry_accuracy.py` | 등기부 요약 추출 정확도 측정 (정답표 `docs/validation/registry_answers.yaml`, 결과 `docs/validation/등기부추출_정확도.md`) |
 | `app/rules/loader.py` | 규칙 파일 불러오기 |
 | `app/rules/conditions.py` | 규칙의 조건(`when`) 계산 |
 | `app/engine/price.py` | 추정 주택가격, 내 보증금 비율 (alert.yaml) |
