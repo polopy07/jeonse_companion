@@ -355,6 +355,27 @@
         }
       }
     },
+    "/api/demo-houses": {
+      "get": {
+        "tags": [
+          "시연"
+        ],
+        "summary": "Demo Houses",
+        "operationId": "demo_houses_api_demo_houses_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoHousesResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/trades": {
       "post": {
         "tags": [
@@ -1101,6 +1122,130 @@
           "todos"
         ],
         "title": "ContractOut"
+      },
+      "DemoContractDay": {
+        "properties": {
+          "contract_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Contract Date"
+          },
+          "balance_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Balance Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "special_term_result": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "inserted",
+                "rejected"
+              ]
+            },
+            "type": "object",
+            "title": "Special Term Result"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contract_date",
+          "balance_date",
+          "end_date",
+          "special_term_result"
+        ],
+        "title": "DemoContractDay",
+        "description": "시연 장면의 계약 날짜와 특약 결과. 그대로 POST /api/contracts에 넣는다."
+      },
+      "DemoHouseOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "address": {
+            "type": "string",
+            "title": "Address",
+            "description": "단지 주소와 면적·층대. 어느 세대인지는 적지 않는다"
+          },
+          "official_price_source": {
+            "type": "string",
+            "title": "Official Price Source",
+            "description": "공시가격 출처"
+          },
+          "input": {
+            "$ref": "#/components/schemas/CheckInput",
+            "description": "계약 전 확인 입력값. 그대로 POST /api/checks로 보낸다"
+          },
+          "registry": {
+            "$ref": "#/components/schemas/RegistryParseResult",
+            "description": "시연 등기부를 읽은 결과 (POST /api/registry/parse와 같은 형식). 이름·주소는 가린 값이다"
+          },
+          "virtual": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Virtual",
+            "description": "실제 자료가 아닌 시연용 가상 값. 화면과 발표 자료에 \"시연용 가상\"으로 표시한다"
+          },
+          "contract_day": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DemoContractDay"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "계약 당일 시연 장면. 없으면 계약 전 확인까지만 보여 주는 집"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "address",
+          "official_price_source",
+          "input",
+          "registry",
+          "virtual",
+          "contract_day"
+        ],
+        "title": "DemoHouseOut",
+        "description": "시연 집 1채 (docs/validation/demo_houses.yaml, 경보계산_정답표.md)."
+      },
+      "DemoHousesResult": {
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "format": "date",
+            "title": "As Of",
+            "description": "정답표 기대값의 실거래 기준일. 같은 결과를 보려면 실거래 저장본을 넣고 X-Virtual-Today에 이 날짜를 보낸다"
+          },
+          "houses": {
+            "items": {
+              "$ref": "#/components/schemas/DemoHouseOut"
+            },
+            "type": "array",
+            "title": "Houses"
+          }
+        },
+        "type": "object",
+        "required": [
+          "as_of",
+          "houses"
+        ],
+        "title": "DemoHousesResult"
       },
       "ErrorDetail": {
         "properties": {
