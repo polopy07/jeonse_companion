@@ -38,6 +38,7 @@ def to_values(inp: CheckInput) -> dict:
             "registry.seizure": inp.registry.seizure,
             "registry.mortgage": inp.registry.mortgage,
             "registry.mortgage_amount": inp.registry.mortgage_amount,
+            "registry.lease_amount": inp.registry.lease_amount,
             "registry.trust": inp.registry.trust,
         })
     return values
@@ -49,7 +50,8 @@ def run_check(inp: CheckInput, rules: dict) -> CheckOutcome:
     ratio = None
     if inp.official_price is not None:
         price = estimate_price(inp.official_price, inp.trade_price, rules["alert"])
-        ratio = deposit_ratio(inp.deposit, price, values.get("registry.mortgage_amount"), rules["alert"])
+        senior = None if inp.registry is None else inp.registry.mortgage_amount + inp.registry.lease_amount
+        ratio = deposit_ratio(inp.deposit, price, senior, rules["alert"])
         values["estimated_price"] = ratio.estimated_price
         values["deposit_ratio"] = ratio.ratio
 

@@ -1,7 +1,7 @@
 # 규칙에서 쓰는 입력 값 이름
 # 다른 규칙 파일의 조건(field)은 여기 있는 이름만 쓴다.
-version: "1.0"
-as_of: "2026-10-07"
+version: "1.1"   # 1.1: registry.lease_amount (2026-10-13)
+as_of: "2026-10-13"
 basis: "요구사항 명세서 v0.5 FR-001, FR-005, FR-014"
 
 fields:
@@ -68,6 +68,10 @@ fields:
     type: integer
     unit: 원
     label: 근저당 채권최고액 합계 (선순위 채권)
+  registry.lease_amount:
+    type: integer
+    unit: 원
+    label: 을구 임차권·전세권 보증금 합계 (선순위 채권, 같은 보증금은 한 번만, 확인 화면에서 뺄 수 있음)
   registry.trust:
     type: boolean
     label: 신탁등기 있음
