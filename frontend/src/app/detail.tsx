@@ -1,10 +1,10 @@
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
-import { Card, DashedBox, Disclaimer, Screen, SectionLabel } from '@/components/layout';
+import { Card, DashedBox, DemoTag, Disclaimer, Screen, SectionLabel } from '@/components/layout';
 import { SpecialTermRow, verdictStyle } from '@/components/verdict';
 import { Colors, Radius } from '@/constants/theme';
-import { checkResult, detailRows } from '@/data/demo';
+import { checkResult, demoHouses, detailRows } from '@/data/demo';
 import { termsFor } from '@/lib/special-terms';
 
 /** UI-02 판정 상세 (정적) */
@@ -36,9 +36,12 @@ export default function DetailScreen() {
 
       <SectionLabel>근저당, 쉬운 말로</SectionLabel>
       <Card>
-        <AppText size={11} color={Colors.textHint}>
-          등기부 주요 등기사항 요약 · 을구 1
-        </AppText>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <AppText size={11} color={Colors.textHint}>
+            등기부 요약 · 을구 1
+          </AppText>
+          {demoHouses[0].registry.virtualMortgage ? <DemoTag label="시연용 가상 근저당" /> : null}
+        </View>
         <View style={styles.source}>
           <AppText size={12} color={Colors.textCode} leading={1.7}>
             근저당권설정 · 채권최고액 금36,000,000원 · 근저당권자 ○○은행

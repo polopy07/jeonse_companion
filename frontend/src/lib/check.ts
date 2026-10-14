@@ -2,7 +2,7 @@
  * 계약 전 확인: 입력값 → 내 보증금 비율 → 판정.
  *
  * 백엔드 연결 전 임시 계산이다. backend/app/engine(check.py, price.py, verdict.py)과
- * rules/verdict.yaml·alert.yaml v1.0을 그대로 옮겼다. 2주차에 POST /api/checks 응답으로 바꾸고 이 계산은 지운다.
+ * rules/verdict.yaml·alert.yaml을 그대로 옮겼다(선순위 채권 = 근저당 + 임차권·전세권 보증금, alert.yaml v1.2). 2주차에 POST /api/checks 응답으로 바꾸고 이 계산은 지운다.
  * 입력 필드 이름은 백엔드 CheckInput과 같다.
  */
 import { formatWon } from '@/lib/format';
@@ -27,7 +27,18 @@ export type RegistryInput = {
   seizure: boolean;
   mortgage: boolean;
   mortgage_amount: number;
+  /** 을구 임차권·전세권 보증금 합계. 선순위 채권에 넣는다 (확인 화면에서 뺀 항목은 빼고 보냄) */
+  lease_amount: number;
   trust: boolean;
+};
+
+/** 을구 임차권·전세권 한 건 (POST /api/registry/parse 응답 leases와 같은 이름) */
+export type RegistryLease = {
+  rank: string;
+  purpose: string;
+  text: string;
+  amount: number | null;
+  holder: string | null;
 };
 
 export type CheckInput = {
@@ -59,6 +70,8 @@ export type UncheckedItem = { label: string; guide: string };
 /** 결과 화면(UI-01)이 그리는 값 */
 export type CheckView = {
   houseLabel: string;
+  /** 시연 빌라처럼 근저당이 시연용 가상 값이면 true ("시연용 가상 근저당" 표시) */
+  virtualMortgage?: boolean;
   /** 등기부 소유자 이름. 계약 당일 현장 확인에서 신분증·계좌 예금주와 대조한다 */
   owner: string | null;
   level: VerdictLevel;
@@ -201,13 +214,16 @@ export function runCheckLocal(
   if (input.official_price) {
     const fromOfficial = estimateFromOfficial(input.official_price);
     estimated = input.trade_price ? Math.min(fromOfficial, input.trade_price) : fromOfficial;
-    const senior = input.registry?.mortgage_amount ?? 0;
-    ratio = (input.deposit + senior) / estimated;
+    const mortgageAmount = input.registry?.mortgage_amount ?? 0;
+    const leaseAmount = input.registry?.lease_amount ?? 0;
+    ratio = (input.deposit + mortgageAmount + leaseAmount) / estimated;
 
     formula.push(
       isMinimum
         ? `보증금 ${won(input.deposit)} ÷ 추정 집값 ${won(estimated)} (등기부 전이라 근저당 0원)`
-        : `(보증금 ${won(input.deposit)} + 근저당 ${won(senior)}) ÷ 추정 집값 ${won(estimated)}`,
+        : leaseAmount
+          ? `(보증금 ${won(input.deposit)} + 근저당 ${won(mortgageAmount)} + 임차권·전세권 보증금 ${won(leaseAmount)}) ÷ 추정 집값 ${won(estimated)}`
+          : `(보증금 ${won(input.deposit)} + 근저당 ${won(mortgageAmount)}) ÷ 추정 집값 ${won(estimated)}`,
     );
     formula.push(`공시가격 ${won(input.official_price)} × 140% = ${won(fromOfficial)}`);
     formula.push(
