@@ -7,7 +7,7 @@ from dataclasses import asdict
 from fastapi import APIRouter, UploadFile
 
 from app.errors import api_error, responses
-from app.registry import RegistryParseError, parse_registry_pdf
+from app.registry import RegistryParseError, RegistrySummary, parse_registry_pdf
 from app.schemas import RegistryParseResult
 
 router = APIRouter(prefix="/api/registry", tags=["등기부 점검"])
@@ -25,7 +25,10 @@ async def parse_registry(file: UploadFile):
         summary = parse_registry_pdf(pdf)
     except RegistryParseError as e:
         raise api_error(422, "REGISTRY_UNREADABLE", str(e), MANUAL_INPUT_HINT)
+    return to_parse_result(summary)
 
+
+def to_parse_result(summary: RegistrySummary) -> RegistryParseResult:
     return RegistryParseResult(
         fields=summary.to_fields(),
         owners=summary.owners,
