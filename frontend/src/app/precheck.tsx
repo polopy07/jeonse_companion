@@ -145,7 +145,7 @@ export default function PrecheckScreen() {
     setMortgage(r.fields.mortgage);
     setMortgageText(toManwonText(r.fields.mortgage_amount));
     setTrust(r.fields.trust);
-    setLeases((r.leases ?? []).map((l) => ({ ...l, included: true, amountText: '' })));
+    setLeases((r.leases ?? []).map((l) => ({ ...l, included: l.same_deposit_as == null, amountText: '' })));
     setLeaseOn(false);
     setLeaseText('');
     setSourceLines([...r.seizures, ...r.trusts, ...r.mortgages, ...(r.leases ?? []), ...r.others].map((e) => e.text));

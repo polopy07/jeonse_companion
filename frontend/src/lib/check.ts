@@ -40,6 +40,8 @@ export type RegistryLease = {
   text: string;
   amount: number | null;
   holder: string | null;
+  /** 같은 보증금으로 보이는 남긴 항목의 순위번호. 있으면 합계에서 빠진 항목이라 처음엔 빼 둔다 */
+  same_deposit_as?: string | null;
 };
 
 export type CheckInput = {
