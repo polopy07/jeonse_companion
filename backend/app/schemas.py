@@ -180,6 +180,7 @@ class CheckResult(BaseModel):
     as_of: date | None = Field(description="실거래를 볼 때 쓴 기준일 (X-Virtual-Today가 있으면 그날). 단지를 주지 않았으면 null")
     trade_basis: TradeBasisOut | None = Field(description="단지를 주고 매매 실거래를 찾았을 때만")
     nearby_jeonse: NearbyJeonseOut | None = Field(description="단지를 주었을 때만")
+    contract_id: int | None = Field(description="이 판정으로 만든 계약 id (POST /api/contracts). 아직 없으면 null")
 
 
 class TodoRefOut(BaseModel):

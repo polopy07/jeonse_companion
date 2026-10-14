@@ -83,7 +83,10 @@ def test_check_used_twice_is_409(client):
     assert r.status_code == 409
     d = _detail(r)
     assert d["code"] == "CHECK_ALREADY_USED"
-    assert f"/api/contracts/{first.json()['id']}" in d["hint"]
+    assert "/api/" not in d["hint"]   # 화면에 그대로 보이는 문구라 API 주소를 넣지 않는다
+    # 만든 계약은 판정 결과의 contract_id로 찾는다
+    assert check["contract_id"] is None
+    assert client.get(f"/api/checks/{check['id']}").json()["contract_id"] == first.json()["id"]
 
 
 def test_unknown_check_is_404(client):
@@ -230,7 +233,7 @@ def test_concurrent_second_contract_is_409(client):
     assert r.status_code == 409
     d = _detail(r)
     assert d["code"] == "CHECK_ALREADY_USED"
-    assert f"/api/contracts/{first.json()['id']}" in d["hint"]
+    assert "/api/" not in d["hint"]
     assert client.get(f"/api/contracts/{first.json()['id']}").status_code == 200
 
 
