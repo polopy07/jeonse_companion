@@ -71,6 +71,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/api/registry.py` | `POST /api/registry/parse` |
 | `app/api/demo.py` | `GET /api/demo-houses` 시연 집 2채 (`docs/validation/demo_houses.yaml`) |
 | `load_demo_trades.py` | 시연 집 정답표의 실거래 저장본을 DB에 넣기 |
+| `reset_demo_db.py` | 시연 전 DB 초기화 (모든 표를 다시 만들고 실거래 저장본 넣기) |
 | `tests/fixtures/registry/` | 등기부 요약 샘플 (실제 샘플은 집을 찾을 수 없게 바꿈, 가상 샘플) |
 
 ## API
@@ -160,6 +161,8 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 ```bash
 python load_demo_trades.py   # DATABASE_URL을 서버와 같게. 여러 번 실행해도 같은 거래는 한 번만
 ```
+
+시연 리허설·시연 직전에는 `python reset_demo_db.py`로 판정·계약·할 일을 모두 지우고 실거래 저장본만 넣은 상태로 되돌린다 (확인을 묻고, `--yes`면 바로. SQLite는 서버를 끄고 실행).
 
 `tests/test_demo_houses.py`가 이 API의 입력으로 판정·계약을 만들어 정답표 기대값(비율·판정·연동 규칙·실거래·경보 단계·빌라의 할 일 순서)과 자동 대조한다.
 

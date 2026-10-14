@@ -61,3 +61,14 @@ def test_demo_houses_match_answer_sheet(client):
             assert contract["todos"][0]["rule_id"] == scene["expected"]["top"]
             assert todos["T2"]["due_date"] == scene["expected"]["T2_due"]
             assert scene["expected"]["T3_required_check"] in todos["T3"]["required_checks"]
+
+
+def test_reset_demo_db(client):
+    # 시연 전 초기화: 판정·계약은 지워지고 실거래 저장본만 남는다
+    from reset_demo_db import reset
+
+    house = client.get("/api/demo-houses").json()["houses"][0]
+    check_id = client.post("/api/checks", json=house["input"]).json()["id"]
+    assert reset() == ("2026-10-13", 180)
+    assert client.get(f"/api/checks/{check_id}").status_code == 404
+    assert reset() == ("2026-10-13", 180)   # 여러 번 해도 같은 상태
