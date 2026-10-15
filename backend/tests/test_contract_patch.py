@@ -92,6 +92,34 @@ def test_done_todo_keeps_status_and_moves_later_dates(client):
     assert [t["sort_order"] for t in r.json()["todos"]] == list(range(1, len(ids) + 1))
 
 
+def test_balance_date_postponed_reopens_done_t3_t4(client):
+    # PO 2026-10-15 (#79 리뷰 1번): 잔금일이 미뤄져 완료일이 새 잔금일보다 앞서면 T3·T4는 다시 할 일로
+    created = _contract(client)
+    with get_sessionmaker()() as db:
+        for t in db.query(Todo).filter_by(contract_id=created["id"]).filter(Todo.rule_id.in_(["T3", "T4"])):
+            t.status, t.done_date = "done", date(2026, 12, 1)
+        db.commit()
+
+    # 잔금일을 앞당기면 완료일이 새 잔금일보다 앞서지 않아 그대로
+    r = _patch(client, created["id"], {"balance_date": "2026-11-25"})
+    by_id = {t["rule_id"]: t for t in r.json()["todos"]}
+    assert by_id["T3"]["status"] == by_id["T4"]["status"] == "done"
+    assert by_id["T5"]["start_date"] == "2026-12-02"   # 대출 없음: 전입신고 완료 다음 날
+
+    r = _patch(client, created["id"], {"balance_date": "2026-12-22"})
+    assert r.status_code == 200, r.text
+    changed = r.json()
+    by_id = {t["rule_id"]: t for t in changed["todos"]}
+    assert by_id["T3"]["status"] == by_id["T4"]["status"] == "todo"
+    assert by_id["T3"]["id"] == {t["rule_id"]: t["id"] for t in created["todos"]}["T3"]
+    # 전입신고를 아직 안 했으니 새 잔금일(T4 기한)에 끝낸 것으로 보고 T5 시작일을 다시 계산
+    assert by_id["T5"]["start_date"] == "2026-12-23"
+    assert _dates(changed["todos"]) == _dates(
+        {"rule_id": t.rule_id, "start_date": t.start_date and t.start_date.isoformat(),
+         "due_date": t.due_date and t.due_date.isoformat(), "remind_date": t.remind_date and t.remind_date.isoformat()}
+        for t in _engine_todos(changed, ["L-MORTGAGE", "L-RATIO90"]))
+
+
 def test_loan_execution_date_can_be_cleared(client):
     created = _contract(client, loan=True, loan_execution_date="2026-12-01")
     r = _patch(client, created["id"], {"loan_execution_date": None})

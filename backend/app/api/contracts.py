@@ -67,13 +67,26 @@ def _sync_todos(row: Contract, check: Verdict, rules: dict) -> None:
 
     같은 할 일(rule_id)은 id·상태·완료일·증빙을 그대로 두고 날짜·순서만 바꾼다. 끝낸 할 일의 완료일은
     뒤 할 일의 기준일로 쓴다 (T5 시작 = 전입신고 완료 다음 날). 조건이 바뀌어 더는 해당하지 않는 할 일은
-    지우되, 이미 끝낸 것은 기록으로 맨 뒤에 남긴다.
+    지우되, 이미 끝낸 것은 기록으로 맨 뒤에 남긴다. 잔금일이 미뤄져 완료일이 새 시작일보다 앞서게 된
+    할 일(todos.yaml reopen_if_done_before_start: T3·T4)은 다시 할 일로 돌리고 뒤 할 일 날짜도 다시 계산한다.
     """
     row.report_required = report_required(_todo_values(row), rules["todos"])
     existing = {t.rule_id: t for t in row.todos}
     done_dates = {t.rule_id: t.done_date for t in row.todos if t.status == "done" and t.done_date}
-    planned = build_todos(_todo_values(row), check.linkages, row.special_term_result, row.alert_level, rules,
-                          done_dates=done_dates)
+
+    def plan():
+        return build_todos(_todo_values(row), check.linkages, row.special_term_result, row.alert_level, rules,
+                           done_dates=done_dates)
+
+    planned = plan()
+    reopenable = {t["id"] for t in rules["todos"]["todos"] if t.get("reopen_if_done_before_start")}
+    reopen = [p.rule_id for p in planned if p.rule_id in reopenable and p.rule_id in done_dates
+              and p.start_date and done_dates[p.rule_id] < p.start_date]
+    if reopen:
+        for rule_id in reopen:   # 증빙(evidence_path)은 지우지 않고 남긴다
+            existing[rule_id].status, existing[rule_id].done_date = "todo", None
+            del done_dates[rule_id]
+        planned = plan()
     version = str(rules["todos"]["version"])
     todos = []
     for p in planned:
