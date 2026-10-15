@@ -81,6 +81,7 @@
 | 백엔드 | FastAPI·PostgreSQL. 실행·테스트 방법 | [`backend/`](backend/) |
 | 화면 목업 | UI-01~09 + 홈 (모바일 390px) | [`docs/design/`](docs/design/) (`index.html`을 브라우저로 열기) |
 | 프론트엔드 | Expo + Expo Router (웹·안드로이드·iOS). 목업 10개 화면, 계약 전 확인 입력, 현장 확인, 시연 데이터 | [`frontend/`](frontend/) (`npx expo start`) |
+| 휴대폰 접속 방법 | 안드로이드·아이폰(Expo Go)으로 앱을 열어 PC 백엔드에 연결 | [`docs/guide/휴대폰_접속_방법.md`](docs/guide/휴대폰_접속_방법.md) |
 | 작업일지 | 날짜별 | [`worklog/`](worklog/) (`YYYY-MM-DD.md`) |
 
 각 문서는 원본(.docx)과 읽기용 마크다운 변환본(.md)을 함께 둡니다. 기획안과 명세서가 다르면 기획안을 먼저 고치고 명세서에 반영합니다.

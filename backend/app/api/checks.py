@@ -45,6 +45,7 @@ def _to_result(row: Verdict, rules: dict) -> CheckResult:
         as_of=(row.market or {}).get("as_of"),
         trade_basis=(row.market or {}).get("trade_basis"),
         nearby_jeonse=(row.market or {}).get("nearby_jeonse"),
+        contract_id=row.contract_id,
     )
 
 
