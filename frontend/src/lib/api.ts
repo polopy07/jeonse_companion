@@ -216,8 +216,10 @@ export type ApiContract = {
   end_date: string;
   guarantor: Guarantor;
   special_term_result: Record<string, 'inserted' | 'rejected'>;
+  /** 임대차 신고 대상인지 (비대상이면 신고 대신 확정일자 할 일) */
   report_required: boolean;
-  alert_level: string | null;
+  /** 계약 시작 때 경보 단계 (alert.yaml id). 정상이면 null */
+  alert_level: 'caution' | 'warning' | 'danger' | null;
   /** sort_order 순서 */
   todos: ApiTodo[];
 };
