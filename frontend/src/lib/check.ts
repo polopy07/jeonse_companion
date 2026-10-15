@@ -46,6 +46,9 @@ export type RegistryLease = {
   same_deposit_as?: string | null;
 };
 
+/** 실거래를 찾을 단지 (공공데이터포털 실거래가 이름 그대로). 시연 집만 미리 매칭해 둔다 */
+export type ComplexInput = { lawd_cd: string; umd_name: string; complex_name: string; jibun?: string | null };
+
 export type CheckInput = {
   housing_type: HousingType;
   deposit: number;
@@ -56,6 +59,8 @@ export type CheckInput = {
   trust_consent: TrustConsent;
   building_violation: boolean | null;
   guarantor_consult: GuarantorConsult;
+  /** 주면 서버가 저장된 실거래에서 매매 실거래가(trade_price가 비었을 때)와 주변 전세 시세를 찾는다 */
+  complex?: ComplexInput | null;
 };
 
 export type VerdictLevel = 'na' | 'problem' | 'check' | 'ok';
@@ -103,6 +108,8 @@ export type CheckView = {
   checkedAt: string;
   /** 확인 화면에서 본 등기부 원문 줄 (상세 화면 "쉬운 말로"에 보여 줌) */
   sourceLines?: string[];
+  /** 시연 집이면 계약 당일 시연 장면 날짜 (계약 날짜 입력 화면의 처음 값) */
+  demoDates?: { contract_date: string; balance_date: string; end_date: string };
 };
 
 /**
@@ -389,14 +396,17 @@ export function detailRowsFor(view: CheckView): DetailRow[] {
   ];
 }
 
-// 입력 화면 → 결과 화면으로 넘기는 마지막 결과. 앱을 다시 켜도 홈·경보 화면이 이어 보이게 휴대폰에 저장한다
+// 입력 화면 → 결과 화면으로 넘기는 마지막 결과. 앱을 다시 켜도 홈·경보 화면이 이어 보이게 휴대폰에 저장한다.
+// 소유자 이름·등기부 원문 줄(근저당권자·임차권자 이름)은 저장하지 않고 이번 실행 동안만 둔다 (등기부는 서버에도 저장하지 않음)
 const CHECK_KEY = 'jeonse.latestCheck';
 const latestCheck = createStore<CheckView | null>(null);
 export const useLatestCheck = latestCheck.use;
 
 export function setLatestCheck(view: CheckView | null) {
   latestCheck.set(view);
-  const save = view ? AsyncStorage.setItem(CHECK_KEY, JSON.stringify(view)) : AsyncStorage.removeItem(CHECK_KEY);
+  const save = view
+    ? AsyncStorage.setItem(CHECK_KEY, JSON.stringify({ ...view, owner: null, sourceLines: undefined }))
+    : AsyncStorage.removeItem(CHECK_KEY);
   save.catch(() => {}); // 저장에 실패해도 이번 실행 동안은 결과를 보여 준다
 }
 

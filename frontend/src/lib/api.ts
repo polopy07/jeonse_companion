@@ -114,6 +114,8 @@ export type ApiCheckResult = {
   as_of: string | null;
   trade_basis: { price: number; deal_date: string; exclusive_area: number; sample_count: number; used: boolean } | null;
   nearby_jeonse: { median: number | null; sample_count: number; low_sample: boolean; below_deposit: boolean | null } | null;
+  /** 이 판정으로 만든 계약 id. 아직 없으면 null */
+  contract_id: number | null;
 };
 
 /** 계약 전 확인 → 판정 (서버에 저장). virtualToday는 시연 가상 날짜 (YYYY-MM-DD) */
@@ -121,6 +123,11 @@ export function postCheck(input: CheckInput, virtualToday?: string) {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (virtualToday) headers['X-Virtual-Today'] = virtualToday;
   return request<ApiCheckResult>('/api/checks', { method: 'POST', headers, body: JSON.stringify(input) });
+}
+
+/** 저장된 판정 (409 CHECK_ALREADY_USED 때 contract_id로 만든 계약을 찾는다) */
+export function getCheck(checkId: number) {
+  return request<ApiCheckResult>(`/api/checks/${checkId}`, { method: 'GET' });
 }
 
 // ---- GET /api/checks/{id}/special-terms ----
@@ -227,4 +234,31 @@ export function postContract(input: ApiContractInput) {
 /** 계약 정보와 할 일 목록 (앱을 다시 켰을 때 이어 보기) */
 export function getContract(contractId: number) {
   return request<ApiContract>(`/api/contracts/${contractId}`, { method: 'GET' });
+}
+
+// ---- GET /api/demo-houses ----
+
+export type ApiDemoHouse = {
+  id: string;
+  title: string;
+  address: string;
+  official_price_source: string;
+  /** 그대로 POST /api/checks로 보내는 입력값 */
+  input: CheckInput;
+  /** 시연 등기부를 읽은 결과 (POST /api/registry/parse와 같은 형식) */
+  registry: ApiRegistryParseResult;
+  /** 실제 자료가 아닌 시연용 가상 값 */
+  virtual: string[];
+  /** 계약 당일 시연 장면의 날짜와 특약 결과 */
+  contract_day: {
+    contract_date: string;
+    balance_date: string;
+    end_date: string;
+    special_term_result: Record<string, 'inserted' | 'rejected'>;
+  } | null;
+};
+
+/** 시연 집 2채 (docs/validation/demo_houses.yaml, 경보 계산 정답표) */
+export function getDemoHouses() {
+  return request<{ as_of: string; houses: ApiDemoHouse[] }>('/api/demo-houses', { method: 'GET' });
 }

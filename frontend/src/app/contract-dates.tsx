@@ -7,7 +7,7 @@ import { ChoiceChips, TextField, ToggleRow } from '@/components/form';
 import { Button, Card, Disclaimer, Screen, StepProgress } from '@/components/layout';
 import { Colors } from '@/constants/theme';
 import { checkResult, house } from '@/data/demo';
-import { ApiError, apiEnabled, postContract, type Guarantor } from '@/lib/api';
+import { ApiError, apiEnabled, getCheck, getContract, postContract, type Guarantor } from '@/lib/api';
 import { useLatestCheck } from '@/lib/check';
 import { parseManwon } from '@/lib/format';
 import { setLatestContract } from '@/lib/contract';
@@ -24,9 +24,10 @@ export default function ContractDatesScreen() {
   const check = useLatestCheck() ?? checkResult;
   const termResults = useSpecialTermResults();
 
-  const [contractDate, setContractDate] = useState(demoDate(house.contractDate));
-  const [balanceDate, setBalanceDate] = useState(demoDate(house.balanceDate));
-  const [endDate, setEndDate] = useState(demoDate(house.endDate));
+  // 시연 집이면 계약 당일 시연 장면 날짜(demo_houses.yaml), 아니면 시연 데이터 날짜로 채워 둔다
+  const [contractDate, setContractDate] = useState(check.demoDates?.contract_date ?? demoDate(house.contractDate));
+  const [balanceDate, setBalanceDate] = useState(check.demoDates?.balance_date ?? demoDate(house.balanceDate));
+  const [endDate, setEndDate] = useState(check.demoDates?.end_date ?? demoDate(house.endDate));
   const [loan, setLoan] = useState(false);
   const [loanDate, setLoanDate] = useState('');
   const [guarantor, setGuarantor] = useState<Guarantor>('HUG');
@@ -80,6 +81,18 @@ export default function ContractDatesScreen() {
       setLatestContract(contract);
       router.push('/todos');
     } catch (e) {
+      // 이미 이 판정으로 계약을 만들었으면 그 계약의 할 일로 간다
+      if (e instanceof ApiError && e.code === 'CHECK_ALREADY_USED') {
+        const contractId = await getCheck(check.id)
+          .then((c) => c.contract_id)
+          .catch(() => null);
+        const existing = contractId === null ? null : await getContract(contractId).catch(() => null);
+        if (existing) {
+          setLatestContract(existing);
+          router.push('/todos');
+          return;
+        }
+      }
       setError(e instanceof ApiError ? [e.message, e.hint].filter(Boolean).join('. ') : '계약을 만들지 못했어요');
     } finally {
       setSubmitting(false);

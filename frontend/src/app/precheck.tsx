@@ -1,6 +1,6 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
@@ -9,8 +9,8 @@ import { Icon } from '@/components/Icon';
 import { Button, Card, DashedBox, DemoTag, Screen, SectionLabel } from '@/components/layout';
 import { ratioBand } from '@/components/verdict';
 import { Colors, Radius, Touch } from '@/constants/theme';
-import { demoHouses, type DemoHouse } from '@/data/demo';
-import { ApiError, apiEnabled, parseRegistry, postCheck, type ApiRegistryParseResult } from '@/lib/api';
+import { demoHouseFromApi, demoHouses, type DemoHouse } from '@/data/demo';
+import { ApiError, apiEnabled, getDemoHouses, parseRegistry, postCheck, type ApiRegistryParseResult } from '@/lib/api';
 import {
   checkViewFromApi,
   estimateFromOfficial,
@@ -54,6 +54,23 @@ const toManwonText = (won: number) => (won ? String(Math.round(won / 10_000)) : 
 export default function PrecheckScreen() {
   const [step, setStep] = useState(0);
   const [preset, setPreset] = useState<DemoHouse | null>(null);
+  const [houses, setHouses] = useState<DemoHouse[]>(demoHouses);
+
+  // 시연 집은 서버 값(GET /api/demo-houses, 경보 계산 정답표)으로. 못 받으면 앱에 든 같은 값을 쓴다
+  useEffect(() => {
+    if (!apiEnabled) return;
+    let alive = true;
+    getDemoHouses()
+      .then((r) => {
+        // 계약 당일 장면이 있는 집(빌라)을 앞에
+        const list = r.houses.map(demoHouseFromApi).sort((a, b) => Number(!!b.contractDay) - Number(!!a.contractDay));
+        if (alive && list.length) setHouses(list);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // ① 집 정보
   const [address, setAddress] = useState('');
@@ -107,7 +124,7 @@ export default function PrecheckScreen() {
     setDepositText(h.depositManwon);
     setAreaText(h.area);
     setOfficialText(toManwonText(h.official_price));
-    setViolation(h.building_violation ? 'yes' : 'no');
+    setViolation(h.building_violation === null ? 'unknown' : h.building_violation ? 'yes' : 'no');
     setRegistryMode('none');
     setFileName(null);
   };
@@ -125,15 +142,16 @@ export default function PrecheckScreen() {
       setMortgage(h.registry.mortgage);
       setMortgageText(toManwonText(h.registry.mortgage_amount));
       setTrust(h.registry.trust);
-      setLeases(h.registry.leases.map((l) => ({ ...l, included: true, amountText: '' })));
+      setLeases(h.registry.leases.map((l) => ({ ...l, included: l.same_deposit_as == null, amountText: '' })));
+      setRegistryWarnings(h.registry.warnings);
       setRegistryMode('filled');
     } else {
       setLeases([]);
+      setRegistryWarnings([]);
       setRegistryMode('manual');
     }
     setLeaseOn(false);
     setLeaseText('');
-    setRegistryWarnings([]);
     setSourceLines([]);
     setStep(3);
   };
@@ -176,11 +194,14 @@ export default function PrecheckScreen() {
 
   const submit = async (withRegistry: boolean) => {
     if (!housingType || !deposit || submitting) return;
+    // 시연 집은 서버가 단지로 실거래를 찾는다 (주택 유형을 바꿨으면 단지 매칭은 쓰지 않음)
+    const complex = preset?.complex && preset.housing_type === housingType ? preset.complex : null;
     const input: CheckInput = {
       housing_type: housingType,
       deposit,
       official_price: official,
-      trade_price: preset?.trade_price ?? null,
+      trade_price: apiEnabled && complex ? null : (preset?.trade_price ?? null),
+      complex,
       exclusive_area: parseNumber(areaText),
       registry: withRegistry
         ? { seizure, mortgage, mortgage_amount: mortgage ? (mortgageAmount ?? 0) : 0, lease_amount: leaseAmount, trust }
@@ -206,7 +227,8 @@ export default function PrecheckScreen() {
           setSubmitError(e instanceof ApiError ? [e.message, e.hint].filter(Boolean).join('. ') : '판정을 받지 못했어요');
           return;
         }
-        view = { ...runCheckLocal(input, label, todayText(), ownerName), notice: '서버에 연결하지 못해 앱에서 임시로 계산했어요' };
+        const localInput = { ...input, trade_price: preset?.trade_price ?? null };
+        view = { ...runCheckLocal(localInput, label, todayText(), ownerName), notice: '서버에 연결하지 못해 앱에서 임시로 계산했어요' };
       } finally {
         setSubmitting(false);
       }
@@ -214,7 +236,7 @@ export default function PrecheckScreen() {
       view = runCheckLocal(input, label, todayText(), ownerName);
     }
     const viewSource = !withRegistry ? [] : registryMode === 'filled' && preset ? preset.registry.source : sourceLines;
-    setLatestCheck({ ...view, virtualMortgage, sourceLines: viewSource });
+    setLatestCheck({ ...view, virtualMortgage, sourceLines: viewSource, demoDates: preset?.contractDay ?? undefined });
     router.push('/check');
   };
 
@@ -274,7 +296,7 @@ export default function PrecheckScreen() {
 
           <SectionLabel style={{ marginTop: 14 }}>시연 집으로 채우기</SectionLabel>
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            {demoHouses.map((h) => {
+            {houses.map((h) => {
               const on = preset?.id === h.id;
               return (
                 <Pressable
@@ -346,11 +368,15 @@ export default function PrecheckScreen() {
                 </AppText>
               </View>
               <Row label="공시가격" note={preset.officialBasis} value={`${formatWon(preset.official_price)} 원`} />
-              <Row
-                label="실거래가 · 전용 ±10%"
-                note={preset.trade_price ? '최근 12개월 신고' : undefined}
-                value={preset.trade_price ? `${formatWon(preset.trade_price)} 원` : '표본 부족'}
-              />
+              {apiEnabled && preset.complex ? (
+                <Row label="실거래가 · 전용 ±10%" note="최근 12개월 신고" value="판정 때 단지에서 찾아요" />
+              ) : (
+                <Row
+                  label="실거래가 · 전용 ±10%"
+                  note={preset.trade_price ? '최근 12개월 신고' : undefined}
+                  value={preset.trade_price ? `${formatWon(preset.trade_price)} 원` : '표본 부족'}
+                />
+              )}
             </Card>
           ) : (
             <Card style={{ marginTop: 14, gap: 8 }}>
@@ -579,7 +605,7 @@ export default function PrecheckScreen() {
 
           <SectionLabel>위반건축물 (건축물대장)</SectionLabel>
           <Card style={{ gap: 12 }}>
-            {preset ? (
+            {preset && preset.building_violation !== null ? (
               <AppText size={13} color={Colors.textSub}>
                 주소로 찾은 건축물대장: {preset.building_violation ? '위반건축물' : '위반 표시 없음'}
               </AppText>
