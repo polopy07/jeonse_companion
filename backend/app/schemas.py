@@ -259,6 +259,37 @@ class ContractInput(BaseModel):
         return self
 
 
+class ContractPatch(BaseModel):
+    """계약 조건·특약 결과 변경 (FR-021, FR-049·050). 보낸 칸만 바꾸고 할 일을 다시 계산한다.
+
+    주택 유형·보증금은 판정에서 가져온 값이라 바꾸지 않는다 (보증금이 바뀌면 계약 전 확인부터 다시).
+    """
+
+    contract_date: date | None = Field(None, description="계약일")
+    balance_date: date | None = Field(None, description="잔금일")
+    end_date: date | None = Field(None, description="만기일")
+    monthly_rent: MoneyOrZero | None = Field(None, description="월세 (원, 전세면 0)")
+    loan: bool | None = Field(None, description="전세대출 유무")
+    loan_execution_date: date | None = Field(None, description="대출 실행일. null을 보내면 \"모름\"으로 바꾼다")
+    guarantor: Guarantor | None = Field(None, description="보증기관 (미가입은 none)")
+    brokered: bool | None = Field(None, description="중개 거래 여부")
+    renewal_right_used: bool | None = Field(None, description="계약갱신요구권을 써서 갱신한 계약인지")
+    co_tenant: bool | None = Field(None, description="공동 계약자 여부")
+    email: str | None = Field(None, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+                              description="알림 이메일. null을 보내면 지운다")
+    special_term_result: dict[str, SpecialTermResult] | None = Field(
+        None, description="바꿀 특약만 보낸다 (보내지 않은 특약의 결과는 그대로). 그 판정에서 안내한 특약만 받는다")
+
+    @model_validator(mode="after")
+    def no_null_for_required(self):
+        # 값이 꼭 있어야 하는 칸에 null을 보내면 막는다 (보내지 않은 칸은 그대로 둔다)
+        nullable = {"loan_execution_date", "email"}
+        for name in self.model_fields_set - nullable:
+            if getattr(self, name) is None:
+                raise ValueError(f"{name}은(는) 비워 둘 수 없습니다")
+        return self
+
+
 class TodoOut(BaseModel):
     """할 일 1개 (todos.yaml의 T1~T9). 목록은 sort_order 순서 (맨 위 규칙 → 고정 → 기한순)."""
 
