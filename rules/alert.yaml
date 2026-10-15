@@ -1,6 +1,6 @@
 # 추정 주택가격과 역전세 경보 (명세서 부속표 C, FR-003, FR-004, FR-036, FR-037)
-version: "1.1"   # 1.1: 실거래가 대표값·기간 PO 결정 (2026-10-12)
-as_of: "2026-10-12"
+version: "1.2"   # 1.1: 실거래가 대표값·기간 PO 결정 (2026-10-12), 1.2: 선순위 채권에 임차권·전세권 보증금 (2026-10-13)
+as_of: "2026-10-13"
 basis: "서비스 기획안 v4.35 '③ 역전세 경보', 요구사항 명세서 v0.5 부속표 C"
 
 estimated_price:
@@ -16,7 +16,7 @@ estimated_price:
 
 deposit_ratio:
   # 내 보증금 비율 = (보증금 + 선순위 채권) ÷ 추정 주택가격
-  numerator: [deposit, registry.mortgage_amount]
+  numerator: [deposit, registry.mortgage_amount, registry.lease_amount]   # 선순위 채권 = 근저당 + 임차권·전세권 보증금 (PO 결정 2026-10-13). 같은 보증금이 전세권·임차권으로 함께 있으면 한 번만
   denominator: estimated_price
   before_registry_upload:
     senior_debt: 0

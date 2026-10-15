@@ -14,6 +14,8 @@ from app.rules.loader import get_rules
 from app.schemas import ContractInput, ContractOut, TodoOut
 
 router = APIRouter(prefix="/api/contracts", tags=["계약"])
+# 화면에 그대로 보이는 안내. 만든 계약 id는 GET /api/checks/{id}의 contract_id로 찾는다
+ALREADY_USED_HINT = "할 일 탭에서 이 계약의 할 일을 볼 수 있습니다. 다른 집이면 계약 전 확인을 다시 하세요"
 
 # 판정 입력에서 그대로 가져오는 값 (fields.yaml 이름)
 _FROM_CHECK = ("housing_type", "deposit", "official_price", "exclusive_area")
@@ -112,8 +114,7 @@ def create_contract(inp: ContractInput, db: Session = Depends(get_db), rules: di
         raise api_error(409, "CHECK_BLOCKED", f"\"{level['label']}\" 판정이라 패키지를 시작할 수 없습니다",
                         "계약을 다시 검토하고 공공 상담 창구에 문의하세요")
     if check.contract_id is not None:
-        raise api_error(409, "CHECK_ALREADY_USED", "이미 계약을 만든 판정 결과입니다",
-                        f"만든 계약은 GET /api/contracts/{check.contract_id}로 볼 수 있습니다")
+        raise api_error(409, "CHECK_ALREADY_USED", "이미 계약을 만든 판정 결과입니다", ALREADY_USED_HINT)
     _check_special_terms(inp.special_term_result, check.linkages, rules)
 
     row = Contract(
@@ -130,8 +131,7 @@ def create_contract(inp: ContractInput, db: Session = Depends(get_db), rules: di
         first = db.query(Contract).filter_by(check_id=inp.check_id).one_or_none()
         if first is None:   # check_id가 아닌 다른 제약 위반이면 그대로 올린다
             raise
-        raise api_error(409, "CHECK_ALREADY_USED", "이미 계약을 만든 판정 결과입니다",
-                        f"만든 계약은 GET /api/contracts/{first.id}로 볼 수 있습니다") from None
+        raise api_error(409, "CHECK_ALREADY_USED", "이미 계약을 만든 판정 결과입니다", ALREADY_USED_HINT) from None
     return _to_out(row, db)
 
 

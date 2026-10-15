@@ -39,6 +39,8 @@ class RegistryInput(BaseModel):
     seizure: bool = False
     mortgage: bool = False
     mortgage_amount: MoneyOrZero = Field(0, description="근저당 채권최고액 합계 (원)")
+    lease_amount: MoneyOrZero = Field(
+        0, description="을구 임차권·전세권 보증금 합계 (원). 선순위 채권에 넣는다. 이미 돌려받았거나 내 계약이면 확인 화면에서 뺀다")
     trust: bool = False
 
     @model_validator(mode="after")
@@ -59,12 +61,21 @@ class RegistryMortgageOut(RegistryEntryOut):
     holder: str | None
 
 
+class RegistryLeaseOut(RegistryEntryOut):
+    amount: int | None = Field(description="임차보증금·전세금 (원). 읽지 못하면 null")
+    holder: str | None = Field(description="임차권자·전세권자")
+    same_deposit_as: str | None = Field(
+        description="다른 항목과 같은 보증금으로 보고 fields.lease_amount에서 뺐으면 남긴 항목의 순위번호. "
+                    "확인 화면은 이 항목을 뺀 상태로 보여 주고, 다른 보증금이면 사용자가 다시 넣는다")
+
+
 class RegistryFieldsOut(BaseModel):
     """RegistryInput과 같은 이름. 채권최고액을 못 읽으면 mortgage=true, mortgage_amount=0으로 나갈 수 있어 검사는 하지 않는다."""
 
     seizure: bool
     mortgage: bool
     mortgage_amount: int
+    lease_amount: int
     trust: bool
 
 
@@ -74,6 +85,8 @@ class RegistryParseResult(BaseModel):
     fields: RegistryFieldsOut
     owners: list[str]
     mortgages: list[RegistryMortgageOut]
+    leases: list[RegistryLeaseOut] = Field(description="을구 임차권·전세권. 보증금이 fields.lease_amount에 들어 있어 확인 화면에서 항목별로 뺄 수 있게 보여 준다 "
+                                                       "(same_deposit_as가 있는 항목은 같은 보증금이라 빠져 있음)")
     seizures: list[RegistryEntryOut]
     trusts: list[RegistryEntryOut]
     others: list[RegistryEntryOut]
@@ -167,6 +180,7 @@ class CheckResult(BaseModel):
     as_of: date | None = Field(description="실거래를 볼 때 쓴 기준일 (X-Virtual-Today가 있으면 그날). 단지를 주지 않았으면 null")
     trade_basis: TradeBasisOut | None = Field(description="단지를 주고 매매 실거래를 찾았을 때만")
     nearby_jeonse: NearbyJeonseOut | None = Field(description="단지를 주었을 때만")
+    contract_id: int | None = Field(description="이 판정으로 만든 계약 id (POST /api/contracts). 아직 없으면 null")
 
 
 class TodoRefOut(BaseModel):
@@ -309,3 +323,31 @@ class TradeCollectResult(BaseModel):
     received: dict[str, int] = Field(description="\"주택 유형.거래 종류\"별 받은 건수 (apartment.trade 등)")
     added: int = Field(description="새로 저장한 건수. 이미 있던 거래는 다시 저장하지 않는다")
     fetched_at: datetime = Field(description="받은 시각 (기준일 고정 검증용으로 거래와 함께 저장)")
+
+
+class DemoContractDay(BaseModel):
+    """시연 장면의 계약 날짜와 특약 결과. 그대로 POST /api/contracts에 넣는다."""
+
+    contract_date: date
+    balance_date: date
+    end_date: date
+    special_term_result: dict[str, SpecialTermResult]
+
+
+class DemoHouseOut(BaseModel):
+    """시연 집 1채 (docs/validation/demo_houses.yaml, 경보계산_정답표.md)."""
+
+    id: str
+    title: str
+    address: str = Field(description="단지 주소와 면적·층대. 어느 세대인지는 적지 않는다")
+    official_price_source: str = Field(description="공시가격 출처")
+    input: CheckInput = Field(description="계약 전 확인 입력값. 그대로 POST /api/checks로 보낸다")
+    registry: RegistryParseResult = Field(
+        description="시연 등기부를 읽은 결과 (POST /api/registry/parse와 같은 형식). 이름·주소는 가린 값이다")
+    virtual: list[str] = Field(description="실제 자료가 아닌 시연용 가상 값. 화면과 발표 자료에 \"시연용 가상\"으로 표시한다")
+    contract_day: DemoContractDay | None = Field(description="계약 당일 시연 장면. 없으면 계약 전 확인까지만 보여 주는 집")
+
+
+class DemoHousesResult(BaseModel):
+    as_of: date = Field(description="정답표 기대값의 실거래 기준일. 같은 결과를 보려면 실거래 저장본을 넣고 X-Virtual-Today에 이 날짜를 보낸다")
+    houses: list[DemoHouseOut]

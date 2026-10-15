@@ -6,7 +6,7 @@ from decimal import Decimal
 @dataclass(frozen=True)
 class DepositRatio:
     estimated_price: int
-    senior_debt: int          # 선순위 채권 (근저당 채권최고액 합계)
+    senior_debt: int          # 선순위 채권 (근저당 채권최고액 + 임차권·전세권 보증금)
     ratio: float
     is_minimum: bool          # 등기부를 올리기 전이라 선순위 채권을 0원으로 둔 최소 추정치
 
@@ -20,18 +20,19 @@ def estimate_price(official_price: int, trade_price: int | None, alert_rules: di
     return price
 
 
-def deposit_ratio(deposit: int, estimated_price: int, mortgage_amount: int | None, alert_rules: dict) -> DepositRatio:
+def deposit_ratio(deposit: int, estimated_price: int, senior_debt: int | None, alert_rules: dict) -> DepositRatio:
     """내 보증금 비율 = (보증금 + 선순위 채권) ÷ 추정 주택가격.
 
-    mortgage_amount가 None이면 등기부를 아직 올리지 않은 것으로 보고 규칙 파일의 기본값(0원)을 쓴다.
+    senior_debt(근저당 채권최고액 + 임차권·전세권 보증금)가 None이면 등기부를 아직 올리지 않은 것으로 보고
+    규칙 파일의 기본값(0원)을 쓴다.
     """
     if estimated_price <= 0:
         raise ValueError("추정 주택가격은 0보다 커야 합니다")
-    is_minimum = mortgage_amount is None
+    is_minimum = senior_debt is None
     if is_minimum:
         senior = alert_rules["deposit_ratio"]["before_registry_upload"]["senior_debt"]
     else:
-        senior = mortgage_amount
+        senior = senior_debt
     return DepositRatio(
         estimated_price=estimated_price,
         senior_debt=senior,

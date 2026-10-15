@@ -355,6 +355,27 @@
         }
       }
     },
+    "/api/demo-houses": {
+      "get": {
+        "tags": [
+          "시연"
+        ],
+        "summary": "Demo Houses",
+        "operationId": "demo_houses_api_demo_houses_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoHousesResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/trades": {
       "post": {
         "tags": [
@@ -734,6 +755,18 @@
               }
             ],
             "description": "단지를 주었을 때만"
+          },
+          "contract_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Id",
+            "description": "이 판정으로 만든 계약 id (POST /api/contracts). 아직 없으면 null"
           }
         },
         "type": "object",
@@ -753,7 +786,8 @@
           "rules_version",
           "as_of",
           "trade_basis",
-          "nearby_jeonse"
+          "nearby_jeonse",
+          "contract_id"
         ],
         "title": "CheckResult"
       },
@@ -1102,6 +1136,130 @@
         ],
         "title": "ContractOut"
       },
+      "DemoContractDay": {
+        "properties": {
+          "contract_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Contract Date"
+          },
+          "balance_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Balance Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "special_term_result": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "inserted",
+                "rejected"
+              ]
+            },
+            "type": "object",
+            "title": "Special Term Result"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contract_date",
+          "balance_date",
+          "end_date",
+          "special_term_result"
+        ],
+        "title": "DemoContractDay",
+        "description": "시연 장면의 계약 날짜와 특약 결과. 그대로 POST /api/contracts에 넣는다."
+      },
+      "DemoHouseOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "address": {
+            "type": "string",
+            "title": "Address",
+            "description": "단지 주소와 면적·층대. 어느 세대인지는 적지 않는다"
+          },
+          "official_price_source": {
+            "type": "string",
+            "title": "Official Price Source",
+            "description": "공시가격 출처"
+          },
+          "input": {
+            "$ref": "#/components/schemas/CheckInput",
+            "description": "계약 전 확인 입력값. 그대로 POST /api/checks로 보낸다"
+          },
+          "registry": {
+            "$ref": "#/components/schemas/RegistryParseResult",
+            "description": "시연 등기부를 읽은 결과 (POST /api/registry/parse와 같은 형식). 이름·주소는 가린 값이다"
+          },
+          "virtual": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Virtual",
+            "description": "실제 자료가 아닌 시연용 가상 값. 화면과 발표 자료에 \"시연용 가상\"으로 표시한다"
+          },
+          "contract_day": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DemoContractDay"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "계약 당일 시연 장면. 없으면 계약 전 확인까지만 보여 주는 집"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "address",
+          "official_price_source",
+          "input",
+          "registry",
+          "virtual",
+          "contract_day"
+        ],
+        "title": "DemoHouseOut",
+        "description": "시연 집 1채 (docs/validation/demo_houses.yaml, 경보계산_정답표.md)."
+      },
+      "DemoHousesResult": {
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "format": "date",
+            "title": "As Of",
+            "description": "정답표 기대값의 실거래 기준일. 같은 결과를 보려면 실거래 저장본을 넣고 X-Virtual-Today에 이 날짜를 보낸다"
+          },
+          "houses": {
+            "items": {
+              "$ref": "#/components/schemas/DemoHouseOut"
+            },
+            "type": "array",
+            "title": "Houses"
+          }
+        },
+        "type": "object",
+        "required": [
+          "as_of",
+          "houses"
+        ],
+        "title": "DemoHousesResult"
+      },
       "ErrorDetail": {
         "properties": {
           "code": {
@@ -1321,6 +1479,10 @@
             "type": "integer",
             "title": "Mortgage Amount"
           },
+          "lease_amount": {
+            "type": "integer",
+            "title": "Lease Amount"
+          },
           "trust": {
             "type": "boolean",
             "title": "Trust"
@@ -1331,6 +1493,7 @@
           "seizure",
           "mortgage",
           "mortgage_amount",
+          "lease_amount",
           "trust"
         ],
         "title": "RegistryFieldsOut",
@@ -1356,6 +1519,14 @@
             "description": "근저당 채권최고액 합계 (원)",
             "default": 0
           },
+          "lease_amount": {
+            "type": "integer",
+            "maximum": 1000000000000.0,
+            "minimum": 0.0,
+            "title": "Lease Amount",
+            "description": "을구 임차권·전세권 보증금 합계 (원). 선순위 채권에 넣는다. 이미 돌려받았거나 내 계약이면 확인 화면에서 뺀다",
+            "default": 0
+          },
           "trust": {
             "type": "boolean",
             "title": "Trust",
@@ -1365,6 +1536,68 @@
         "type": "object",
         "title": "RegistryInput",
         "description": "등기부 요약(\"부동산정보요약\" 또는 증명서의 \"주요 등기사항 요약\") 추출 결과 (사용자 확인값, FR-005)."
+      },
+      "RegistryLeaseOut": {
+        "properties": {
+          "rank": {
+            "type": "string",
+            "title": "Rank"
+          },
+          "purpose": {
+            "type": "string",
+            "title": "Purpose"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount",
+            "description": "임차보증금·전세금 (원). 읽지 못하면 null"
+          },
+          "holder": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holder",
+            "description": "임차권자·전세권자"
+          },
+          "same_deposit_as": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Same Deposit As",
+            "description": "다른 항목과 같은 보증금으로 보고 fields.lease_amount에서 뺐으면 남긴 항목의 순위번호. 확인 화면은 이 항목을 뺀 상태로 보여 주고, 다른 보증금이면 사용자가 다시 넣는다"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rank",
+          "purpose",
+          "text",
+          "amount",
+          "holder",
+          "same_deposit_as"
+        ],
+        "title": "RegistryLeaseOut"
       },
       "RegistryMortgageOut": {
         "properties": {
@@ -1432,6 +1665,14 @@
             "type": "array",
             "title": "Mortgages"
           },
+          "leases": {
+            "items": {
+              "$ref": "#/components/schemas/RegistryLeaseOut"
+            },
+            "type": "array",
+            "title": "Leases",
+            "description": "을구 임차권·전세권. 보증금이 fields.lease_amount에 들어 있어 확인 화면에서 항목별로 뺄 수 있게 보여 준다 (same_deposit_as가 있는 항목은 같은 보증금이라 빠져 있음)"
+          },
           "seizures": {
             "items": {
               "$ref": "#/components/schemas/RegistryEntryOut"
@@ -1466,6 +1707,7 @@
           "fields",
           "owners",
           "mortgages",
+          "leases",
           "seizures",
           "trusts",
           "others",
