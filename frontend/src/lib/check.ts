@@ -108,6 +108,12 @@ export type CheckView = {
   checkedAt: string;
   /** 확인 화면에서 본 등기부 원문 줄 (상세 화면 "쉬운 말로"에 보여 줌) */
   sourceLines?: string[];
+  /** 추정 집값 비교에 본 매매 실거래 (서버가 단지로 찾았을 때만) */
+  tradeBasis?: ApiCheckResult['trade_basis'];
+  /** 주변 전세 시세 (FR-004, 서버가 단지로 찾았을 때만) */
+  nearbyJeonse?: ApiCheckResult['nearby_jeonse'];
+  /** 실거래를 볼 때 쓴 기준일 "2026-10-15" */
+  marketAsOf?: string | null;
   /** 시연 집이면 계약 당일 시연 장면 날짜 (계약 날짜 입력 화면의 처음 값) */
   demoDates?: { contract_date: string; balance_date: string; end_date: string };
 };
@@ -358,7 +364,26 @@ export function checkViewFromApi(
     input,
     tradePrice,
     checkedAt: today,
+    tradeBasis: r.trade_basis,
+    nearbyJeonse: r.nearby_jeonse,
+    marketAsOf: r.as_of,
   };
+}
+
+/** 역전세 경보 단계 (rules/alert.yaml levels). 정상이면 null */
+export type AlertLevel = 'caution' | 'warning' | 'danger';
+
+/**
+ * 판정 결과 → 경보 단계. 서버 engine/alert.py와 같은 기준:
+ * 비율 100% 위험, 90% 경고, 80% 이상이거나 주변 전세 중앙값이 내 보증금보다 낮으면 주의.
+ * 계약이 있으면 서버가 계산한 계약의 alert_level을 쓴다.
+ */
+export function alertLevelOf(view: CheckView): AlertLevel | null {
+  const ratio = view.deposit_ratio;
+  if (ratio !== null && ratio >= 1) return 'danger';
+  if (ratio !== null && ratio >= 0.9) return 'warning';
+  if ((ratio !== null && ratio >= 0.8) || view.nearbyJeonse?.below_deposit === true) return 'caution';
+  return null;
 }
 
 export type DetailRow = { label: string; value: string; level: VerdictLevel };

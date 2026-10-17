@@ -5,8 +5,11 @@ import { AppText } from '@/components/AppText';
 import { Card, DashedBox, Disclaimer, Screen, SectionLabel } from '@/components/layout';
 import { Colors, Font, Radius } from '@/constants/theme';
 import { alertReport } from '@/data/demo';
-import { estimateFromOfficial, useLatestCheck, type CheckView } from '@/lib/check';
+import { alertLevelOf, estimateFromOfficial, useLatestCheck, type AlertLevel, type CheckView } from '@/lib/check';
+import { useLatestContract } from '@/lib/contract';
 import { formatWon } from '@/lib/format';
+
+type NearbyRow = { value: string; note: string; below: boolean | null };
 
 type AlertReport = {
   stage: string;
@@ -19,16 +22,22 @@ type AlertReport = {
   history: { label: string; ratio: number }[];
   basis: { label: string; note?: string; value: string; struck: boolean }[];
   estimated: string;
+  /** 주변 전세 시세 (서버가 단지로 찾았을 때만) */
+  nearby: NearbyRow | null;
   disclaimer: string;
 };
 
-/** alert.yaml 단계: 80% 주의 / 90% 경고 / 100% 위험 */
-function stageOf(ratio: number) {
-  if (ratio >= 100) return { stage: '위험 단계', stageColor: Colors.danger, stageBg: Colors.dangerBg };
-  if (ratio >= 90) return { stage: '경고 단계', stageColor: '#7A3A05', stageBg: '#F9E1CC' };
-  if (ratio >= 80) return { stage: '주의 단계', stageColor: Colors.caution, stageBg: Colors.cautionBg };
+/** alert.yaml 단계: 주의 / 경고 / 위험 (정상은 null) */
+function stageOf(level: AlertLevel | null) {
+  if (level === 'danger') return { stage: '위험 단계', stageColor: Colors.danger, stageBg: Colors.dangerBg };
+  if (level === 'warning') return { stage: '경고 단계', stageColor: '#7A3A05', stageBg: '#F9E1CC' };
+  if (level === 'caution') return { stage: '주의 단계', stageColor: Colors.caution, stageBg: Colors.cautionBg };
   return { stage: '정상', stageColor: Colors.ok, stageBg: Colors.bg };
 }
+
+/** 비율만으로 정하는 단계 (시연 리포트용) */
+const levelFromRatio = (ratio: number): AlertLevel | null =>
+  ratio >= 100 ? 'danger' : ratio >= 90 ? 'warning' : ratio >= 80 ? 'caution' : null;
 
 const reasonOf = (ratio: number) =>
   ratio >= 100
@@ -39,21 +48,49 @@ const reasonOf = (ratio: number) =>
         ? '집값이 조금만 내려가도 경고 구간에 들어갈 수 있어요. 계약 중에도 다시 계산해 알려 드려요.'
         : '보증금과 앞선 빚이 추정 집값보다 충분히 낮아요.';
 
-/** 마지막 판정 결과(계약 전 확인) → 경보 리포트. 계약 중 재계산 API가 생기기 전이라 변화 기록은 판정 1건뿐이다 */
-function reportFromCheck(view: CheckView): AlertReport | null {
+const nearbyReason = '주변 전세 시세가 내 보증금보다 낮아요. 만기 때 새 세입자를 같은 보증금으로 구하기 어려울 수 있어요.';
+
+/** "2026-09-30" → "2026.09.30" */
+const dotDate = (s: string) => s.replaceAll('-', '.');
+
+function nearbyRow(view: CheckView): NearbyRow | null {
+  const n = view.nearbyJeonse;
+  if (!n) return null;
+  if (n.low_sample || n.median === null) {
+    return { value: '표본 부족', note: `같은 단지·비슷한 면적 전세 ${n.sample_count}건 (3건 미만)`, below: null };
+  }
+  return {
+    value: `${formatWon(n.median)} 원`,
+    note: `최근 12개월 전세 ${n.sample_count}건 중앙값 · 내 보증금 ${formatWon(view.input.deposit)} 원${n.below_deposit ? '보다 낮음' : ' 이상'}`,
+    below: n.below_deposit,
+  };
+}
+
+/**
+ * 마지막 판정 결과(계약 전 확인) → 경보 리포트. 계약 중 재계산 API가 생기기 전이라 변화 기록은 판정 1건뿐이다.
+ * level = 이 판정으로 만든 계약이 있으면 서버가 정한 계약의 경보 단계, 없으면 판정 값으로 같은 기준 계산
+ */
+function reportFromCheck(view: CheckView, level: AlertLevel | null): AlertReport | null {
   const { input } = view;
   if (view.deposit_ratio === null || view.estimated_price === null || !input.official_price) return null;
   const ratio = Math.round(view.deposit_ratio * 100);
   const senior = (input.registry?.mortgage_amount ?? 0) + (input.registry?.lease_amount ?? 0);
   const fromOfficial = estimateFromOfficial(input.official_price);
   const tradeUsed = view.tradePrice !== null && view.tradePrice < fromOfficial;
+  const trade = view.tradeBasis;
   const [y, m] = view.checkedAt.split('.');
+  const reasons = [
+    // 주변 전세만으로 주의가 되면 비율 문장 대신 주변 전세 문장을 앞에
+    ratio >= 80 || !view.nearbyJeonse?.below_deposit ? reasonOf(ratio) : null,
+    view.nearbyJeonse?.below_deposit ? nearbyReason : null,
+    view.ratio_is_minimum ? '등기부를 올리기 전이라 앞선 빚을 0원으로 둔 최소 추정치예요.' : null,
+  ];
   return {
-    ...stageOf(ratio),
+    ...stageOf(level),
     recalculatedAt: `${view.checkedAt} 계약 전 확인`,
     ratio,
     previous: null,
-    reason: reasonOf(ratio) + (view.ratio_is_minimum ? ' 등기부를 올리기 전이라 앞선 빚을 0원으로 둔 최소 추정치예요.' : ''),
+    reason: reasons.filter(Boolean).join(' '),
     history: [{ label: `${(y ?? '').slice(2)}.${m ?? ''}`, ratio }],
     basis: [
       {
@@ -64,25 +101,39 @@ function reportFromCheck(view: CheckView): AlertReport | null {
       },
       { label: '공시가격 × 140%', value: formatWon(fromOfficial), struck: tradeUsed },
       ...(view.tradePrice !== null
-        ? [{ label: '실거래가 · 전용 ±10%', value: formatWon(view.tradePrice), struck: !tradeUsed }]
-        : []),
+        ? [
+            {
+              label: '실거래가 · 전용 ±10%',
+              note: trade ? `${dotDate(trade.deal_date)} 거래 · ${trade.exclusive_area}㎡ · 표본 ${trade.sample_count}건` : undefined,
+              value: formatWon(view.tradePrice),
+              struck: !tradeUsed,
+            },
+          ]
+        : view.marketAsOf
+          ? [{ label: '실거래가 · 전용 ±10%', note: '최근 12개월 같은 단지 매매 없음', value: '없음', struck: true }]
+          : []),
     ],
     estimated: formatWon(view.estimated_price),
-    disclaimer: '정보 제공이며 보증하지 않습니다.',
+    nearby: nearbyRow(view),
+    disclaimer: `${view.marketAsOf ? `실거래 기준일 ${dotDate(view.marketAsOf)} · ` : ''}정보 제공이며 보증하지 않습니다.`,
   };
 }
 
 const demoReport: AlertReport = {
   ...alertReport,
-  ...stageOf(alertReport.ratio),
+  ...stageOf(levelFromRatio(alertReport.ratio)),
   reason: `같은 단지 실거래가가 추정 집값보다 낮게 신고돼 다시 계산했어요. ${reasonOf(alertReport.ratio)}`,
+  nearby: null,
   disclaimer: '시연용 가상 데이터 · 정보 제공이며 보증하지 않습니다.',
 };
 
 /** UI-09 역전세 경보 리포트: 마지막 판정 결과로 그리고, 없으면 시연 리포트 */
 export default function AlertScreen() {
   const view = useLatestCheck();
-  const fromCheck = view ? reportFromCheck(view) : null;
+  const contract = useLatestContract();
+  // 이 판정으로 만든 계약이 있으면 서버가 정한 경보 단계를 쓴다
+  const level = view ? (contract && contract.check_id === view.id ? contract.alert_level : alertLevelOf(view)) : null;
+  const fromCheck = view ? reportFromCheck(view, level) : null;
   if (view && !fromCheck) return <NoRatio />;
   const r = fromCheck ?? demoReport;
   return (
@@ -160,6 +211,27 @@ export default function AlertScreen() {
           </AppText>
         </View>
       </View>
+
+      {r.nearby ? (
+        <>
+          <SectionLabel>주변 전세 시세</SectionLabel>
+          <View style={styles.table}>
+            <View style={styles.tableRow}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <AppText size={13} color={Colors.textSub}>
+                  같은 단지 · 전용 ±10%
+                </AppText>
+                <AppText size={11} color={Colors.textSub}>
+                  {r.nearby.note}
+                </AppText>
+              </View>
+              <AppText size={13} weight="semibold" color={r.nearby.below ? Colors.caution : Colors.text}>
+                {r.nearby.value}
+              </AppText>
+            </View>
+          </View>
+        </>
+      ) : null}
 
       <DashedBox style={{ marginTop: 14, paddingVertical: 14, borderRadius: Radius.sm }}>
         <AppText size={13} weight="semibold">

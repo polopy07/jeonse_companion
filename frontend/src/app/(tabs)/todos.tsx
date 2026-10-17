@@ -47,6 +47,12 @@ export default function TodosScreen() {
       <AppText size={13} color={Colors.textSub} style={{ marginTop: 4 }}>
         완료 {done} · 남은 일 {items.length - done} · 날짜를 바꾸면 뒤 기한이 같이 움직여요
       </AppText>
+      {contract ? (
+        // FR-015: 보증금 6천만 원 이하·월세 30만 원 이하면 신고 비대상이라 확정일자를 챙긴다
+        <AppText size={12} color={Colors.textSub} style={{ marginTop: 2 }}>
+          {contract.report_required ? '임대차 신고 대상 계약이에요' : '임대차 신고 비대상이라 확정일자를 챙겨 드려요'}
+        </AppText>
+      ) : null}
 
       <View style={styles.list}>
         <View style={styles.rail} />
