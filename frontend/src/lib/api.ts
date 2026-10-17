@@ -27,23 +27,59 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init: RequestInit): Promise<T> {
-  if (!API_URL) throw new ApiError('API_URL_MISSING', '서버 주소가 설정되지 않았어요');
+type RawResponse = { ok: boolean; status: number; body: unknown };
+
+/** fetch로 보낸다 (네트워크 실패·시간 초과면 throw) */
+async function sendFetch(url: string, init: RequestInit): Promise<RawResponse> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}`, { ...init, signal: controller.signal });
-  } catch {
+    const res = await fetch(url, { ...init, signal: controller.signal });
+    return { ok: res.ok, status: res.status, body: await res.json().catch(() => null) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * XMLHttpRequest로 FormData를 보낸다 (휴대폰 파일 업로드).
+ * Expo의 fetch는 React Native FormData의 { uri, name, type } 파일을 받지 않고, expo-file-system으로 읽으면
+ * Expo Go에서 문서 선택기가 복사한 파일에 읽기 권한이 없다. XMLHttpRequest는 uri를 네이티브에서 직접 읽어 보낸다
+ */
+function sendXhr(url: string, method: string, form: FormData): Promise<RawResponse> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, url);
+    xhr.timeout = TIMEOUT_MS;
+    xhr.onload = () => {
+      let body: unknown = null;
+      try {
+        body = JSON.parse(xhr.responseText);
+      } catch {}
+      resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, body });
+    };
+    xhr.onerror = () => reject(new Error('XMLHttpRequest 네트워크 오류'));
+    xhr.ontimeout = () => reject(new Error('XMLHttpRequest 시간 초과'));
+    xhr.send(form);
+  });
+}
+
+async function request<T>(path: string, init: RequestInit, { xhr = false }: { xhr?: boolean } = {}): Promise<T> {
+  if (!API_URL) throw new ApiError('API_URL_MISSING', '서버 주소가 설정되지 않았어요');
+  const url = `${API_URL}${path}`;
+  let res: RawResponse;
+  try {
+    res = xhr ? await sendXhr(url, init.method ?? 'GET', init.body as FormData) : await sendFetch(url, init);
+  } catch (e) {
+    // 연결 실패의 실제 원인 (Expo 터미널에 찍힌다)
+    if (__DEV__) console.warn(`[api] ${init.method ?? 'GET'} ${path} 실패:`, e);
     throw new ApiError(
       'NETWORK_ERROR',
       '서버에 연결하지 못했어요',
       'PC와 휴대폰이 같은 와이파이인지, 서버를 --host 0.0.0.0으로 띄웠는지 확인하세요',
     );
-  } finally {
-    clearTimeout(timer);
   }
-  const body = await res.json().catch(() => null);
+  const body = res.body as { detail?: any } | null;
   if (!res.ok) {
     const detail = body?.detail;
     throw new ApiError(
@@ -83,10 +119,14 @@ export async function parseRegistry(file: { uri: string; name: string; mimeType?
     const blob = await (await fetch(file.uri)).blob();
     form.append('file', blob, file.name);
   } else {
-    // React Native의 FormData는 { uri, name, type }으로 파일을 보낸다
+    // React Native의 FormData는 { uri, name, type }으로 파일을 보낸다 (fetch가 아니라 XMLHttpRequest로, sendXhr 참고)
     form.append('file', { uri: file.uri, name: file.name, type: file.mimeType ?? 'application/pdf' } as unknown as Blob);
   }
-  return request<ApiRegistryParseResult>('/api/registry/parse', { method: 'POST', body: form });
+  return request<ApiRegistryParseResult>(
+    '/api/registry/parse',
+    { method: 'POST', body: form },
+    { xhr: Platform.OS !== 'web' },
+  );
 }
 
 // ---- POST /api/checks ----
