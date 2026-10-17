@@ -5,10 +5,86 @@ import { AppText } from '@/components/AppText';
 import { Card, DashedBox, Disclaimer, Screen, SectionLabel } from '@/components/layout';
 import { Colors, Font, Radius } from '@/constants/theme';
 import { alertReport } from '@/data/demo';
+import { estimateFromOfficial, useLatestCheck, type CheckView } from '@/lib/check';
+import { formatWon } from '@/lib/format';
 
-/** UI-09 역전세 경보 리포트 (정적) */
+type AlertReport = {
+  stage: string;
+  stageColor: string;
+  stageBg: string;
+  recalculatedAt: string;
+  ratio: number;
+  previous: number | null;
+  reason: string;
+  history: { label: string; ratio: number }[];
+  basis: { label: string; note?: string; value: string; struck: boolean }[];
+  estimated: string;
+  disclaimer: string;
+};
+
+/** alert.yaml 단계: 80% 주의 / 90% 경고 / 100% 위험 */
+function stageOf(ratio: number) {
+  if (ratio >= 100) return { stage: '위험 단계', stageColor: Colors.danger, stageBg: Colors.dangerBg };
+  if (ratio >= 90) return { stage: '경고 단계', stageColor: '#7A3A05', stageBg: '#F9E1CC' };
+  if (ratio >= 80) return { stage: '주의 단계', stageColor: Colors.caution, stageBg: Colors.cautionBg };
+  return { stage: '정상', stageColor: Colors.ok, stageBg: Colors.bg };
+}
+
+const reasonOf = (ratio: number) =>
+  ratio >= 100
+    ? '보증금과 앞선 빚을 합친 금액이 추정 집값보다 많아요. 집이 팔려도 보증금을 다 돌려받기 어려운 구간이에요.'
+    : ratio >= 90
+      ? '90%를 넘으면 반환보증 신규 가입이 어려운 구간이에요.'
+      : ratio >= 80
+        ? '집값이 조금만 내려가도 경고 구간에 들어갈 수 있어요. 계약 중에도 다시 계산해 알려 드려요.'
+        : '보증금과 앞선 빚이 추정 집값보다 충분히 낮아요.';
+
+/** 마지막 판정 결과(계약 전 확인) → 경보 리포트. 계약 중 재계산 API가 생기기 전이라 변화 기록은 판정 1건뿐이다 */
+function reportFromCheck(view: CheckView): AlertReport | null {
+  const { input } = view;
+  if (view.deposit_ratio === null || view.estimated_price === null || !input.official_price) return null;
+  const ratio = Math.round(view.deposit_ratio * 100);
+  const senior = (input.registry?.mortgage_amount ?? 0) + (input.registry?.lease_amount ?? 0);
+  const fromOfficial = estimateFromOfficial(input.official_price);
+  const tradeUsed = view.tradePrice !== null && view.tradePrice < fromOfficial;
+  const [y, m] = view.checkedAt.split('.');
+  return {
+    ...stageOf(ratio),
+    recalculatedAt: `${view.checkedAt} 계약 전 확인`,
+    ratio,
+    previous: null,
+    reason: reasonOf(ratio) + (view.ratio_is_minimum ? ' 등기부를 올리기 전이라 앞선 빚을 0원으로 둔 최소 추정치예요.' : ''),
+    history: [{ label: `${(y ?? '').slice(2)}.${m ?? ''}`, ratio }],
+    basis: [
+      {
+        label: senior ? '보증금 + 앞선 빚' : '보증금',
+        note: senior ? `근저당·임차권 등 ${formatWon(senior)}` : undefined,
+        value: formatWon(input.deposit + senior),
+        struck: false,
+      },
+      { label: '공시가격 × 140%', value: formatWon(fromOfficial), struck: tradeUsed },
+      ...(view.tradePrice !== null
+        ? [{ label: '실거래가 · 전용 ±10%', value: formatWon(view.tradePrice), struck: !tradeUsed }]
+        : []),
+    ],
+    estimated: formatWon(view.estimated_price),
+    disclaimer: '정보 제공이며 보증하지 않습니다.',
+  };
+}
+
+const demoReport: AlertReport = {
+  ...alertReport,
+  ...stageOf(alertReport.ratio),
+  reason: `같은 단지 실거래가가 추정 집값보다 낮게 신고돼 다시 계산했어요. ${reasonOf(alertReport.ratio)}`,
+  disclaimer: '시연용 가상 데이터 · 정보 제공이며 보증하지 않습니다.',
+};
+
+/** UI-09 역전세 경보 리포트: 마지막 판정 결과로 그리고, 없으면 시연 리포트 */
 export default function AlertScreen() {
-  const r = alertReport;
+  const view = useLatestCheck();
+  const fromCheck = view ? reportFromCheck(view) : null;
+  if (view && !fromCheck) return <NoRatio />;
+  const r = fromCheck ?? demoReport;
   return (
     <Screen inTabs>
       <AppText size={22} weight="bold" style={{ marginTop: 20, marginBottom: 12 }}>
@@ -17,8 +93,8 @@ export default function AlertScreen() {
 
       <Card padding={18}>
         <View style={styles.rowBetween}>
-          <View style={styles.stage}>
-            <AppText size={12} weight="bold" color="#7A3A05">
+          <View style={[styles.stage, { backgroundColor: r.stageBg }]}>
+            <AppText size={12} weight="bold" color={r.stageColor}>
               {r.stage}
             </AppText>
           </View>
@@ -27,12 +103,14 @@ export default function AlertScreen() {
           </AppText>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: 10 }}>
-          <AppText size={34} weight="bold" color="#9A4A07">
+          <AppText size={34} weight="bold" color={r.stageColor}>
             {r.ratio}%
           </AppText>
-          <AppText size={14} color={Colors.textSub}>
-            지난번 {r.previous}%에서 올랐어요
-          </AppText>
+          {r.previous !== null ? (
+            <AppText size={14} color={Colors.textSub}>
+              지난번 {r.previous}%에서 {r.ratio >= r.previous ? '올랐어요' : '내렸어요'}
+            </AppText>
+          ) : null}
         </View>
         <AppText size={14} leading={1.6} style={{ marginTop: 6 }}>
           {r.reason}
@@ -43,7 +121,13 @@ export default function AlertScreen() {
         <AppText size={13} weight="semibold" style={{ paddingHorizontal: 4 }}>
           내 보증금 비율 변화
         </AppText>
-        <RatioChart history={r.history} />
+        {r.history.length > 1 ? (
+          <RatioChart history={r.history} />
+        ) : (
+          <AppText size={13} color={Colors.textSub} leading={1.6} style={{ marginTop: 8, paddingHorizontal: 4 }}>
+            지금은 계약 전 확인 1번의 값이에요. 계약 중 공시가격·실거래가가 바뀌면 다시 계산해 여기에 쌓여요.
+          </AppText>
+        )}
       </Card>
 
       <SectionLabel>계산 근거</SectionLabel>
@@ -88,7 +172,29 @@ export default function AlertScreen() {
       </DashedBox>
 
       <View style={{ flex: 1 }} />
-      <Disclaimer>시연용 가상 데이터 · 정보 제공이며 보증하지 않습니다.</Disclaimer>
+      <Disclaimer>{r.disclaimer}</Disclaimer>
+    </Screen>
+  );
+}
+
+/** 공시가격이 없거나 다가구·단독이라 비율을 계산하지 못한 판정 */
+function NoRatio() {
+  return (
+    <Screen inTabs>
+      <AppText size={22} weight="bold" style={{ marginTop: 20, marginBottom: 12 }}>
+        역전세 경보
+      </AppText>
+      <DashedBox>
+        <AppText size={14} weight="semibold">
+          내 보증금 비율을 계산하지 못했어요
+        </AppText>
+        <AppText size={13} color={Colors.textSub} leading={1.6} style={{ marginTop: 6 }}>
+          다가구·단독주택은 경보 대상이 아니고, 공시가격을 넣지 않으면 추정 집값을 낼 수 없어요. 계약 전 확인에서 공시가격을
+          넣으면 여기에 보여 드려요.
+        </AppText>
+      </DashedBox>
+      <View style={{ flex: 1 }} />
+      <Disclaimer>정보 제공이며 보증하지 않습니다.</Disclaimer>
     </Screen>
   );
 }
@@ -159,7 +265,7 @@ function RatioChart({ history }: { history: { label: string; ratio: number }[] }
 
 const styles = StyleSheet.create({
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  stage: { paddingVertical: 5, paddingHorizontal: 10, borderRadius: 999, backgroundColor: '#F9E1CC' },
+  stage: { paddingVertical: 5, paddingHorizontal: 10, borderRadius: 999 },
   table: {
     backgroundColor: Colors.card,
     borderRadius: Radius.sm,
