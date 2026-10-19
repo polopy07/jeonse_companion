@@ -100,6 +100,8 @@ export default function HomeScreen() {
     : demoHome;
   const ratio = h.ratio ?? 0;
   const band = ratioBand(ratio);
+  // 비율이 80% 미만이어도 주변 전세가 내 보증금보다 낮으면 경보는 주의 (alert.yaml)
+  const lowNearby = ratio < 0.8 && sameCheck?.nearbyJeonse?.below_deposit === true;
   const filled = recordDocs.filter((d) => d.filled).length;
   const currentStage = h.stage;
 
@@ -201,7 +203,7 @@ export default function HomeScreen() {
               <View style={[styles.barFill, { width: `${Math.min(ratio, 1) * 100}%`, backgroundColor: band.color }]} />
             </View>
             <AppText size={12} color={Colors.textSub} style={{ marginTop: 8 }}>
-              {h.ratio === null ? '계산한 판정 없음' : `${band.label} · ${h.ratioAt}`}
+              {h.ratio === null ? '계산한 판정 없음' : `${band.label}${lowNearby ? ' · 주변 전세 낮음' : ''} · ${h.ratioAt}`}
             </AppText>
           </Card>
         </Pressable>
