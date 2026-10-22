@@ -132,6 +132,27 @@ class Payment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class Notification(Base):
+    """보낸 알림 기록 (FR-040, FR-041). 같은 할 일·종류·알림일은 한 번만 만든다 (알림 실행을 여러 번 불러도).
+
+    channel: app(앱 안 기한표) / email. status: sent / pending(이메일 발송 전) / failed / skipped(이메일 주소 없음)
+    """
+
+    __tablename__ = "notifications"
+    __table_args__ = (UniqueConstraint("contract_id", "todo_rule_id", "kind", "notify_date", "channel",
+                                       name="uq_notifications_once"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    contract_id: Mapped[int] = mapped_column(ForeignKey("contracts.id"), index=True)
+    todo_rule_id: Mapped[str] = mapped_column(String(32))
+    kind: Mapped[str] = mapped_column(String(16))          # start / due_before / remind
+    notify_date: Mapped[date] = mapped_column(Date)
+    channel: Mapped[str] = mapped_column(String(8))         # app / email
+    status: Mapped[str] = mapped_column(String(16))
+    title: Mapped[str] = mapped_column(String(200))         # 보낸 문구 (할 일 제목 + 남은 날)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Alert(Base):
     """역전세 경보 계산 이력 (FR-036, FR-037)."""
 

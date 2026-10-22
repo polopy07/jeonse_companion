@@ -126,7 +126,7 @@
 ### 1.7 가상 날짜 (FR-044, 시연용)
 
 - 요청 헤더 `X-Virtual-Today: 2027-08-01`을 보내면 서버는 그날을 "오늘"로 보고 할 일·알림·경보를 계산한다
-- 지금 쓰는 곳: `POST /api/checks`의 실거래 기준일(`as_of`). 할 일·알림·경보는 3주차 (#50)
+- 쓰는 곳: `POST /api/checks`의 실거래 기준일(`as_of`), 계약 응답(`POST`·`GET`·`PATCH /api/contracts`, `/cancel`)의 `today`와 할 일 `state`·`days_left`, 알림 실행(`POST /api/admin/notifications/run`, 본문 `date`가 없을 때). 계약 중 경보 재계산은 4주차 (#53·#54)
 - 헤더가 없으면 실제 오늘 날짜
 
 ### 1.8 로그인·테스트 결제 (2026-10-17 확정, 백엔드 2026-10-22)
@@ -158,8 +158,9 @@ A = 개발 A(백엔드·규칙), B = 개발 B(화면). 주차는 노션 "할 일
 | `POST /api/admin/trades` | 실거래가 수집 (관리자): 공공데이터포털 API로 한 시군구(`lawd_cd`)의 아파트·연립다세대 매매·전월세를 `end_month`부터 거꾸로 `months`개월(기본 12) 받아 받은 시각(`fetched_at`)과 함께 저장. 같은 거래는 한 번만 저장. `X-Admin-Token` 헤더 = 서버 `ADMIN_TOKEN`이어야 함(없으면 401 `ADMIN_TOKEN_INVALID`, 서버에 `ADMIN_TOKEN`이 없으면 403 `ADMIN_DISABLED`). 인증키가 없으면 503 `SERVICE_KEY_MISSING`, 포털 오류는 502 `TRADE_API_ERROR`, 동시 수집이 겹치면 409 `TRADES_COLLECT_CONFLICT` | FR-046 | |
 | `POST /api/registry/parse` | 등기부 PDF → 요약 추출 결과 (저장 안 함). `fields`를 확인·수정해 `POST /api/checks`의 `registry`로 보낸다. 을구 임차권·전세권 보증금은 `fields.lease_amount`(선순위 채권)에 들어 있고, 이미 돌려받았거나 내 계약이면 확인 화면에서 `leases` 항목별로 빼서 보낸다. 같은 보증금이 전세권·임차권으로 함께 있으면 한 항목만 넣고 나머지는 `same_deposit_as`(남긴 항목의 순위번호)를 달아 뺀 상태로 준다 | FR-005~006 | UI-01 |
 | `POST /api/contracts` | 패키지 시작: `check_id` + 계약 조건(계약일·잔금일·만기일·월세·대출·보증기관·중개·갱신·공동 계약·알림 이메일) + 특약 넣음/거절당함 → 계약 생성. 주택 유형·보증금·공시가격·전용면적은 판정 입력에서 가져온다. "문제 항목" 판정이면 409 `CHECK_BLOCKED`, 이미 계약을 만든 판정이면 409 `CHECK_ALREADY_USED`, 판정 기준이 바뀌었으면 409 `CHECK_OUTDATED`. 특약 결과는 그 판정에서 안내한 특약(MVP 연동 규칙의 특약 예시)만 받고 나머지는 422. 계약을 만들면서 할 일 9종도 생성해 응답 `todos`에 순서대로 넣는다 (신고 대상 판별·조건별 분기·우선 노출·선행 조건, `rules/todos.yaml`). 응답에 `report_required`(신고 대상), `alert_level`(시작할 때의 경보 단계)도 넣는다 `payment_id`(테스트 결제)를 확인해 아니면 402 `PAYMENT_REQUIRED`(1.8), 응답에 계약 접근 토큰 `access_token`(이 응답에서 한 번만)과 `status`·`payment_id`, 특약 반영 분기 `special_term_effects`(특약별 넣음/거절당함에 따른 위험 안내·기록함 서류·맨 위로 올라간 할 일·상담 창구, 부속표 E). `GET`·`PATCH` 응답에도 같은 칸 | FR-011, 013~015, 017~020, 049~050 | UI-03, UI-04 |
-| `GET /api/contracts/{id}` | 계약 정보와 할 일 목록. `X-Contract-Token` 확인(1.8), 무산된 계약도 기록으로 볼 수 있음 | FR-014, 017 | UI-03, UI-04 |
+| `GET /api/contracts/{id}` | 계약 정보와 할 일 목록. 응답 `today`(가상 날짜면 그날)와 할 일마다 `state`(done / upcoming / in_progress / overdue)·`days_left`(1.7). `X-Contract-Token` 확인(1.8), 무산된 계약도 기록으로 볼 수 있음 | FR-014, 017 | UI-03, UI-04 |
 | `POST /api/contracts/{id}/cancel` | 계약 무산 → 계약 `status: "cancelled"`, 쓴 결제는 `released`(다음 집 계약에 다시 씀). 할 일은 기록으로 남김. `X-Contract-Token` 확인, 이미 무산이면 409 `CONTRACT_CANCELLED` | FR-016 | UI-03 |
+| `POST /api/admin/notifications/run` | 알림 실행 (관리자, 시연용): 날짜(본문 `date` → `X-Virtual-Today` → 실제 오늘)를 오늘로 보고 그날 보낼 알림을 만든다. 할 일 시작일·기한 7일 전·1일 전·재알림일(`todos.yaml` `notifications`), 건너뛴 날의 알림은 7일 안의 것만. 앱 안 알림은 `sent`, 이메일은 반환보증(T5·T6)만 `pending`(발송은 이메일 기능, 알림 이메일이 없으면 `skipped`). 같은 알림은 한 번만, 무산된 계약·끝낸 할 일은 빼고 | FR-040, 041, 044 | |
 | `PATCH /api/contracts/{id}` | 계약 조건(날짜·월세·대출·보증기관·중개·갱신·공동 계약·이메일)과 특약 넣음/거절당함을 바꾸고 할 일을 다시 계산. 보낸 칸만 바꾸고, 특약은 보낸 특약만 바꾼다(그 판정에서 안내한 특약만). 바꾼 뒤 조건이 계약 생성 규칙(날짜 순서·대출 실행일)을 어기거나 꼭 있어야 하는 칸에 null이면 422(아무것도 안 바뀜), 없는 계약이면 404. 같은 할 일은 `id`·상태·완료일을 유지하고, 끝낸 할 일의 완료일을 뒤 할 일의 기준일로 쓴다. 더는 해당하지 않는 할 일은 지우되 끝낸 것은 맨 뒤에 남긴다. 잔금일이 미뤄져 끝낸 T3·T4의 완료일이 새 잔금일보다 앞서면 다시 할 일로 돌린다. 주택 유형·보증금·`alert_level`은 바꾸지 않는다 `X-Contract-Token` 확인, 무산된 계약이면 409 `CONTRACT_CANCELLED` | FR-021, 049~050 | UI-03, UI-04 |
 | `GET /api/demo-houses` | 시연 집 2채(해운대구 아파트·수영구 빌라, `docs/validation/demo_houses.yaml`): 계약 전 확인 입력값(`input`, 단지·공시가격·전용면적·등기부 확인값 포함. 그대로 `POST /api/checks`로), 시연 등기부를 읽은 결과(`registry`, `POST /api/registry/parse`와 같은 형식, 이름·주소는 가린 값), 시연용 가상 값(`virtual`, 화면에 "시연용 가상" 표시), 계약 당일 장면(`contract_day`, 날짜·특약 결과. 그대로 `POST /api/contracts`로). 정답표와 같은 결과를 보려면 기준일(`as_of`)의 실거래 저장본을 넣고(`cd backend && python load_demo_trades.py`) `X-Virtual-Today`에 그 날짜를 보낸다. `tests/test_demo_houses.py`가 정답표 기대값과 자동 대조 | FR-001, 046 | UI-01, UI-03 |
 
@@ -172,15 +173,12 @@ GitHub 이슈와 마일스톤(2주차·3주차·4주차)으로 진행을 관리�
 | 메서드·주소 | 하는 일 | FR | 화면 | 주차 | 이슈 |
 | --- | --- | --- | --- | --- | --- |
 | `POST /api/contracts/{id}/registry-compare` | 계약 당일·잔금일 등기부를 다시 올려 점검 때와 비교, 바뀐 항목 표시 | FR-023, 048 | UI-03 | 3 | #41 |
-| `GET /api/contracts/{id}/todos` | 할 일 목록에 오늘 기준 상태(시작 전·진행 중·지남)를 더해서. 그 전까지는 `GET /api/contracts/{id}`의 `todos`를 쓴다 | FR-040 | UI-04 | 3 | #42 |
 | `PATCH /api/todos/{id}` | 완료 체크, "나중에 올리기". 선행 조건이 안 끝났으면 완료 불가 | FR-020, 029~030 | UI-04 | 3 | #43 |
 | `POST /api/todos/{id}/evidence` | 증빙 사진 올리기 → 할 일 완료, 기록함에 자동 기록 | FR-029, 031 | UI-05 | 3 | #44 |
 | `DELETE /api/todos/{id}/evidence` | 증빙 삭제 | FR-033 | UI-05 | 3 | #45 |
 | `POST /api/contracts/{id}/documents` | 첫 계약 서류(계약서·이체 내역) 저장 | FR-051 | UI-03, UI-05 | 3 | #46 |
 | `GET /api/contracts/{id}/calendar.ics` | 할 일 기한을 캘린더 파일로 (`text/calendar`) | FR-042 | UI-04 | 3 | #47 |
 | `POST /api/contracts/{id}/move` | 갈아타기: 다음 집 날짜·보증금·계약금 → 자금 틈, 전입 순서 경고 (저장) | FR-025~028 | UI-07 | 3 | #48 |
-| `POST /api/admin/notifications/run` | 알림 스케줄러를 지정한 날(가상 날짜)로 한 번 실행. 이메일 1종 실제 발송 (시연용, 평소에는 서버 안 스케줄러) | FR-041, 044 | | 3 | #49 |
-| (공통) | 가상 날짜(`X-Virtual-Today`)를 할 일 상태·알림·경보 계산에도 적용 (1.7) | FR-044 | UI-04, UI-09 | 3 | #50 |
 | `GET /api/contracts/{id}/timeline` | 계약 2년 기록을 날짜순으로 | FR-032 | UI-06 | 4 | #51 |
 | `GET /api/contracts/{id}/return-guide` | 반환 대응 단계, 청구 서류 대조 | FR-024, 034~035 | UI-08 | 4 | #52 |
 | `GET /api/contracts/{id}/alerts/latest` | 최근 역전세 경보 단계·계산 근거·기준일 | FR-036~038 | UI-09 | 4 | #53 |

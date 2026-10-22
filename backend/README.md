@@ -158,6 +158,16 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - `alert_level`(시작할 때의 경보 단계)은 바꾸지 않는다. 계약 중 재계산은 4주차 (FR-037)
 - `X-Contract-Token`을 확인한다 (아래). 무산된 계약이면 409 `CONTRACT_CANCELLED`
 
+### 가상 날짜와 알림 실행 (FR-040·041·044)
+
+- 계약 응답(`POST`·`GET`·`PATCH /api/contracts`, `/cancel`)에 `today`, 할 일마다 `state`(`done` / `upcoming` 시작 전 / `in_progress` / `overdue` 기한 지남)와 `days_left`. 헤더 `X-Virtual-Today: 2027-11-08`을 보내면 그날 기준 (`app/clock.py`, `app/engine/schedule.py`)
+- `POST /api/admin/notifications/run` (관리자, `X-Admin-Token`): 본문 `{"date": "2027-11-08"}`(없으면 `X-Virtual-Today`, 그것도 없으면 오늘)을 오늘로 보고 그날 보낼 알림을 만들어 `notifications` 표에 남긴다
+  - 언제: 할 일 시작일(재알림 T6·T8은 알림일), 기한 7일 전·1일 전 (`rules/todos.yaml` `notifications`, 팀 제안 값)
+  - 건너뛴 날: 알림일이 지났어도 7일 안이면 보낸다. 가상 날짜로 몇 달을 건너뛰어도 지난 알림이 쏟아지지 않는다
+  - 경로: 앱 안 알림은 `sent`. 이메일은 MVP 1종(반환보증 가입 T5·마감 30일 전 재알림 T6)만 `pending`으로 남기고 발송은 이메일 기능이 맡는다. 알림 이메일이 없으면 `skipped`
+  - 같은 할 일·종류·알림일·경로는 한 번만 만든다. 무산된 계약·끝낸 할 일은 알리지 않는다
+- 시연: 가상 날짜를 반환보증 가입 기한 7일 전으로 두고 알림 실행 → 반환보증 이메일 알림이 생김 (AC-010, 실제 발송은 이메일 기능)
+
 ### 계약 접근 토큰과 계약 무산 (#39, FR-016)
 
 - `GET`·`PATCH /api/contracts/{id}`, `POST /api/contracts/{id}/cancel`은 헤더 `X-Contract-Token`이 계약을 만들 때 받은 `access_token`과 맞아야 한다. 틀리면 계약이 없을 때와 같은 404 `NOT_FOUND` (번호를 바꿔 가며 계약이 있는지 알아내지 못하게). `REQUIRE_CONTRACT_AUTH`가 false면 헤더를 보내지 않은 요청은 통과시킨다

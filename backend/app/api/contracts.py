@@ -7,7 +7,7 @@ import hashlib
 import hmac
 import secrets
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, Header
 from fastapi.exceptions import RequestValidationError
@@ -15,10 +15,12 @@ from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.clock import today as today_dep
 from app.config import require_contract_auth
 from app.db import get_db
 from app.engine.alert import alert_level
 from app.engine.payment import PRODUCTS, covers, product_for
+from app.engine.schedule import days_left, todo_state
 from app.engine.special_terms import contract_day_guide, term_effects
 from app.engine.todos import build_todos, report_required
 from app.errors import api_error, responses
@@ -166,10 +168,17 @@ def _sync_todos(row: Contract, check: Verdict, rules: dict) -> None:
     row.todos = todos   # 남기지 않은 할 일은 delete-orphan으로 지워진다
 
 
-def _to_out(row: Contract, db: Session, rules: dict) -> ContractOut:
+def _todo_out(t: Todo, today: date) -> TodoOut:
+    fields = {name: getattr(t, name) for name in TodoOut.model_fields if name not in ("state", "days_left")}
+    return TodoOut(**fields, state=todo_state(t.status, t.start_date, t.due_date, t.remind_date, today),
+                   days_left=days_left(t.due_date, t.remind_date, today))
+
+
+def _to_out(row: Contract, db: Session, rules: dict, today: date) -> ContractOut:
     check = db.get(Verdict, row.check_id)
     return ContractOut(
         id=row.id,
+        today=today,
         check_id=check.id,
         level=check.level,
         housing_type=row.housing_type,
@@ -196,12 +205,13 @@ def _to_out(row: Contract, db: Session, rules: dict) -> ContractOut:
             SpecialTermEffectOut(term_id=e.term_id, label=e.label, result=e.result, **asdict(e.outcome))
             for e in term_effects(row.special_term_result or {}, rules)
         ],
-        todos=[TodoOut.model_validate(t, from_attributes=True) for t in row.todos],
+        todos=[_todo_out(t, today) for t in row.todos],
     )
 
 
 @router.post("", response_model=ContractCreatedOut, status_code=201, responses=responses(402, 404, 409, 422))
-def create_contract(inp: ContractInput, db: Session = Depends(get_db), rules: dict = Depends(get_rules)):
+def create_contract(inp: ContractInput, db: Session = Depends(get_db), rules: dict = Depends(get_rules),
+                    today: date = Depends(today_dep)):
     check = db.get(Verdict, inp.check_id)
     if check is None:
         raise api_error(404, "NOT_FOUND", "판정 결과가 없습니다", "계약 전 확인을 먼저 하세요")
@@ -240,19 +250,20 @@ def create_contract(inp: ContractInput, db: Session = Depends(get_db), rules: di
         if first is None:   # check_id가 아닌 다른 제약 위반이면 그대로 올린다
             raise
         raise api_error(409, "CHECK_ALREADY_USED", "이미 계약을 만든 판정 결과입니다", ALREADY_USED_HINT) from None
-    return ContractCreatedOut(**_to_out(row, db, rules).model_dump(), access_token=token)
+    return ContractCreatedOut(**_to_out(row, db, rules, today).model_dump(), access_token=token)
 
 
 @router.get("/{contract_id}", response_model=ContractOut, responses=responses(404, 422))
 def get_contract(contract_id: int, db: Session = Depends(get_db), rules: dict = Depends(get_rules),
+                 today: date = Depends(today_dep),
                  x_contract_token: str | None = Header(None, description=TOKEN_HEADER_DESC)):
     """계약과 할 일. 무산된 계약도 기록으로 볼 수 있다."""
-    return _to_out(_contract_for(contract_id, x_contract_token, db), db, rules)
+    return _to_out(_contract_for(contract_id, x_contract_token, db), db, rules, today)
 
 
 @router.patch("/{contract_id}", response_model=ContractOut, responses=responses(404, 409, 422))
 def update_contract(contract_id: int, inp: ContractPatch, db: Session = Depends(get_db),
-                    rules: dict = Depends(get_rules),
+                    rules: dict = Depends(get_rules), today: date = Depends(today_dep),
                     x_contract_token: str | None = Header(None, description=TOKEN_HEADER_DESC)):
     """계약 조건·특약 결과를 바꾸고 할 일을 다시 계산한다 (FR-021, FR-049·050). 무산된 계약이면 409."""
     row = _contract_for(contract_id, x_contract_token, db)
@@ -276,11 +287,12 @@ def update_contract(contract_id: int, inp: ContractPatch, db: Session = Depends(
         row.special_term_result = {**row.special_term_result, **terms}
     _sync_todos(row, check, rules)
     db.commit()
-    return _to_out(row, db, rules)
+    return _to_out(row, db, rules, today)
 
 
 @router.post("/{contract_id}/cancel", response_model=ContractOut, responses=responses(404, 409, 422))
 def cancel_contract(contract_id: int, db: Session = Depends(get_db), rules: dict = Depends(get_rules),
+                    today: date = Depends(today_dep),
                     x_contract_token: str | None = Header(None, description=TOKEN_HEADER_DESC)):
     """계약 무산 (FR-016). 계약은 cancelled, 쓴 결제는 released로 풀어 다음 계약에 다시 쓴다.
 
@@ -294,4 +306,4 @@ def cancel_contract(contract_id: int, db: Session = Depends(get_db), rules: dict
         if payment is not None and payment.contract_id == row.id:
             payment.status = "released"
     db.commit()
-    return _to_out(row, db, rules)
+    return _to_out(row, db, rules, today)

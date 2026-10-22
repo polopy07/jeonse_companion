@@ -320,10 +320,14 @@ class TodoOut(BaseModel):
     sort_order: int
     status: str = Field(description="todo / done / skipped")
     rules_version: str
+    state: Literal["done", "upcoming", "in_progress", "overdue"] = Field(
+        description="오늘(가상 날짜면 그날) 기준: done 끝냄 / upcoming 시작 전 / in_progress 할 때 / overdue 기한 지남")
+    days_left: int | None = Field(description="기한(재알림은 알림일)까지 남은 날. 지났으면 음수, 기한이 없으면 null")
 
 
 class ContractOut(BaseModel):
     id: int
+    today: date = Field(description="할 일 상태를 계산한 오늘 (X-Virtual-Today를 보냈으면 그날)")
     check_id: int
     level: str = Field(description="시작할 때의 판정 단계 (verdict.yaml levels[].id)")
     housing_type: HousingType
@@ -417,3 +421,26 @@ class DemoHouseOut(BaseModel):
 class DemoHousesResult(BaseModel):
     as_of: date = Field(description="정답표 기대값의 실거래 기준일. 같은 결과를 보려면 실거래 저장본을 넣고 X-Virtual-Today에 이 날짜를 보낸다")
     houses: list[DemoHouseOut]
+
+
+date_ = date   # 필드 이름 date와 겹치지 않게 쓰는 별칭
+
+
+class NotificationRunInput(BaseModel):
+    date: date_ | None = Field(None, description="이 날을 오늘로 보고 알림을 만든다 (가상 날짜). 없으면 X-Virtual-Today, 그것도 없으면 실제 오늘")
+
+
+class NotificationOut(BaseModel):
+    contract_id: int
+    todo_rule_id: str
+    kind: Literal["start", "due_before", "remind"] = Field(description="start 시작일 / due_before 기한 며칠 전 / remind 재알림")
+    notify_date: date_
+    channel: Literal["app", "email"]
+    status: Literal["sent", "pending", "failed", "skipped"] = Field(
+        description="app은 sent. email은 pending(발송 전) / sent / failed / skipped(알림 이메일 없음)")
+    title: str
+
+
+class NotificationRunResult(BaseModel):
+    date: date_
+    created: list[NotificationOut] = Field(description="이번 실행에서 새로 만든 알림. 이미 만든 알림은 다시 만들지 않는다")

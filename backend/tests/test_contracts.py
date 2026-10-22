@@ -174,7 +174,7 @@ def test_contract_creates_todos(client):
     assert by_id["T5"]["due_date"] == "2027-12-01"            # 잔금일 + 729일 ÷ 2
     assert by_id["T6"]["remind_date"] == "2027-11-01"
     assert by_id["T6"]["due_date"] is None
-    assert all(t["status"] == "todo" and t["rules_version"] == "1.2" for t in todos)
+    assert all(t["status"] == "todo" and t["rules_version"] == "1.3" for t in todos)
 
     r = client.get(f"/api/contracts/{created['id']}")
     assert r.json()["todos"] == todos

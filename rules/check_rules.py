@@ -164,6 +164,10 @@ def main():
     for term, result, todo in sorted(by_todos - by_terms):
         errors.append(f"special_terms.yaml:{term}: todos.yaml {todo}의 move_to_top_when({result})이 on_{result}에 없음")
 
+    for tid in data["todos"].get("notifications", {}).get("email_todos", []):
+        if tid not in todo_ids:
+            errors.append(f"todos.yaml: notifications.email_todos에 없는 할 일 '{tid}'")
+
     # 특약 거절 등으로 추가하는 할 일도 같은 식으로 맞춘다 (special_terms.yaml add_todo ↔ todos.yaml extra_todos added_by)
     adds_by_terms = {
         (t["id"], result, a["todo"])
