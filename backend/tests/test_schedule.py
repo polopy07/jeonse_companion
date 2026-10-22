@@ -3,6 +3,7 @@ from datetime import date, timedelta
 
 import pytest
 
+from app import mailer
 from app.engine.schedule import days_left, todo_state
 from tests.test_contracts import DATES, VILLA, _check
 
@@ -13,6 +14,8 @@ D = date.fromisoformat
 @pytest.fixture(autouse=True)
 def admin_env(monkeypatch):
     monkeypatch.setenv("ADMIN_TOKEN", ADMIN)
+    monkeypatch.setenv("EMAIL_BACKEND", "memory")
+    mailer.outbox.clear()
 
 
 def _contract(client, email="tenant@example.com") -> dict:
@@ -77,8 +80,12 @@ def test_return_guarantee_email_ac010(client):
     due = D(_todo(c, "T5")["due_date"])
     created = _run(client, due - timedelta(days=7))
     t5 = [n for n in created if n["todo_rule_id"] == "T5" and n["kind"] == "due_before"]
-    assert {(n["channel"], n["status"]) for n in t5} == {("app", "sent"), ("email", "pending")}
+    assert {(n["channel"], n["status"]) for n in t5} == {("app", "sent"), ("email", "sent")}
     assert "7일 전" in t5[0]["title"]
+    # 반환보증 가입 마감 이메일이 실제로 나감 (AC-010)
+    mail = next(m for m in mailer.outbox if "반환보증" in m.subject)
+    assert mail.to == "tenant@example.com" and "7일 전" in mail.subject
+    assert f"기한: {due.isoformat()}" in mail.body and "보조 수단" in mail.body
     # 같은 날 다시 불러도 다시 만들지 않는다
     assert _run(client, due - timedelta(days=7)) == []
 
@@ -88,7 +95,7 @@ def test_remind_t6(client):
     remind = D(_todo(c, "T6")["remind_date"])
     created = _run(client, remind)
     t6 = {n["channel"]: n for n in created if n["todo_rule_id"] == "T6"}
-    assert t6["email"]["kind"] == "remind" and t6["email"]["status"] == "pending"
+    assert t6["email"]["kind"] == "remind" and t6["email"]["status"] == "sent"
     assert t6["app"]["title"] == _todo(c, "T6")["title"]
 
 

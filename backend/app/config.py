@@ -28,6 +28,11 @@ def require_contract_auth() -> bool:
     return os.environ.get("REQUIRE_CONTRACT_AUTH", "false").strip().lower() in ("1", "true", "yes", "on")
 
 
+def app_link_base() -> str:
+    """접근 링크 이메일의 링크 앞부분 (예: 앱 딥링크 jeonse://contract). 없으면 링크 대신 접근 코드만 보낸다."""
+    return os.environ.get("APP_LINK_BASE", "").strip()
+
+
 def data_go_kr_service_key() -> str:
     """공공데이터포털 일반 인증키 (Decoding 키). 없으면 빈 문자열."""
     return os.environ.get("DATA_GO_KR_SERVICE_KEY", "")

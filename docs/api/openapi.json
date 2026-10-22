@@ -346,6 +346,48 @@
         }
       }
     },
+    "/api/contracts/access-link": {
+      "post": {
+        "tags": [
+          "계약"
+        ],
+        "summary": "Send Access Link",
+        "description": "접근 링크 이메일로 다시 받기 (#39, 휴대폰을 바꾸거나 앱을 지웠을 때).\n\n그 이메일로 만든 진행 중 계약마다 새 접근 토큰을 만들어 계약 이메일로 보낸다. 처음 토큰은 그대로 둔다\n(남이 다시 받기를 눌러도 원래 휴대폰이 쫓겨나지 않게). 이메일이 없어도 같은 202를 돌려준다.",
+        "operationId": "send_access_link_api_contracts_access_link_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessLinkInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessLinkResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/contracts/{contract_id}": {
       "get": {
         "tags": [
@@ -833,7 +875,7 @@
           "관리자"
         ],
         "summary": "Run Notifications",
-        "description": "그날 보낼 알림을 만든다 (시연용 한 번 실행). 날짜는 본문 date → X-Virtual-Today → 실제 오늘 순서로 정한다.\n\n같은 알림은 한 번만 만들어서 여러 번 불러도 된다. 무산된 계약·끝낸 할 일은 알리지 않는다.",
+        "description": "그날 보낼 알림을 만든다 (시연용 한 번 실행). 날짜는 본문 date → X-Virtual-Today → 실제 오늘 순서로 정한다.\n\n같은 알림은 한 번만 만들어서 여러 번 불러도 된다. 무산된 계약·끝낸 할 일은 알리지 않는다.\n만든 뒤 보내지 않은 이메일(앞선 실패 포함, 3번까지)을 보낸다 (EMAIL_BACKEND).",
         "operationId": "run_notifications_api_admin_notifications_run_post",
         "parameters": [
           {
@@ -954,6 +996,36 @@
   },
   "components": {
     "schemas": {
+      "AccessLinkInput": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+            "title": "Email",
+            "description": "계약을 만들 때 넣은 알림 이메일"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "AccessLinkInput"
+      },
+      "AccessLinkResult": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "이메일이 있든 없든 같은 문구 (계약이 있는지 알아내지 못하게)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "AccessLinkResult"
+      },
       "Body_parse_registry_api_registry_parse_post": {
         "properties": {
           "file": {
@@ -2384,7 +2456,7 @@
               "skipped"
             ],
             "title": "Status",
-            "description": "app은 sent. email은 pending(발송 전) / sent / failed / skipped(알림 이메일 없음)"
+            "description": "app은 sent. email은 sent(보냄) / failed(못 보냄, 다음 실행에서 다시) / skipped(알림 이메일 없음·그사이 무산·완료)"
           },
           "title": {
             "type": "string",
@@ -2429,6 +2501,16 @@
             "format": "date",
             "title": "Date"
           },
+          "email_sent": {
+            "type": "integer",
+            "title": "Email Sent",
+            "description": "이번 실행에서 보낸 이메일 수 (앞서 실패한 것 다시 보낸 것 포함)"
+          },
+          "email_failed": {
+            "type": "integer",
+            "title": "Email Failed",
+            "description": "보내지 못한 이메일 수. 다음 실행에서 3번까지 다시 보낸다"
+          },
           "created": {
             "items": {
               "$ref": "#/components/schemas/NotificationOut"
@@ -2441,6 +2523,8 @@
         "type": "object",
         "required": [
           "date",
+          "email_sent",
+          "email_failed",
           "created"
         ],
         "title": "NotificationRunResult"

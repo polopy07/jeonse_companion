@@ -423,6 +423,14 @@ class DemoHousesResult(BaseModel):
     houses: list[DemoHouseOut]
 
 
+class AccessLinkInput(BaseModel):
+    email: str = Field(max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", description="계약을 만들 때 넣은 알림 이메일")
+
+
+class AccessLinkResult(BaseModel):
+    message: str = Field(description="이메일이 있든 없든 같은 문구 (계약이 있는지 알아내지 못하게)")
+
+
 date_ = date   # 필드 이름 date와 겹치지 않게 쓰는 별칭
 
 
@@ -437,10 +445,12 @@ class NotificationOut(BaseModel):
     notify_date: date_
     channel: Literal["app", "email"]
     status: Literal["sent", "pending", "failed", "skipped"] = Field(
-        description="app은 sent. email은 pending(발송 전) / sent / failed / skipped(알림 이메일 없음)")
+        description="app은 sent. email은 sent(보냄) / failed(못 보냄, 다음 실행에서 다시) / skipped(알림 이메일 없음·그사이 무산·완료)")
     title: str
 
 
 class NotificationRunResult(BaseModel):
     date: date_
+    email_sent: int = Field(description="이번 실행에서 보낸 이메일 수 (앞서 실패한 것 다시 보낸 것 포함)")
+    email_failed: int = Field(description="보내지 못한 이메일 수. 다음 실행에서 3번까지 다시 보낸다")
     created: list[NotificationOut] = Field(description="이번 실행에서 새로 만든 알림. 이미 만든 알림은 다시 만들지 않는다")

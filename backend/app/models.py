@@ -150,6 +150,23 @@ class Notification(Base):
     channel: Mapped[str] = mapped_column(String(8))         # app / email
     status: Mapped[str] = mapped_column(String(16))
     title: Mapped[str] = mapped_column(String(200))         # 보낸 문구 (할 일 제목 + 남은 날)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")   # 이메일 보내기 시도 횟수 (NFR-008 재시도)
+    last_error: Mapped[str | None] = mapped_column(String(200))                     # 마지막 실패 이유 (비밀번호 등은 넣지 않음)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ContractToken(Base):
+    """계약을 만든 뒤 이메일로 다시 보낸 접근 토큰 (휴대폰을 바꾸거나 앱을 지웠을 때, #39). 해시만 저장한다.
+
+    처음 토큰(contracts.access_token_hash)을 없애지 않고 더한다: 남이 이메일 주소로 다시 받기를 눌러도
+    원래 휴대폰이 쫓겨나지 않게. 새 토큰은 계약 이메일로만 간다.
+    """
+
+    __tablename__ = "contract_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    contract_id: Mapped[int] = mapped_column(ForeignKey("contracts.id"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

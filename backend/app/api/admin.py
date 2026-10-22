@@ -67,9 +67,11 @@ def run_notifications(inp: NotificationRunInput | None = None, db: Session = Dep
     """그날 보낼 알림을 만든다 (시연용 한 번 실행). 날짜는 본문 date → X-Virtual-Today → 실제 오늘 순서로 정한다.
 
     같은 알림은 한 번만 만들어서 여러 번 불러도 된다. 무산된 계약·끝낸 할 일은 알리지 않는다.
+    만든 뒤 보내지 않은 이메일(앞선 실패 포함, 3번까지)을 보낸다 (EMAIL_BACKEND).
     """
     day = inp.date if inp is not None and inp.date is not None else today
     created = notifications.run(db, day, rules)
-    return NotificationRunResult(date=day, created=[NotificationOut(
+    email_sent, email_failed = notifications.deliver(db, rules)
+    return NotificationRunResult(date=day, email_sent=email_sent, email_failed=email_failed, created=[NotificationOut(
         contract_id=n.contract_id, todo_rule_id=n.todo_rule_id, kind=n.kind, notify_date=n.notify_date,
         channel=n.channel, status=n.status, title=n.title) for n in created])

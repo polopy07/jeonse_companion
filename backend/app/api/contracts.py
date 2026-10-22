@@ -1,22 +1,24 @@
 """패키지 시작·계약 당일 체크: 계약 생성과 할 일 9종 생성 (UC-003, FR-011, FR-014, FR-015, FR-017~020, FR-049).
 
 계약 조건·특약 결과 변경 → 할 일 재계산 (UC-005, FR-021, FR-049·050).
-테스트 결제 확인(FR-013), 계약 접근 토큰(#39), 계약 무산(FR-016) — API 명세 1.8.
+테스트 결제 확인(FR-013), 계약 접근 토큰(#39)·접근 링크 다시 받기, 계약 무산(FR-016) — API 명세 1.8.
 """
 import hashlib
 import hmac
 import secrets
 from dataclasses import asdict
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Header
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app import mailer
 from app.clock import today as today_dep
-from app.config import require_contract_auth
+from app.config import app_link_base, require_contract_auth
 from app.db import get_db
 from app.engine.alert import alert_level
 from app.engine.payment import PRODUCTS, covers, product_for
@@ -24,14 +26,17 @@ from app.engine.schedule import days_left, todo_state
 from app.engine.special_terms import contract_day_guide, term_effects
 from app.engine.todos import build_todos, report_required
 from app.errors import api_error, responses
-from app.models import Contract, Payment, Todo, Verdict
+from app.models import Contract, ContractToken, Payment, Todo, Verdict
 from app.rules.loader import get_rules
-from app.schemas import ContractCreatedOut, ContractInput, ContractOut, ContractPatch, SpecialTermEffectOut, TodoOut
+from app.schemas import (AccessLinkInput, AccessLinkResult, ContractCreatedOut, ContractInput, ContractOut, ContractPatch,
+                         SpecialTermEffectOut, TodoOut)
 
 router = APIRouter(prefix="/api/contracts", tags=["계약"])
 # 화면에 그대로 보이는 안내. 만든 계약 id는 GET /api/checks/{id}의 contract_id로 찾는다
 ALREADY_USED_HINT = "할 일 탭에서 이 계약의 할 일을 볼 수 있습니다. 다른 집이면 계약 전 확인을 다시 하세요"
 _PRODUCT_LABEL = {"package": "전동기 패키지", "todo_only": "할 일 관리만"}
+ACCESS_LINK_MESSAGE = "이 이메일로 만든 계약이 있으면 접근 링크를 보냈습니다. 메일함을 확인하세요"
+ACCESS_LINK_PER_HOUR = 3   # 계약마다 한 시간에 다시 보내는 횟수 (메일 폭탄 막기)
 TOKEN_HEADER_DESC = "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
 
 # 판정 입력에서 그대로 가져오는 값 (fields.yaml 이름)
@@ -78,7 +83,10 @@ def _contract_for(contract_id: int, token: str | None, db: Session) -> Contract:
         if token is None:
             ok = not require_contract_auth()
         else:
-            ok = row.access_token_hash is not None and hmac.compare_digest(row.access_token_hash, _token_hash(token))
+            given = _token_hash(token)
+            ok = (row.access_token_hash is not None and hmac.compare_digest(row.access_token_hash, given)) or \
+                db.scalar(select(ContractToken.id).where(ContractToken.contract_id == row.id,
+                                                         ContractToken.token_hash == given)) is not None
         if ok:
             return row
     raise api_error(404, "NOT_FOUND", "계약이 없습니다", "이 휴대폰에서 만든 계약이 아니면 볼 수 없습니다")
@@ -251,6 +259,48 @@ def create_contract(inp: ContractInput, db: Session = Depends(get_db), rules: di
             raise
         raise api_error(409, "CHECK_ALREADY_USED", "이미 계약을 만든 판정 결과입니다", ALREADY_USED_HINT) from None
     return ContractCreatedOut(**_to_out(row, db, rules, today).model_dump(), access_token=token)
+
+
+@router.post("/access-link", response_model=AccessLinkResult, status_code=202, responses=responses(422))
+def send_access_link(inp: AccessLinkInput, db: Session = Depends(get_db)):
+    """접근 링크 이메일로 다시 받기 (#39, 휴대폰을 바꾸거나 앱을 지웠을 때).
+
+    그 이메일로 만든 진행 중 계약마다 새 접근 토큰을 만들어 계약 이메일로 보낸다. 처음 토큰은 그대로 둔다
+    (남이 다시 받기를 눌러도 원래 휴대폰이 쫓겨나지 않게). 이메일이 없어도 같은 202를 돌려준다.
+    """
+    now = datetime.now(timezone.utc)
+    rows = db.scalars(select(Contract).where(
+        func.lower(Contract.email) == inp.email.strip().lower(),
+        or_(Contract.status == "active", Contract.status.is_(None)),
+    ).order_by(Contract.id)).all()
+    issued = []
+    for row in rows:
+        recent = db.scalar(select(func.count(ContractToken.id)).where(
+            ContractToken.contract_id == row.id, ContractToken.created_at > now - timedelta(hours=1)))
+        if recent >= ACCESS_LINK_PER_HOUR:
+            continue
+        token = secrets.token_urlsafe(32)
+        db.add(ContractToken(contract_id=row.id, token_hash=_token_hash(token), created_at=now))
+        issued.append((row, token))
+    if issued:
+        try:
+            mailer.send(mailer.Mail(issued[0][0].email, "[전동기] 계약 접근 링크", _access_link_body(issued)))
+        except mailer.MailError:
+            db.rollback()   # 보내지 못한 토큰은 남기지 않는다. 응답은 같게
+            return AccessLinkResult(message=ACCESS_LINK_MESSAGE)
+        db.commit()
+    return AccessLinkResult(message=ACCESS_LINK_MESSAGE)
+
+
+def _access_link_body(issued: list[tuple[Contract, str]]) -> str:
+    base = app_link_base()
+    lines = ["안녕하세요, 전동기입니다.", "", "요청하신 계약 접근 링크예요. 앱에서 계약을 다시 불러올 때 쓰세요.", ""]
+    for row, token in issued:
+        lines.append(f"- 계약 {row.id}: 보증금 {row.deposit:,}원, 잔금일 {row.balance_date.isoformat()}")
+        lines.append(f"  {base}?contract={row.id}&token={token}" if base else f"  접근 코드: {token}")
+    lines += ["", "직접 요청하지 않았다면 이 메일은 지워도 됩니다. 원래 쓰던 휴대폰은 그대로 쓸 수 있어요.",
+              "이 링크를 가진 사람은 계약을 볼 수 있으니 다른 사람에게 보내지 마세요."]
+    return "\n".join(lines)
 
 
 @router.get("/{contract_id}", response_model=ContractOut, responses=responses(404, 422))
