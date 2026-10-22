@@ -33,6 +33,7 @@
 | 403 | 관리자 API가 꺼져 있음 (서버에 `ADMIN_TOKEN` 없음) |
 | 404 | 대상이 없음 |
 | 405 | 그 주소에서 허용되지 않는 메서드 |
+| 402 | 테스트 결제가 없거나 이 판정에 쓸 수 없는 결제 (계약 생성, 1.8) |
 | 409 | 지금 상태에서 할 수 없음 (예: "문제 항목" 판정이라 패키지 시작 불가, FR-011) |
 | 413 | 파일이 너무 큼 |
 | 422 | 입력 형식이 틀렸거나 계산에 필요한 값이 없음, 파일을 읽지 못함 |
@@ -98,6 +99,8 @@
 | `CHECK_BLOCKED` | 409 | "문제 항목" 판정이라 패키지를 시작할 수 없음 (FR-011) |
 | `CHECK_ALREADY_USED` | 409 | 이미 계약을 만든 판정 결과로 다시 계약을 만들려 함(동시 요청 포함). `hint`는 화면에 그대로 보여 주는 안내이고, 만든 계약 id는 `GET /api/checks/{id}`의 `contract_id`로 찾는다 |
 | `CHECK_OUTDATED` | 409 | 판정 기준(규칙 파일)이 바뀌어 저장된 판정 단계 id를 찾을 수 없음 → 계약 전 확인을 다시. 단계 id 기준이라 `rules_version`만 달라지고 단계 id가 남아 있으면 걸리지 않음. `GET /api/checks/{id}`·`POST /api/contracts` |
+| `PAYMENT_REQUIRED` | 402 | 계약 생성에 쓸 테스트 결제가 없음, 다른 판정의 결제, 이미 쓴 결제, 또는 풀린 결제의 상품이 모자람(할 일 관리만 → 패키지). `hint`는 다시 결제 안내 (1.8) |
+| `CONTRACT_CANCELLED` | 409 | 무산된 계약이라 바꿀 수 없음 (`PATCH`, 다시 무산). `GET`은 됨 (FR-016) |
 | `ADMIN_TOKEN_INVALID` | 401 | 관리자 API에 `X-Admin-Token` 헤더가 없거나 서버 `ADMIN_TOKEN`과 다름 |
 | `ADMIN_DISABLED` | 403 | 서버에 `ADMIN_TOKEN`이 없어 관리자 API가 꺼져 있음 |
 | `TRADES_COLLECT_CONFLICT` | 409 | 같은 거래를 동시에 수집한 다른 요청과 겹쳐 저장하지 못함 → 다시 시도 |
@@ -126,9 +129,9 @@
 - 지금 쓰는 곳: `POST /api/checks`의 실거래 기준일(`as_of`). 할 일·알림·경보는 3주차 (#50)
 - 헤더가 없으면 실제 오늘 날짜
 
-### 1.8 로그인·테스트 결제 (2026-10-17 확정, 만드는 중)
+### 1.8 로그인·테스트 결제 (2026-10-17 확정, 백엔드 2026-10-22)
 
-결정과 이유는 [`결정자료_로그인_테스트결제.md`](결정자료_로그인_테스트결제.md) 맨 위 "결정"·"세부 규칙". 백엔드는 10/22~10/24에 만들고, 만들면 2.1·1.5 오류 표로 옮긴다.
+결정과 이유는 [`결정자료_로그인_테스트결제.md`](결정자료_로그인_테스트결제.md) 맨 위 "결정"·"세부 규칙". API는 2.1, 오류 코드는 1.5. 앱 연결(배승환)은 3주차.
 
 - 계약 전 확인(`/api/checks`, `/api/registry/parse`)은 그대로 로그인 없이 쓴다 (UC-001)
 - **계약별 접근 토큰 (#39)**: `POST /api/contracts` 응답에 `access_token`을 한 번만 준다(서버는 해시만 저장). 계약 아래 API(`GET·PATCH /api/contracts/{id}`, 앞으로 만들 할 일 완료·증빙·서류)는 헤더 `X-Contract-Token`이 맞아야 한다. 토큰이 없거나 틀리면 계약이 없을 때와 같은 404 `NOT_FOUND`(번호를 바꿔 가며 계약이 있는지 알아내지 못하게). 회원 식별은 이메일만 (NFR-011). 휴대폰을 바꾸면 "접근 링크 이메일로 다시 받기"(3주차, 4주차 사용성 테스트 전까지)로 다시 들어온다
@@ -136,6 +139,7 @@
 - **테스트 결제 (#40, FR-013)**: `POST /api/checks/{id}/payment` → `{payment_id, product: "package" | "todo_only", amount, method: "test", status: "paid"}`. 금액은 서버가 판정 단계로 정한다(9,900원, 다가구·단독 할 일 관리만 4,900원). "문제 항목" 판정이면 409 `CHECK_BLOCKED`. 실제 돈은 나가지 않는다
 - `POST /api/contracts`에 `payment_id`. 이 판정의 결제이거나 무산된 계약에서 풀린 결제(`released`)여야 하고, 아니면 402 `PAYMENT_REQUIRED`. 풀린 결제가 할 일 관리만(4,900원)인데 다음 집이 패키지면 402(다시 결제). 결제 화면은 UI-02의 확인 창
 - 계약 무산(FR-016): `POST /api/contracts/{id}/cancel` → 계약 `cancelled`, 결제 `released`. 무산된 계약은 `GET`만 되고 바꾸는 요청은 409 `CONTRACT_CANCELLED`, 알림은 보내지 않는다
+- 계약을 만들 때 준 토큰은 서버에 SHA-256 해시만 남는다. 이 기능 전에 만든 계약은 토큰이 없어 `REQUIRE_CONTRACT_AUTH=true`면 열 수 없다 (시연 전 `reset_demo_db.py`로 지움)
 - 앱 연결 전까지: 서버 설정 `REQUIRE_CONTRACT_AUTH=false`면 `payment_id`·`X-Contract-Token`이 없는 요청도 통과시킨다(보냈는데 틀리면 402·404). **배포 서버는 처음부터 `true`**. 앱 연결(배승환)이 끝나면 기본값을 `true`로 바꾸고 여기에 날짜를 적는다
 
 ## 2. API 목록
@@ -150,11 +154,13 @@ A = 개발 A(백엔드·규칙), B = 개발 B(화면). 주차는 노션 "할 일
 | `POST /api/checks` | 계약 전 확인: 입력 → 추정 주택가격·내 보증금 비율 → 판정. 결과 저장. `complex`(시군구 코드·법정동·단지 이름·지번, 아파트·연립다세대만)를 주면 저장된 실거래에서 같은 단지·비슷한 면적의 최근 매매가(`trade_basis`, 공시가격 × 140%와 낮은 값)와 주변 전세 시세(`nearby_jeonse`, 3건 미만이면 표본 부족)를 찾아 기준일(`as_of`)과 함께 돌려준다 | FR-001~004, 009~010 | UI-01, UI-02 |
 | `GET /api/checks/{id}` | 저장된 판정 결과. 이 판정으로 만든 계약이 있으면 `contract_id`(없으면 null). 저장된 판정 단계가 지금 규칙에 없으면 409 `CHECK_OUTDATED` | FR-009 | UI-02 |
 | `GET /api/checks/{id}/special-terms` | 판정에 걸린 연동 규칙에 맞는 공공 자료 특약 예시(문구·출처·연결된 항목)와, 넣음/거절당함을 고르면 생기는 것(경고·서류·맨 위로 올라가는 할 일·상담 창구). 연동 규칙의 계약 당일 경고(`warnings`)·확인(`checks`)도 함께. MVP 연동 규칙(근저당, 비율 90% 이상, 신탁)에 연결된 MVP 특약만. "문제 항목"(결제 전 멈춤) 판정이면 409 `CHECK_BLOCKED`, 판정 단계가 지금 규칙에 없으면 409 `CHECK_OUTDATED`. 특약 예시는 지금 규칙 파일 기준 | FR-022, 039, 049~050 | UI-02, UI-03 |
+| `POST /api/checks/{id}/payment` | 테스트 결제 (실제 돈은 나가지 않음): 판정 단계로 상품·금액을 서버가 정함(패키지 9,900원, 다가구·단독 할 일 관리만 4,900원) → `payment_id`. 같은 판정에 다시 누르면 앞서 한 결제를 200으로 돌려줌. "문제 항목"이면 409 `CHECK_BLOCKED`, 이미 계약을 만든 판정이면 409 `CHECK_ALREADY_USED` | FR-011, 013 | UI-02 (확인 창) |
 | `POST /api/admin/trades` | 실거래가 수집 (관리자): 공공데이터포털 API로 한 시군구(`lawd_cd`)의 아파트·연립다세대 매매·전월세를 `end_month`부터 거꾸로 `months`개월(기본 12) 받아 받은 시각(`fetched_at`)과 함께 저장. 같은 거래는 한 번만 저장. `X-Admin-Token` 헤더 = 서버 `ADMIN_TOKEN`이어야 함(없으면 401 `ADMIN_TOKEN_INVALID`, 서버에 `ADMIN_TOKEN`이 없으면 403 `ADMIN_DISABLED`). 인증키가 없으면 503 `SERVICE_KEY_MISSING`, 포털 오류는 502 `TRADE_API_ERROR`, 동시 수집이 겹치면 409 `TRADES_COLLECT_CONFLICT` | FR-046 | |
 | `POST /api/registry/parse` | 등기부 PDF → 요약 추출 결과 (저장 안 함). `fields`를 확인·수정해 `POST /api/checks`의 `registry`로 보낸다. 을구 임차권·전세권 보증금은 `fields.lease_amount`(선순위 채권)에 들어 있고, 이미 돌려받았거나 내 계약이면 확인 화면에서 `leases` 항목별로 빼서 보낸다. 같은 보증금이 전세권·임차권으로 함께 있으면 한 항목만 넣고 나머지는 `same_deposit_as`(남긴 항목의 순위번호)를 달아 뺀 상태로 준다 | FR-005~006 | UI-01 |
-| `POST /api/contracts` | 패키지 시작: `check_id` + 계약 조건(계약일·잔금일·만기일·월세·대출·보증기관·중개·갱신·공동 계약·알림 이메일) + 특약 넣음/거절당함 → 계약 생성. 주택 유형·보증금·공시가격·전용면적은 판정 입력에서 가져온다. "문제 항목" 판정이면 409 `CHECK_BLOCKED`, 이미 계약을 만든 판정이면 409 `CHECK_ALREADY_USED`, 판정 기준이 바뀌었으면 409 `CHECK_OUTDATED`. 특약 결과는 그 판정에서 안내한 특약(MVP 연동 규칙의 특약 예시)만 받고 나머지는 422. 계약을 만들면서 할 일 9종도 생성해 응답 `todos`에 순서대로 넣는다 (신고 대상 판별·조건별 분기·우선 노출·선행 조건, `rules/todos.yaml`). 응답에 `report_required`(신고 대상), `alert_level`(시작할 때의 경보 단계)도 넣는다 | FR-011, 014~015, 017~020, 049 | UI-03, UI-04 |
-| `GET /api/contracts/{id}` | 계약 정보와 할 일 목록 | FR-014, 017 | UI-03, UI-04 |
-| `PATCH /api/contracts/{id}` | 계약 조건(날짜·월세·대출·보증기관·중개·갱신·공동 계약·이메일)과 특약 넣음/거절당함을 바꾸고 할 일을 다시 계산. 보낸 칸만 바꾸고, 특약은 보낸 특약만 바꾼다(그 판정에서 안내한 특약만). 바꾼 뒤 조건이 계약 생성 규칙(날짜 순서·대출 실행일)을 어기거나 꼭 있어야 하는 칸에 null이면 422(아무것도 안 바뀜), 없는 계약이면 404. 같은 할 일은 `id`·상태·완료일을 유지하고, 끝낸 할 일의 완료일을 뒤 할 일의 기준일로 쓴다. 더는 해당하지 않는 할 일은 지우되 끝낸 것은 맨 뒤에 남긴다. 잔금일이 미뤄져 끝낸 T3·T4의 완료일이 새 잔금일보다 앞서면 다시 할 일로 돌린다. 주택 유형·보증금·`alert_level`은 바꾸지 않는다 | FR-021, 049~050 | UI-03, UI-04 |
+| `POST /api/contracts` | 패키지 시작: `check_id` + 계약 조건(계약일·잔금일·만기일·월세·대출·보증기관·중개·갱신·공동 계약·알림 이메일) + 특약 넣음/거절당함 → 계약 생성. 주택 유형·보증금·공시가격·전용면적은 판정 입력에서 가져온다. "문제 항목" 판정이면 409 `CHECK_BLOCKED`, 이미 계약을 만든 판정이면 409 `CHECK_ALREADY_USED`, 판정 기준이 바뀌었으면 409 `CHECK_OUTDATED`. 특약 결과는 그 판정에서 안내한 특약(MVP 연동 규칙의 특약 예시)만 받고 나머지는 422. 계약을 만들면서 할 일 9종도 생성해 응답 `todos`에 순서대로 넣는다 (신고 대상 판별·조건별 분기·우선 노출·선행 조건, `rules/todos.yaml`). 응답에 `report_required`(신고 대상), `alert_level`(시작할 때의 경보 단계)도 넣는다 `payment_id`(테스트 결제)를 확인해 아니면 402 `PAYMENT_REQUIRED`(1.8), 응답에 계약 접근 토큰 `access_token`(이 응답에서 한 번만)과 `status`·`payment_id` | FR-011, 013~015, 017~020, 049 | UI-03, UI-04 |
+| `GET /api/contracts/{id}` | 계약 정보와 할 일 목록. `X-Contract-Token` 확인(1.8), 무산된 계약도 기록으로 볼 수 있음 | FR-014, 017 | UI-03, UI-04 |
+| `POST /api/contracts/{id}/cancel` | 계약 무산 → 계약 `status: "cancelled"`, 쓴 결제는 `released`(다음 집 계약에 다시 씀). 할 일은 기록으로 남김. `X-Contract-Token` 확인, 이미 무산이면 409 `CONTRACT_CANCELLED` | FR-016 | UI-03 |
+| `PATCH /api/contracts/{id}` | 계약 조건(날짜·월세·대출·보증기관·중개·갱신·공동 계약·이메일)과 특약 넣음/거절당함을 바꾸고 할 일을 다시 계산. 보낸 칸만 바꾸고, 특약은 보낸 특약만 바꾼다(그 판정에서 안내한 특약만). 바꾼 뒤 조건이 계약 생성 규칙(날짜 순서·대출 실행일)을 어기거나 꼭 있어야 하는 칸에 null이면 422(아무것도 안 바뀜), 없는 계약이면 404. 같은 할 일은 `id`·상태·완료일을 유지하고, 끝낸 할 일의 완료일을 뒤 할 일의 기준일로 쓴다. 더는 해당하지 않는 할 일은 지우되 끝낸 것은 맨 뒤에 남긴다. 잔금일이 미뤄져 끝낸 T3·T4의 완료일이 새 잔금일보다 앞서면 다시 할 일로 돌린다. 주택 유형·보증금·`alert_level`은 바꾸지 않는다 `X-Contract-Token` 확인, 무산된 계약이면 409 `CONTRACT_CANCELLED` | FR-021, 049~050 | UI-03, UI-04 |
 | `GET /api/demo-houses` | 시연 집 2채(해운대구 아파트·수영구 빌라, `docs/validation/demo_houses.yaml`): 계약 전 확인 입력값(`input`, 단지·공시가격·전용면적·등기부 확인값 포함. 그대로 `POST /api/checks`로), 시연 등기부를 읽은 결과(`registry`, `POST /api/registry/parse`와 같은 형식, 이름·주소는 가린 값), 시연용 가상 값(`virtual`, 화면에 "시연용 가상" 표시), 계약 당일 장면(`contract_day`, 날짜·특약 결과. 그대로 `POST /api/contracts`로). 정답표와 같은 결과를 보려면 기준일(`as_of`)의 실거래 저장본을 넣고(`cd backend && python load_demo_trades.py`) `X-Virtual-Today`에 그 날짜를 보낸다. `tests/test_demo_houses.py`가 정답표 기대값과 자동 대조 | FR-001, 046 | UI-01, UI-03 |
 
 입출력 예시는 `backend/README.md`, 전체 형식은 `openapi.json`.
@@ -165,7 +171,6 @@ GitHub 이슈와 마일스톤(2주차·3주차·4주차)으로 진행을 관리�
 
 | 메서드·주소 | 하는 일 | FR | 화면 | 주차 | 이슈 |
 | --- | --- | --- | --- | --- | --- |
-| `POST /api/contracts/{id}/cancel` | 계약 무산 → 계약 `cancelled`, 결제 `released`(다음 계약에 다시 씀). 무산된 계약은 `GET`만, 바꾸는 요청은 409 `CONTRACT_CANCELLED` (1.8) | FR-016 | UI-03 | 3 | #37 |
 | `POST /api/contracts/{id}/registry-compare` | 계약 당일·잔금일 등기부를 다시 올려 점검 때와 비교, 바뀐 항목 표시 | FR-023, 048 | UI-03 | 3 | #41 |
 | `GET /api/contracts/{id}/todos` | 할 일 목록에 오늘 기준 상태(시작 전·진행 중·지남)를 더해서. 그 전까지는 `GET /api/contracts/{id}`의 `todos`를 쓴다 | FR-040 | UI-04 | 3 | #42 |
 | `PATCH /api/todos/{id}` | 완료 체크, "나중에 올리기". 선행 조건이 안 끝났으면 완료 불가 | FR-020, 029~030 | UI-04 | 3 | #43 |
@@ -180,12 +185,10 @@ GitHub 이슈와 마일스톤(2주차·3주차·4주차)으로 진행을 관리�
 | `GET /api/contracts/{id}/return-guide` | 반환 대응 단계, 청구 서류 대조 | FR-024, 034~035 | UI-08 | 4 | #52 |
 | `GET /api/contracts/{id}/alerts/latest` | 최근 역전세 경보 단계·계산 근거·기준일 | FR-036~038 | UI-09 | 4 | #53 |
 | `POST /api/admin/alerts/recalculate` | 경보 재계산 (관리자, 스케줄러는 서버 안에서 직접 실행) | FR-037 | | 4 | #54 |
-| `POST /api/checks/{id}/payment` | 테스트 결제 기록 → `payment_id`. 금액은 판정 단계로 서버가, "문제 항목"이면 409 `CHECK_BLOCKED`. `POST /api/contracts`에 `payment_id`(없으면 402 `PAYMENT_REQUIRED`) (1.8) | FR-011, 013 | UI-02 (확인 창) | 2 | #40 |
-| (공통) 계약 접근 토큰 | `POST /api/contracts` 응답 `access_token`, 계약 아래 API는 `X-Contract-Token` 확인, 틀리면 404 (1.8) | NFR-011 | UI-03, UI-04 | 2 | #39 |
 
 ### 2.3 정할 것 (2주차)
 
-로그인(#39)·테스트 결제(#40)는 2026-10-15에 정했다 → 1.8, 2.2. 지금 정할 것은 없다.
+로그인(#39)·테스트 결제(#40)는 2026-10-17에 정해 만들었다 → 1.8, 2.1. 지금 정할 것은 없다.
 
 ### 2.4 여유 있을 때 (Should)
 

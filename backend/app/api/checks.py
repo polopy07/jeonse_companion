@@ -1,19 +1,20 @@
-"""계약 전 확인 API (UC-001, FR-001~FR-010)와 판정에 맞는 특약 예시 (FR-039)."""
+"""계약 전 확인 API (UC-001, FR-001~FR-010)와 판정에 맞는 특약 예시 (FR-039), 테스트 결제 (FR-013)."""
 from dataclasses import asdict
 from datetime import date
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.engine.check import MissingInputError, run_check
 from app.engine.market import ComplexKey, nearby_jeonse, pick_trade_price
+from app.engine.payment import PRODUCTS, product_for
 from app.engine.special_terms import contract_day_guide
 from app.errors import api_error, responses
-from app.models import Trade, Verdict
+from app.models import Payment, Trade, Verdict
 from app.rules.loader import get_rules
-from app.schemas import CheckInput, CheckResult, SpecialTermsResult
+from app.schemas import CheckInput, CheckResult, PaymentOut, SpecialTermsResult
 
 router = APIRouter(prefix="/api/checks", tags=["계약 전 확인"])
 
@@ -130,3 +131,35 @@ def get_special_terms(check_id: int, db: Session = Depends(get_db), rules: dict 
         "disclaimer": rules["verdict"].get("display", {}).get("disclaimer", ""),
         "rules_version": str(rules["special_terms"]["version"]),
     })
+
+
+def payment_out(p: Payment) -> PaymentOut:
+    return PaymentOut(payment_id=p.id, check_id=p.check_id, product=p.product, amount=p.amount,
+                      method=p.method, status=p.status)
+
+
+@router.post("/{check_id}/payment", response_model=PaymentOut, status_code=201, responses=responses(404, 409, 422))
+def create_payment(check_id: int, response: Response, db: Session = Depends(get_db), rules: dict = Depends(get_rules)):
+    """테스트 결제 (FR-013, API 명세 1.8). 금액은 판정 단계로 서버가 정한다. 실제 돈은 나가지 않는다.
+
+    같은 판정에 다시 누르면 새로 만들지 않고 앞서 한 결제를 200으로 돌려준다 (두 번 눌러도 결제 1건).
+    """
+    row = db.get(Verdict, check_id)
+    if row is None:
+        raise api_error(404, "NOT_FOUND", "판정 결과가 없습니다")
+    level = _level(rules, row.level)
+    if level.get("block_payment"):
+        raise api_error(409, "CHECK_BLOCKED", f"\"{level['label']}\" 판정이라 패키지를 시작할 수 없습니다",
+                        "계약을 다시 검토하고 공공 상담 창구에 문의하세요")
+    if row.contract_id is not None:
+        raise api_error(409, "CHECK_ALREADY_USED", "이미 계약을 만든 판정 결과입니다",
+                        "할 일 탭에서 이 계약의 할 일을 볼 수 있습니다. 다른 집이면 계약 전 확인을 다시 하세요")
+    existing = db.scalars(select(Payment).where(Payment.check_id == check_id, Payment.status == "paid")).first()
+    if existing is not None:
+        response.status_code = 200
+        return payment_out(existing)
+    product = product_for(row.level)
+    p = Payment(check_id=check_id, product=product, amount=PRODUCTS[product], method="test", status="paid")
+    db.add(p)
+    db.commit()
+    return payment_out(p)
