@@ -1,7 +1,7 @@
 # 날짜별 할 일 9종과 추가 할 일 (명세서 부속표 A, FR-015, FR-017~FR-021)
 # 기한은 규칙으로만 계산한다 (LLM 사용 안 함). 잔금일·만기일이 바뀌면 연결된 기한을 모두 다시 계산한다.
-version: "1.1"   # 1.1: 기한 정답표 PO 결정 반영 (2026-10-12)
-as_of: "2026-10-12"
+version: "1.2"   # 1.1: 기한 정답표 PO 결정 반영 (2026-10-12), 1.2: 잔금일이 미뤄지면 끝낸 T3·T4를 다시 할 일로 (2026-10-15)
+as_of: "2026-10-15"
 basis: "서비스 기획안 v4.35 '날짜별 할 일 9종', 요구사항 명세서 v0.5 부속표 A"
 
 # 임대차 신고 대상 기준 (FR-015)
@@ -58,6 +58,7 @@ todos:
     start: {anchor: balance_date}
     due: {anchor: balance_date}
     required_checks_from: linkage   # 근저당이 있었으면 근저당 금액 비교가 필수 (L-MORTGAGE)
+    reopen_if_done_before_start: true   # 잔금일이 미뤄져 완료일이 새 시작일보다 앞서면 다시 할 일로 (PO 2026-10-15)
     evidence: 잔금일 등기부 열람본
 
   - id: T4
@@ -67,6 +68,7 @@ todos:
     due: {anchor: balance_date}
     move_to_top_when:
       - {special_term: S-NO-MORTGAGE, result: rejected}
+    reopen_if_done_before_start: true   # T3과 같음. 다시 할 일이 되면 T5 시작일도 다시 계산
     evidence: 확정일자 받은 계약서
 
   - id: T5
