@@ -302,6 +302,67 @@
             "description": "Unprocessable Entity"
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "계약"
+        ],
+        "summary": "Update Contract",
+        "description": "계약 조건·특약 결과를 바꾸고 할 일을 다시 계산한다 (FR-021, FR-049·050).",
+        "operationId": "update_contract_api_contracts__contract_id__patch",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContractPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
       }
     },
     "/api/registry/parse": {
@@ -1135,6 +1196,178 @@
           "todos"
         ],
         "title": "ContractOut"
+      },
+      "ContractPatch": {
+        "properties": {
+          "contract_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Date",
+            "description": "계약일"
+          },
+          "balance_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance Date",
+            "description": "잔금일"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date",
+            "description": "만기일"
+          },
+          "monthly_rent": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000000000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Monthly Rent",
+            "description": "월세 (원, 전세면 0)"
+          },
+          "loan": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loan",
+            "description": "전세대출 유무"
+          },
+          "loan_execution_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loan Execution Date",
+            "description": "대출 실행일. null을 보내면 \"모름\"으로 바꾼다"
+          },
+          "guarantor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "HUG",
+                  "HF",
+                  "SGI",
+                  "none"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Guarantor",
+            "description": "보증기관 (미가입은 none)"
+          },
+          "brokered": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brokered",
+            "description": "중개 거래 여부"
+          },
+          "renewal_right_used": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Renewal Right Used",
+            "description": "계약갱신요구권을 써서 갱신한 계약인지"
+          },
+          "co_tenant": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Co Tenant",
+            "description": "공동 계약자 여부"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 254,
+                "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email",
+            "description": "알림 이메일. null을 보내면 지운다"
+          },
+          "special_term_result": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string",
+                  "enum": [
+                    "inserted",
+                    "rejected"
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Special Term Result",
+            "description": "바꿀 특약만 보낸다 (보내지 않은 특약의 결과는 그대로). 그 판정에서 안내한 특약만 받는다"
+          }
+        },
+        "type": "object",
+        "title": "ContractPatch",
+        "description": "계약 조건·특약 결과 변경 (FR-021, FR-049·050). 보낸 칸만 바꾸고 할 일을 다시 계산한다.\n\n주택 유형·보증금은 판정에서 가져온 값이라 바꾸지 않는다 (보증금이 바뀌면 계약 전 확인부터 다시)."
       },
       "DemoContractDay": {
         "properties": {
