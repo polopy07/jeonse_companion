@@ -196,6 +196,14 @@ class TermOutcomeOut(BaseModel):
     link_counsel: bool = Field(description="공공 상담 창구 안내를 붙이는지")
 
 
+class SpecialTermEffectOut(TermOutcomeOut):
+    """계약에 기록한 특약 1개의 결과와 분기 (부속표 E, FR-050)."""
+
+    term_id: str = Field(description="special_terms.yaml id")
+    label: str
+    result: Literal["inserted", "rejected"] = Field(description="inserted(넣음) / rejected(거절당함)")
+
+
 class LinkedRuleOut(BaseModel):
     id: str = Field(description="linkage.yaml id")
     label: str
@@ -338,6 +346,8 @@ class ContractOut(BaseModel):
     alert_level: str | None = Field(description="시작할 때의 경보 단계 (alert.yaml levels[].id), 정상이면 null")
     status: ContractStatus = Field(description="active / cancelled (계약 무산, FR-016)")
     payment_id: int | None = Field(description="이 계약에 쓴 테스트 결제. 결제 없이 만든 계약이면 null")
+    special_term_effects: list[SpecialTermEffectOut] = Field(
+        description="기록한 특약 결과의 분기 (부속표 E): 넣음이면 기록함에 남길 서류, 거절당함이면 위험 안내·맨 위로 올라간 할 일·상담 창구")
     todos: list[TodoOut] = Field(description="할 일 목록 (sort_order 순서)")
 
 

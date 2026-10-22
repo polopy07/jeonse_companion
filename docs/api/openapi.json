@@ -1264,6 +1264,14 @@
             "title": "Payment Id",
             "description": "이 계약에 쓴 테스트 결제. 결제 없이 만든 계약이면 null"
           },
+          "special_term_effects": {
+            "items": {
+              "$ref": "#/components/schemas/SpecialTermEffectOut"
+            },
+            "type": "array",
+            "title": "Special Term Effects",
+            "description": "기록한 특약 결과의 분기 (부속표 E): 넣음이면 기록함에 남길 서류, 거절당함이면 위험 안내·맨 위로 올라간 할 일·상담 창구"
+          },
           "todos": {
             "items": {
               "$ref": "#/components/schemas/TodoOut"
@@ -1303,6 +1311,7 @@
           "alert_level",
           "status",
           "payment_id",
+          "special_term_effects",
           "todos",
           "access_token"
         ],
@@ -1608,6 +1617,14 @@
             "title": "Payment Id",
             "description": "이 계약에 쓴 테스트 결제. 결제 없이 만든 계약이면 null"
           },
+          "special_term_effects": {
+            "items": {
+              "$ref": "#/components/schemas/SpecialTermEffectOut"
+            },
+            "type": "array",
+            "title": "Special Term Effects",
+            "description": "기록한 특약 결과의 분기 (부속표 E): 넣음이면 기록함에 남길 서류, 거절당함이면 위험 안내·맨 위로 올라간 할 일·상담 창구"
+          },
           "todos": {
             "items": {
               "$ref": "#/components/schemas/TodoOut"
@@ -1642,6 +1659,7 @@
           "alert_level",
           "status",
           "payment_id",
+          "special_term_effects",
           "todos"
         ],
         "title": "ContractOut"
@@ -2450,6 +2468,78 @@
         ],
         "title": "RegistryParseResult",
         "description": "등기부 요약 추출 결과 (FR-005). 사용자가 확인·수정한 뒤 fields를 CheckInput.registry로 보낸다 (FR-006)."
+      },
+      "SpecialTermEffectOut": {
+        "properties": {
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "description": "보여 줄 경고"
+          },
+          "documents": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Documents",
+            "description": "기록함에 남길 서류"
+          },
+          "moves_to_top": {
+            "items": {
+              "$ref": "#/components/schemas/TodoRefOut"
+            },
+            "type": "array",
+            "title": "Moves To Top",
+            "description": "할 일 목록 맨 위로 올라가는 할 일"
+          },
+          "adds_todos": {
+            "items": {
+              "$ref": "#/components/schemas/TodoRefOut"
+            },
+            "type": "array",
+            "title": "Adds Todos",
+            "description": "새로 생기는 할 일 (todos.yaml extra_todos)"
+          },
+          "link_counsel": {
+            "type": "boolean",
+            "title": "Link Counsel",
+            "description": "공공 상담 창구 안내를 붙이는지"
+          },
+          "term_id": {
+            "type": "string",
+            "title": "Term Id",
+            "description": "special_terms.yaml id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "inserted",
+              "rejected"
+            ],
+            "title": "Result",
+            "description": "inserted(넣음) / rejected(거절당함)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "warnings",
+          "documents",
+          "moves_to_top",
+          "adds_todos",
+          "link_counsel",
+          "term_id",
+          "label",
+          "result"
+        ],
+        "title": "SpecialTermEffectOut",
+        "description": "계약에 기록한 특약 1개의 결과와 분기 (부속표 E, FR-050)."
       },
       "SpecialTermOut": {
         "properties": {

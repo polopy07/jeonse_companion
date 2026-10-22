@@ -6,6 +6,7 @@
 import hashlib
 import hmac
 import secrets
+from dataclasses import asdict
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header
@@ -18,12 +19,12 @@ from app.config import require_contract_auth
 from app.db import get_db
 from app.engine.alert import alert_level
 from app.engine.payment import PRODUCTS, covers, product_for
-from app.engine.special_terms import contract_day_guide
+from app.engine.special_terms import contract_day_guide, term_effects
 from app.engine.todos import build_todos, report_required
 from app.errors import api_error, responses
 from app.models import Contract, Payment, Todo, Verdict
 from app.rules.loader import get_rules
-from app.schemas import ContractCreatedOut, ContractInput, ContractOut, ContractPatch, TodoOut
+from app.schemas import ContractCreatedOut, ContractInput, ContractOut, ContractPatch, SpecialTermEffectOut, TodoOut
 
 router = APIRouter(prefix="/api/contracts", tags=["계약"])
 # 화면에 그대로 보이는 안내. 만든 계약 id는 GET /api/checks/{id}의 contract_id로 찾는다
@@ -165,7 +166,7 @@ def _sync_todos(row: Contract, check: Verdict, rules: dict) -> None:
     row.todos = todos   # 남기지 않은 할 일은 delete-orphan으로 지워진다
 
 
-def _to_out(row: Contract, db: Session) -> ContractOut:
+def _to_out(row: Contract, db: Session, rules: dict) -> ContractOut:
     check = db.get(Verdict, row.check_id)
     return ContractOut(
         id=row.id,
@@ -191,6 +192,10 @@ def _to_out(row: Contract, db: Session) -> ContractOut:
         alert_level=row.alert_level,
         status=row.status or "active",
         payment_id=row.payment_id,
+        special_term_effects=[
+            SpecialTermEffectOut(term_id=e.term_id, label=e.label, result=e.result, **asdict(e.outcome))
+            for e in term_effects(row.special_term_result or {}, rules)
+        ],
         todos=[TodoOut.model_validate(t, from_attributes=True) for t in row.todos],
     )
 
@@ -235,14 +240,14 @@ def create_contract(inp: ContractInput, db: Session = Depends(get_db), rules: di
         if first is None:   # check_id가 아닌 다른 제약 위반이면 그대로 올린다
             raise
         raise api_error(409, "CHECK_ALREADY_USED", "이미 계약을 만든 판정 결과입니다", ALREADY_USED_HINT) from None
-    return ContractCreatedOut(**_to_out(row, db).model_dump(), access_token=token)
+    return ContractCreatedOut(**_to_out(row, db, rules).model_dump(), access_token=token)
 
 
 @router.get("/{contract_id}", response_model=ContractOut, responses=responses(404, 422))
-def get_contract(contract_id: int, db: Session = Depends(get_db),
+def get_contract(contract_id: int, db: Session = Depends(get_db), rules: dict = Depends(get_rules),
                  x_contract_token: str | None = Header(None, description=TOKEN_HEADER_DESC)):
     """계약과 할 일. 무산된 계약도 기록으로 볼 수 있다."""
-    return _to_out(_contract_for(contract_id, x_contract_token, db), db)
+    return _to_out(_contract_for(contract_id, x_contract_token, db), db, rules)
 
 
 @router.patch("/{contract_id}", response_model=ContractOut, responses=responses(404, 409, 422))
@@ -271,11 +276,11 @@ def update_contract(contract_id: int, inp: ContractPatch, db: Session = Depends(
         row.special_term_result = {**row.special_term_result, **terms}
     _sync_todos(row, check, rules)
     db.commit()
-    return _to_out(row, db)
+    return _to_out(row, db, rules)
 
 
 @router.post("/{contract_id}/cancel", response_model=ContractOut, responses=responses(404, 409, 422))
-def cancel_contract(contract_id: int, db: Session = Depends(get_db),
+def cancel_contract(contract_id: int, db: Session = Depends(get_db), rules: dict = Depends(get_rules),
                     x_contract_token: str | None = Header(None, description=TOKEN_HEADER_DESC)):
     """계약 무산 (FR-016). 계약은 cancelled, 쓴 결제는 released로 풀어 다음 계약에 다시 쓴다.
 
@@ -289,4 +294,4 @@ def cancel_contract(contract_id: int, db: Session = Depends(get_db),
         if payment is not None and payment.contract_id == row.id:
             payment.status = "released"
     db.commit()
-    return _to_out(row, db)
+    return _to_out(row, db, rules)
