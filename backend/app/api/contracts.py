@@ -1,6 +1,10 @@
-"""패키지 시작·계약 당일 체크: 계약 생성과 할 일 9종 생성 (UC-003, FR-011, FR-014, FR-015, FR-017~020, FR-049)."""
+"""패키지 시작·계약 당일 체크: 계약 생성과 할 일 9종 생성 (UC-003, FR-011, FR-014, FR-015, FR-017~020, FR-049).
+
+계약 조건·특약 결과 변경 → 할 일 재계산 (UC-005, FR-021, FR-049·050).
+"""
 from fastapi import APIRouter, Depends
 from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -11,7 +15,7 @@ from app.engine.todos import build_todos, report_required
 from app.errors import api_error, responses
 from app.models import Contract, Todo, Verdict
 from app.rules.loader import get_rules
-from app.schemas import ContractInput, ContractOut, TodoOut
+from app.schemas import ContractInput, ContractOut, ContractPatch, TodoOut
 
 router = APIRouter(prefix="/api/contracts", tags=["계약"])
 # 화면에 그대로 보이는 안내. 만든 계약 id는 GET /api/checks/{id}의 contract_id로 찾는다
@@ -58,19 +62,46 @@ def _todo_values(row: Contract) -> dict:
     return {name: getattr(row, name) for name in _TODO_FIELDS}
 
 
-def _create_todos(row: Contract, check: Verdict, rules: dict) -> None:
+def _sync_todos(row: Contract, check: Verdict, rules: dict) -> None:
+    """계약 조건으로 할 일을 만들거나 다시 계산한다.
+
+    같은 할 일(rule_id)은 id·상태·완료일·증빙을 그대로 두고 날짜·순서만 바꾼다. 끝낸 할 일의 완료일은
+    뒤 할 일의 기준일로 쓴다 (T5 시작 = 전입신고 완료 다음 날). 조건이 바뀌어 더는 해당하지 않는 할 일은
+    지우되, 이미 끝낸 것은 기록으로 맨 뒤에 남긴다. 잔금일이 미뤄져 완료일이 새 시작일보다 앞서게 된
+    할 일(todos.yaml reopen_if_done_before_start: T3·T4)은 다시 할 일로 돌리고 뒤 할 일 날짜도 다시 계산한다.
+    """
     row.report_required = report_required(_todo_values(row), rules["todos"])
-    row.alert_level = _alert_level(check, rules)
-    planned = build_todos(_todo_values(row), check.linkages, row.special_term_result, row.alert_level, rules)
+    existing = {t.rule_id: t for t in row.todos}
+    done_dates = {t.rule_id: t.done_date for t in row.todos if t.status == "done" and t.done_date}
+
+    def plan():
+        return build_todos(_todo_values(row), check.linkages, row.special_term_result, row.alert_level, rules,
+                           done_dates=done_dates)
+
+    planned = plan()
+    reopenable = {t["id"] for t in rules["todos"]["todos"] if t.get("reopen_if_done_before_start")}
+    reopen = [p.rule_id for p in planned if p.rule_id in reopenable and p.rule_id in done_dates
+              and p.start_date and done_dates[p.rule_id] < p.start_date]
+    if reopen:
+        for rule_id in reopen:   # 증빙(evidence_path)은 지우지 않고 남긴다
+            existing[rule_id].status, existing[rule_id].done_date = "todo", None
+            del done_dates[rule_id]
+        planned = plan()
     version = str(rules["todos"]["version"])
-    for t in planned:
-        row.todos.append(Todo(
-            rule_id=t.rule_id, title=t.title, detail=t.detail,
-            start_date=t.start_date, due_date=t.due_date, remind_date=t.remind_date,
-            prerequisites=t.prerequisites, required_checks=t.required_checks, evidence=t.evidence,
-            sort_order=t.sort_order, pinned=t.pinned, moved_to_top=t.moved_to_top,
-            status="todo", rules_version=version,
-        ))
+    todos = []
+    for p in planned:
+        t = existing.pop(p.rule_id, None) or Todo(rule_id=p.rule_id, status="todo")
+        t.title, t.detail, t.evidence = p.title, p.detail, p.evidence
+        t.start_date, t.due_date, t.remind_date = p.start_date, p.due_date, p.remind_date
+        t.prerequisites, t.required_checks = p.prerequisites, p.required_checks
+        t.sort_order, t.pinned, t.moved_to_top = p.sort_order, p.pinned, p.moved_to_top
+        t.rules_version = version
+        todos.append(t)
+    for t in sorted(existing.values(), key=lambda t: t.sort_order):
+        if t.status == "done":
+            t.sort_order = len(todos) + 1
+            todos.append(t)
+    row.todos = todos   # 남기지 않은 할 일은 delete-orphan으로 지워진다
 
 
 def _to_out(row: Contract, db: Session) -> ContractOut:
@@ -122,7 +153,8 @@ def create_contract(inp: ContractInput, db: Session = Depends(get_db), rules: di
         **inp.model_dump(),
     )
     row.verdicts.append(check)
-    _create_todos(row, check, rules)
+    row.alert_level = _alert_level(check, rules)
+    _sync_todos(row, check, rules)
     db.add(row)
     try:
         db.commit()
@@ -140,4 +172,33 @@ def get_contract(contract_id: int, db: Session = Depends(get_db)):
     row = db.get(Contract, contract_id)
     if row is None:
         raise api_error(404, "NOT_FOUND", "계약이 없습니다")
+    return _to_out(row, db)
+
+
+@router.patch("/{contract_id}", response_model=ContractOut, responses=responses(404, 422))
+def update_contract(contract_id: int, inp: ContractPatch, db: Session = Depends(get_db),
+                    rules: dict = Depends(get_rules)):
+    """계약 조건·특약 결과를 바꾸고 할 일을 다시 계산한다 (FR-021, FR-049·050)."""
+    row = db.get(Contract, contract_id)
+    if row is None:
+        raise api_error(404, "NOT_FOUND", "계약이 없습니다")
+    check = db.get(Verdict, row.check_id)
+    changes = inp.model_dump(exclude_unset=True)
+    terms = changes.pop("special_term_result", None) or {}
+    _check_special_terms(terms, check.linkages, rules)
+
+    # 바꾼 뒤의 계약 조건 전체가 계약 생성 때와 같은 규칙(날짜 순서, 대출 없으면 실행일 없음)을 지켜야 한다
+    current = {name: getattr(row, name) for name in ContractInput.model_fields
+               if name not in ("check_id", "special_term_result")}
+    try:
+        ContractInput(check_id=row.check_id, **{**current, **changes})
+    except ValidationError as e:
+        raise RequestValidationError(e.errors()) from None
+
+    for name, value in changes.items():
+        setattr(row, name, value)
+    if terms:
+        row.special_term_result = {**row.special_term_result, **terms}
+    _sync_todos(row, check, rules)
+    db.commit()
     return _to_out(row, db)
