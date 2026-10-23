@@ -191,6 +191,69 @@
         }
       }
     },
+    "/api/checks/{check_id}/payment": {
+      "post": {
+        "tags": [
+          "계약 전 확인"
+        ],
+        "summary": "Create Payment",
+        "description": "테스트 결제 (FR-013, API 명세 1.8). 금액은 판정 단계로 서버가 정한다. 실제 돈은 나가지 않는다.\n\n같은 판정에 다시 누르면 새로 만들지 않고 앞서 한 결제를 200으로 돌려준다 (두 번 눌러도 결제 1건).",
+        "operationId": "create_payment_api_checks__check_id__payment_post",
+        "parameters": [
+          {
+            "name": "check_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Check Id"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
     "/api/contracts": {
       "post": {
         "tags": [
@@ -214,7 +277,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ContractOut"
+                  "$ref": "#/components/schemas/ContractCreatedOut"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -258,6 +331,7 @@
           "계약"
         ],
         "summary": "Get Contract",
+        "description": "계약과 할 일. 무산된 계약도 기록으로 볼 수 있다.",
         "operationId": "get_contract_api_contracts__contract_id__get",
         "parameters": [
           {
@@ -268,6 +342,24 @@
               "type": "integer",
               "title": "Contract Id"
             }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
           }
         ],
         "responses": {
@@ -308,7 +400,7 @@
           "계약"
         ],
         "summary": "Update Contract",
-        "description": "계약 조건·특약 결과를 바꾸고 할 일을 다시 계산한다 (FR-021, FR-049·050).",
+        "description": "계약 조건·특약 결과를 바꾸고 할 일을 다시 계산한다 (FR-021, FR-049·050). 무산된 계약이면 409.",
         "operationId": "update_contract_api_contracts__contract_id__patch",
         "parameters": [
           {
@@ -319,6 +411,24 @@
               "type": "integer",
               "title": "Contract Id"
             }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
           }
         ],
         "requestBody": {
@@ -351,6 +461,97 @@
               }
             },
             "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/api/contracts/{contract_id}/cancel": {
+      "post": {
+        "tags": [
+          "계약"
+        ],
+        "summary": "Cancel Contract",
+        "description": "계약 무산 (FR-016). 계약은 cancelled, 쓴 결제는 released로 풀어 다음 계약에 다시 쓴다.\n\n할 일은 지우지 않고 기록으로 남기되 알림은 보내지 않는다. 이미 무산된 계약이면 409.",
+        "operationId": "cancel_contract_api_contracts__contract_id__cancel_post",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
           },
           "422": {
             "content": {
@@ -894,6 +1095,219 @@
         "title": "ComplexInput",
         "description": "실거래를 찾을 단지 (공공데이터포털 실거래가의 이름 그대로). 시연 집은 미리 매칭해 둔다."
       },
+      "ContractCreatedOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "check_id": {
+            "type": "integer",
+            "title": "Check Id"
+          },
+          "level": {
+            "type": "string",
+            "title": "Level",
+            "description": "시작할 때의 판정 단계 (verdict.yaml levels[].id)"
+          },
+          "housing_type": {
+            "type": "string",
+            "enum": [
+              "apartment",
+              "row_house",
+              "officetel",
+              "multi_household",
+              "detached"
+            ],
+            "title": "Housing Type"
+          },
+          "deposit": {
+            "type": "integer",
+            "title": "Deposit"
+          },
+          "monthly_rent": {
+            "type": "integer",
+            "title": "Monthly Rent"
+          },
+          "exclusive_area": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclusive Area"
+          },
+          "official_price": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Official Price"
+          },
+          "contract_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Contract Date"
+          },
+          "balance_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Balance Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "loan": {
+            "type": "boolean",
+            "title": "Loan"
+          },
+          "loan_execution_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loan Execution Date"
+          },
+          "guarantor": {
+            "type": "string",
+            "enum": [
+              "HUG",
+              "HF",
+              "SGI",
+              "none"
+            ],
+            "title": "Guarantor"
+          },
+          "brokered": {
+            "type": "boolean",
+            "title": "Brokered"
+          },
+          "renewal_right_used": {
+            "type": "boolean",
+            "title": "Renewal Right Used"
+          },
+          "co_tenant": {
+            "type": "boolean",
+            "title": "Co Tenant"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "special_term_result": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "inserted",
+                "rejected"
+              ]
+            },
+            "type": "object",
+            "title": "Special Term Result"
+          },
+          "report_required": {
+            "type": "boolean",
+            "title": "Report Required",
+            "description": "임대차 신고 대상인지 (FR-015). 비대상이면 T1 없이 T4에서 확정일자를 함께 받는다"
+          },
+          "alert_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert Level",
+            "description": "시작할 때의 경보 단계 (alert.yaml levels[].id), 정상이면 null"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "cancelled"
+            ],
+            "title": "Status",
+            "description": "active / cancelled (계약 무산, FR-016)"
+          },
+          "payment_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Id",
+            "description": "이 계약에 쓴 테스트 결제. 결제 없이 만든 계약이면 null"
+          },
+          "todos": {
+            "items": {
+              "$ref": "#/components/schemas/TodoOut"
+            },
+            "type": "array",
+            "title": "Todos",
+            "description": "할 일 목록 (sort_order 순서)"
+          },
+          "access_token": {
+            "type": "string",
+            "title": "Access Token",
+            "description": "계약 접근 토큰. 이 응답에서 한 번만 준다. 계약 아래 API에 X-Contract-Token 헤더로 보낸다"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "check_id",
+          "level",
+          "housing_type",
+          "deposit",
+          "monthly_rent",
+          "exclusive_area",
+          "official_price",
+          "contract_date",
+          "balance_date",
+          "end_date",
+          "loan",
+          "loan_execution_date",
+          "guarantor",
+          "brokered",
+          "renewal_right_used",
+          "co_tenant",
+          "email",
+          "special_term_result",
+          "report_required",
+          "alert_level",
+          "status",
+          "payment_id",
+          "todos",
+          "access_token"
+        ],
+        "title": "ContractCreatedOut"
+      },
       "ContractInput": {
         "properties": {
           "check_id": {
@@ -1001,6 +1415,18 @@
             "type": "object",
             "title": "Special Term Result",
             "description": "특약별 넣음/거절당함 (special_terms.yaml의 id가 키)"
+          },
+          "payment_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Id",
+            "description": "POST /api/checks/{id}/payment의 payment_id. 이 판정의 결제이거나 무산된 계약에서 풀린 결제. 서버 설정 REQUIRE_CONTRACT_AUTH가 true면 꼭 있어야 한다 (API 명세 1.8)"
           }
         },
         "type": "object",
@@ -1161,6 +1587,27 @@
             "title": "Alert Level",
             "description": "시작할 때의 경보 단계 (alert.yaml levels[].id), 정상이면 null"
           },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "cancelled"
+            ],
+            "title": "Status",
+            "description": "active / cancelled (계약 무산, FR-016)"
+          },
+          "payment_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Id",
+            "description": "이 계약에 쓴 테스트 결제. 결제 없이 만든 계약이면 null"
+          },
           "todos": {
             "items": {
               "$ref": "#/components/schemas/TodoOut"
@@ -1193,6 +1640,8 @@
           "special_term_result",
           "report_required",
           "alert_level",
+          "status",
+          "payment_id",
           "todos"
         ],
         "title": "ContractOut"
@@ -1674,6 +2123,59 @@
         ],
         "title": "NearbyJeonseOut",
         "description": "주변 전세 시세 (FR-004). 같은 단지·비슷한 면적의 최근 전세 거래 중앙값."
+      },
+      "PaymentOut": {
+        "properties": {
+          "payment_id": {
+            "type": "integer",
+            "title": "Payment Id"
+          },
+          "check_id": {
+            "type": "integer",
+            "title": "Check Id"
+          },
+          "product": {
+            "type": "string",
+            "enum": [
+              "package",
+              "todo_only"
+            ],
+            "title": "Product",
+            "description": "package(전동기 패키지) / todo_only(다가구·단독 할 일 관리만)"
+          },
+          "amount": {
+            "type": "integer",
+            "title": "Amount",
+            "description": "금액 (원). 판정 단계로 서버가 정한다"
+          },
+          "method": {
+            "type": "string",
+            "const": "test",
+            "title": "Method",
+            "description": "결제 수단. MVP는 test만"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "paid",
+              "used",
+              "released"
+            ],
+            "title": "Status",
+            "description": "paid(결제함) / used(계약에 씀) / released(계약 무산으로 풀림, 다음 계약에 다시 씀)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "payment_id",
+          "check_id",
+          "product",
+          "amount",
+          "method",
+          "status"
+        ],
+        "title": "PaymentOut",
+        "description": "테스트 결제 (FR-013). 실제 돈은 나가지 않는다."
       },
       "RegistryEntryOut": {
         "properties": {

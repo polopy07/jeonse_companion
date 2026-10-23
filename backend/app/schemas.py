@@ -225,6 +225,7 @@ class SpecialTermsResult(BaseModel):
 
 Guarantor = Literal["HUG", "HF", "SGI", "none"]
 SpecialTermResult = Literal["inserted", "rejected"]
+ContractStatus = Literal["active", "cancelled"]
 
 
 class ContractInput(BaseModel):
@@ -247,6 +248,9 @@ class ContractInput(BaseModel):
     email: str | None = Field(None, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", description="알림 이메일")
     special_term_result: dict[str, SpecialTermResult] = Field(
         default_factory=dict, description="특약별 넣음/거절당함 (special_terms.yaml의 id가 키)")
+    payment_id: int | None = Field(
+        None, description="POST /api/checks/{id}/payment의 payment_id. 이 판정의 결제이거나 무산된 계약에서 풀린 결제. "
+                          "서버 설정 REQUIRE_CONTRACT_AUTH가 true면 꼭 있어야 한다 (API 명세 1.8)")
 
     @model_validator(mode="after")
     def dates_in_order(self):
@@ -332,7 +336,28 @@ class ContractOut(BaseModel):
     special_term_result: dict[str, SpecialTermResult]
     report_required: bool = Field(description="임대차 신고 대상인지 (FR-015). 비대상이면 T1 없이 T4에서 확정일자를 함께 받는다")
     alert_level: str | None = Field(description="시작할 때의 경보 단계 (alert.yaml levels[].id), 정상이면 null")
+    status: ContractStatus = Field(description="active / cancelled (계약 무산, FR-016)")
+    payment_id: int | None = Field(description="이 계약에 쓴 테스트 결제. 결제 없이 만든 계약이면 null")
     todos: list[TodoOut] = Field(description="할 일 목록 (sort_order 순서)")
+
+
+class ContractCreatedOut(ContractOut):
+    access_token: str = Field(description="계약 접근 토큰. 이 응답에서 한 번만 준다. 계약 아래 API에 X-Contract-Token 헤더로 보낸다")
+
+
+PaymentProduct = Literal["package", "todo_only"]
+
+
+class PaymentOut(BaseModel):
+    """테스트 결제 (FR-013). 실제 돈은 나가지 않는다."""
+
+    payment_id: int
+    check_id: int
+    product: PaymentProduct = Field(description="package(전동기 패키지) / todo_only(다가구·단독 할 일 관리만)")
+    amount: int = Field(description="금액 (원). 판정 단계로 서버가 정한다")
+    method: Literal["test"] = Field(description="결제 수단. MVP는 test만")
+    status: Literal["paid", "used", "released"] = Field(
+        description="paid(결제함) / used(계약에 씀) / released(계약 무산으로 풀림, 다음 계약에 다시 씀)")
 
 
 TradeHousingType = Literal["apartment", "row_house"]

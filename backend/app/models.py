@@ -46,6 +46,12 @@ class Contract(Base):
     report_required: Mapped[bool] = mapped_column(Boolean, default=True)   # 임대차 신고 대상 (FR-015)
     alert_level: Mapped[str | None] = mapped_column(String(16))            # 시작할 때의 경보 단계 (정상이면 null)
 
+    # 계약 접근 토큰의 SHA-256 (토큰 원문은 만들 때 응답으로 한 번만 준다, API 명세 1.8). 예전 계약은 null
+    access_token_hash: Mapped[str | None] = mapped_column(String(64))
+    payment_id: Mapped[int | None] = mapped_column(Integer)                 # 이 계약에 쓴 테스트 결제 (payments.id)
+    status: Mapped[str] = mapped_column(String(16), default="active", server_default="active")   # active / cancelled
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     todos: Mapped[list["Todo"]] = relationship(back_populates="contract", cascade="all, delete-orphan",
@@ -106,6 +112,24 @@ class Todo(Base):
     evidence_path: Mapped[str | None] = mapped_column(String(500))     # 기록함 증빙 사진
 
     contract: Mapped[Contract] = relationship(back_populates="todos")
+
+
+class Payment(Base):
+    """테스트 결제 1건 (FR-013, #40). 실제 돈은 나가지 않는다. 판정에 결제하고 계약 생성에 쓴다.
+
+    status: paid(결제함, 아직 계약에 안 씀) / used(계약에 씀) / released(계약 무산으로 풀림, 다음 계약에 다시 씀, FR-016)
+    """
+
+    __tablename__ = "payments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    check_id: Mapped[int] = mapped_column(Integer, index=True)    # 결제한 판정 (verdicts.id)
+    product: Mapped[str] = mapped_column(String(16))              # package / todo_only
+    amount: Mapped[int] = mapped_column(Integer)                  # 원
+    method: Mapped[str] = mapped_column(String(16), default="test")
+    status: Mapped[str] = mapped_column(String(16), default="paid")
+    contract_id: Mapped[int | None] = mapped_column(Integer)      # 마지막으로 쓴 계약
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Alert(Base):
