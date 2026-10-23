@@ -1,25 +1,36 @@
 """패키지 시작·계약 당일 체크: 계약 생성과 할 일 9종 생성 (UC-003, FR-011, FR-014, FR-015, FR-017~020, FR-049).
 
 계약 조건·특약 결과 변경 → 할 일 재계산 (UC-005, FR-021, FR-049·050).
+테스트 결제 확인(FR-013), 계약 접근 토큰(#39), 계약 무산(FR-016) — API 명세 1.8.
 """
-from fastapi import APIRouter, Depends
+import hashlib
+import hmac
+import secrets
+from dataclasses import asdict
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, Header
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.config import require_contract_auth
 from app.db import get_db
 from app.engine.alert import alert_level
-from app.engine.special_terms import contract_day_guide
+from app.engine.payment import PRODUCTS, covers, product_for
+from app.engine.special_terms import contract_day_guide, term_effects
 from app.engine.todos import build_todos, report_required
 from app.errors import api_error, responses
-from app.models import Contract, Todo, Verdict
+from app.models import Contract, Payment, Todo, Verdict
 from app.rules.loader import get_rules
-from app.schemas import ContractInput, ContractOut, ContractPatch, TodoOut
+from app.schemas import ContractCreatedOut, ContractInput, ContractOut, ContractPatch, SpecialTermEffectOut, TodoOut
 
 router = APIRouter(prefix="/api/contracts", tags=["계약"])
 # 화면에 그대로 보이는 안내. 만든 계약 id는 GET /api/checks/{id}의 contract_id로 찾는다
 ALREADY_USED_HINT = "할 일 탭에서 이 계약의 할 일을 볼 수 있습니다. 다른 집이면 계약 전 확인을 다시 하세요"
+_PRODUCT_LABEL = {"package": "전동기 패키지", "todo_only": "할 일 관리만"}
+TOKEN_HEADER_DESC = "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
 
 # 판정 입력에서 그대로 가져오는 값 (fields.yaml 이름)
 _FROM_CHECK = ("housing_type", "deposit", "official_price", "exclusive_area")
@@ -49,6 +60,57 @@ def _check_special_terms(result: dict, linkages: list[str], rules: dict) -> None
                        "msg": f"Value error, {msg}", "input": key})
     if errors:
         raise RequestValidationError(errors)
+
+
+def _token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _contract_for(contract_id: int, token: str | None, db: Session) -> Contract:
+    """계약을 찾고 접근 토큰을 확인한다. 토큰이 없거나 틀리면 계약이 없을 때와 같은 404 (계약이 있는지 알아내지 못하게).
+
+    REQUIRE_CONTRACT_AUTH가 false면(앱 연결 전) 토큰을 보내지 않은 요청은 통과시킨다. 보냈는데 틀리면 언제나 404.
+    """
+    row = db.get(Contract, contract_id)
+    if row is not None:
+        if token is None:
+            ok = not require_contract_auth()
+        else:
+            ok = row.access_token_hash is not None and hmac.compare_digest(row.access_token_hash, _token_hash(token))
+        if ok:
+            return row
+    raise api_error(404, "NOT_FOUND", "계약이 없습니다", "이 휴대폰에서 만든 계약이 아니면 볼 수 없습니다")
+
+
+def _active(row: Contract) -> None:
+    if row.status == "cancelled":
+        raise api_error(409, "CONTRACT_CANCELLED", "무산된 계약이라 바꿀 수 없습니다",
+                        "기록은 계속 볼 수 있습니다. 다음 집은 계약 전 확인부터 다시 하세요")
+
+
+def _take_payment(payment_id: int | None, check: Verdict, db: Session) -> Payment | None:
+    """계약 생성에 쓸 테스트 결제를 확인한다 (402 판단, 결정 자료 "세부 규칙").
+
+    통과: 이 판정에 한 결제(paid), 또는 무산된 계약에서 풀린 결제(released). 풀린 결제는 같거나 낮은 상품의 계약에만
+    (패키지 → 할 일 관리만 OK, 할 일 관리만 → 패키지는 다시 결제).
+    """
+    if payment_id is None:
+        if require_contract_auth():
+            raise api_error(402, "PAYMENT_REQUIRED", "테스트 결제를 먼저 해야 합니다",
+                            "결과 화면에서 패키지 시작을 눌러 결제를 확인하세요")
+        return None
+    p = db.get(Payment, payment_id)
+    usable = p is not None and ((p.status == "paid" and p.check_id == check.id) or p.status == "released")
+    if not usable:
+        raise api_error(402, "PAYMENT_REQUIRED", "이 판정에 쓸 수 있는 결제가 아닙니다",
+                        "결과 화면에서 패키지 시작을 눌러 결제를 확인하세요")
+    needed = product_for(check.level)
+    if not covers(p.product, needed):
+        raise api_error(402, "PAYMENT_REQUIRED",
+                        f"{_PRODUCT_LABEL[p.product]}({PRODUCTS[p.product]:,}원) 결제로는 "
+                        f"{_PRODUCT_LABEL[needed]}({PRODUCTS[needed]:,}원)을 시작할 수 없습니다",
+                        f"{_PRODUCT_LABEL[needed]}으로 다시 결제하세요")
+    return p
 
 
 def _alert_level(check: Verdict, rules: dict) -> str | None:
@@ -104,7 +166,7 @@ def _sync_todos(row: Contract, check: Verdict, rules: dict) -> None:
     row.todos = todos   # 남기지 않은 할 일은 delete-orphan으로 지워진다
 
 
-def _to_out(row: Contract, db: Session) -> ContractOut:
+def _to_out(row: Contract, db: Session, rules: dict) -> ContractOut:
     check = db.get(Verdict, row.check_id)
     return ContractOut(
         id=row.id,
@@ -128,11 +190,17 @@ def _to_out(row: Contract, db: Session) -> ContractOut:
         special_term_result=row.special_term_result,
         report_required=row.report_required,
         alert_level=row.alert_level,
+        status=row.status or "active",
+        payment_id=row.payment_id,
+        special_term_effects=[
+            SpecialTermEffectOut(term_id=e.term_id, label=e.label, result=e.result, **asdict(e.outcome))
+            for e in term_effects(row.special_term_result or {}, rules)
+        ],
         todos=[TodoOut.model_validate(t, from_attributes=True) for t in row.todos],
     )
 
 
-@router.post("", response_model=ContractOut, status_code=201, responses=responses(404, 409, 422))
+@router.post("", response_model=ContractCreatedOut, status_code=201, responses=responses(402, 404, 409, 422))
 def create_contract(inp: ContractInput, db: Session = Depends(get_db), rules: dict = Depends(get_rules)):
     check = db.get(Verdict, inp.check_id)
     if check is None:
@@ -147,16 +215,24 @@ def create_contract(inp: ContractInput, db: Session = Depends(get_db), rules: di
     if check.contract_id is not None:
         raise api_error(409, "CHECK_ALREADY_USED", "이미 계약을 만든 판정 결과입니다", ALREADY_USED_HINT)
     _check_special_terms(inp.special_term_result, check.linkages, rules)
+    payment = _take_payment(inp.payment_id, check, db)
 
+    token = secrets.token_urlsafe(32)
     row = Contract(
         **{name: check.inputs.get(name) for name in _FROM_CHECK},
-        **inp.model_dump(),
+        **inp.model_dump(exclude={"payment_id"}),
+        access_token_hash=_token_hash(token),
+        status="active",
     )
     row.verdicts.append(check)
     row.alert_level = _alert_level(check, rules)
     _sync_todos(row, check, rules)
     db.add(row)
     try:
+        db.flush()
+        if payment is not None:
+            payment.status, payment.contract_id = "used", row.id
+            row.payment_id = payment.id
         db.commit()
     except IntegrityError:   # 같은 판정으로 동시에 들어온 요청 중 늦은 쪽 (check_id unique)
         db.rollback()
@@ -164,24 +240,23 @@ def create_contract(inp: ContractInput, db: Session = Depends(get_db), rules: di
         if first is None:   # check_id가 아닌 다른 제약 위반이면 그대로 올린다
             raise
         raise api_error(409, "CHECK_ALREADY_USED", "이미 계약을 만든 판정 결과입니다", ALREADY_USED_HINT) from None
-    return _to_out(row, db)
+    return ContractCreatedOut(**_to_out(row, db, rules).model_dump(), access_token=token)
 
 
 @router.get("/{contract_id}", response_model=ContractOut, responses=responses(404, 422))
-def get_contract(contract_id: int, db: Session = Depends(get_db)):
-    row = db.get(Contract, contract_id)
-    if row is None:
-        raise api_error(404, "NOT_FOUND", "계약이 없습니다")
-    return _to_out(row, db)
+def get_contract(contract_id: int, db: Session = Depends(get_db), rules: dict = Depends(get_rules),
+                 x_contract_token: str | None = Header(None, description=TOKEN_HEADER_DESC)):
+    """계약과 할 일. 무산된 계약도 기록으로 볼 수 있다."""
+    return _to_out(_contract_for(contract_id, x_contract_token, db), db, rules)
 
 
-@router.patch("/{contract_id}", response_model=ContractOut, responses=responses(404, 422))
+@router.patch("/{contract_id}", response_model=ContractOut, responses=responses(404, 409, 422))
 def update_contract(contract_id: int, inp: ContractPatch, db: Session = Depends(get_db),
-                    rules: dict = Depends(get_rules)):
-    """계약 조건·특약 결과를 바꾸고 할 일을 다시 계산한다 (FR-021, FR-049·050)."""
-    row = db.get(Contract, contract_id)
-    if row is None:
-        raise api_error(404, "NOT_FOUND", "계약이 없습니다")
+                    rules: dict = Depends(get_rules),
+                    x_contract_token: str | None = Header(None, description=TOKEN_HEADER_DESC)):
+    """계약 조건·특약 결과를 바꾸고 할 일을 다시 계산한다 (FR-021, FR-049·050). 무산된 계약이면 409."""
+    row = _contract_for(contract_id, x_contract_token, db)
+    _active(row)
     check = db.get(Verdict, row.check_id)
     changes = inp.model_dump(exclude_unset=True)
     terms = changes.pop("special_term_result", None) or {}
@@ -201,4 +276,22 @@ def update_contract(contract_id: int, inp: ContractPatch, db: Session = Depends(
         row.special_term_result = {**row.special_term_result, **terms}
     _sync_todos(row, check, rules)
     db.commit()
-    return _to_out(row, db)
+    return _to_out(row, db, rules)
+
+
+@router.post("/{contract_id}/cancel", response_model=ContractOut, responses=responses(404, 409, 422))
+def cancel_contract(contract_id: int, db: Session = Depends(get_db), rules: dict = Depends(get_rules),
+                    x_contract_token: str | None = Header(None, description=TOKEN_HEADER_DESC)):
+    """계약 무산 (FR-016). 계약은 cancelled, 쓴 결제는 released로 풀어 다음 계약에 다시 쓴다.
+
+    할 일은 지우지 않고 기록으로 남기되 알림은 보내지 않는다. 이미 무산된 계약이면 409.
+    """
+    row = _contract_for(contract_id, x_contract_token, db)
+    _active(row)
+    row.status, row.cancelled_at = "cancelled", datetime.now(timezone.utc)
+    if row.payment_id is not None:
+        payment = db.get(Payment, row.payment_id)
+        if payment is not None and payment.contract_id == row.id:
+            payment.status = "released"
+    db.commit()
+    return _to_out(row, db, rules)

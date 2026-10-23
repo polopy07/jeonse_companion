@@ -54,7 +54,8 @@ def test_create_and_get_contract(client):
 
     r = client.get(f"/api/contracts/{created['id']}")
     assert r.status_code == 200
-    assert r.json() == created
+    token = created.pop("access_token")   # 토큰은 만들 때 한 번만
+    assert token and r.json() == created
 
 
 def test_not_applicable_can_start(client):
@@ -270,4 +271,5 @@ def test_get_keeps_values_from_creation(client, rules):
     finally:
         app.dependency_overrides.pop(get_rules, None)
     assert again["report_required"] is False
+    created.pop("access_token")
     assert again == created

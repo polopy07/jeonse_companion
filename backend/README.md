@@ -97,6 +97,19 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 
 응답: 판정 단계(`level`, `label`, `next_step`, `block_payment`), 추정 주택가격, 내 보증금 비율, 걸린 규칙(`matched`, 항목마다 쉬운 말 설명 `explanation`), 연동 규칙(`linkages`), 확인 못 한 항목(`unchecked`, 확인 방법 `guide`), 안내 문구(`disclaimer`), 규칙 버전. `explanation`·`guide`는 판정을 만들 때 저장한 문구를 그대로 돌려준다(사용자가 그때 본 문구를 남김). 계약의 신고 대상·경보 단계·할 일도 같은 원칙으로 만들 때 저장한다.
 
+### `POST /api/checks/{id}/payment` 테스트 결제 (FR-013)
+
+본문 없음. 실제 돈은 나가지 않는다.
+
+```json
+{"payment_id": 1, "check_id": 1, "product": "package", "amount": 9900, "method": "test", "status": "paid"}
+```
+
+- 상품·금액은 판정 단계로 서버가 정한다: 다가구·단독(대상 아님)은 `todo_only` 4,900원, 나머지는 `package` 9,900원 (`app/engine/payment.py`)
+- 같은 판정에 다시 누르면 새로 만들지 않고 앞서 한 결제를 200으로 돌려준다
+- "문제 항목"이면 409 `CHECK_BLOCKED`, 이미 계약을 만든 판정이면 409 `CHECK_ALREADY_USED`
+- 결제 상태: `paid`(결제함) → `used`(계약에 씀) → 계약 무산이면 `released`(다음 집 계약에 다시 씀) → 다시 쓰면 `used`
+
 ### `POST /api/contracts` 패키지 시작·계약 생성·할 일 생성 (FR-011·014·015·017~020·049)
 
 ```json
@@ -109,15 +122,19 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
   "loan_execution_date": "2026-12-01",
   "guarantor": "HUG",
   "email": "tenant@example.com",
-  "special_term_result": {"S-NO-MORTGAGE": "rejected"}
+  "special_term_result": {"S-NO-MORTGAGE": "rejected"},
+  "payment_id": 1
 }
 ```
 
+- `payment_id`: 이 판정의 결제(`paid`)이거나 무산된 계약에서 풀린 결제(`released`)여야 한다. 아니면 402 `PAYMENT_REQUIRED`. 풀린 결제가 할 일 관리만(4,900원)인데 이 집이 패키지면 402(다시 결제), 반대는 그대로 쓴다. 서버 설정 `REQUIRE_CONTRACT_AUTH`가 false(기본, 앱 연결 전)면 `payment_id` 없이도 만든다
+- 응답의 `access_token`(계약 접근 토큰)은 **이 응답에서 한 번만** 준다. 서버에는 SHA-256 해시만 남는다. 앱은 계약 id와 함께 저장해 두고 계약 아래 요청에 `X-Contract-Token` 헤더로 보낸다
 - 주택 유형·보증금·공시가격·전용면적은 `check_id` 판정의 입력을 그대로 쓴다. 보증금이 바뀌었으면 계약 전 확인을 다시 한다
 - 선택 입력과 기본값: `monthly_rent` 0, `loan` false, `guarantor` `none`(HUG / HF / SGI / none), `brokered` true(직거래면 false), `renewal_right_used` false, `co_tenant` false, `email`, `special_term_result`(키는 `special_terms.yaml`의 id, 값은 `inserted` / `rejected`)
 - 날짜: 잔금일 ≥ 계약일, 만기일 > 잔금일. 대출이 없으면 `loan_execution_date`를 비워 둔다
 - "문제 항목" 판정이면 409 `CHECK_BLOCKED`, 한 판정으로 계약을 두 번 만들면 409 `CHECK_ALREADY_USED`(만든 계약 id는 `GET /api/checks/{id}`의 `contract_id`)
-- 응답: 입력한 계약 조건 + `id`, `check_id`, `level`(시작할 때의 판정 단계), 판정에서 가져온 주택 정보, `report_required`(임대차 신고 대상), `alert_level`(판정 때 비율로 정한 경보 단계, 정상이면 null), `todos`(할 일 목록)
+- 응답: 입력한 계약 조건 + `id`, `check_id`, `level`(시작할 때의 판정 단계), 판정에서 가져온 주택 정보, `report_required`(임대차 신고 대상), `alert_level`(판정 때 비율로 정한 경보 단계, 정상이면 null), `status`(`active` / `cancelled`), `payment_id`, `access_token`, `special_term_effects`, `todos`(할 일 목록)
+- `special_term_effects`: 기록한 특약마다 `{term_id, label, result, warnings, documents, moves_to_top, adds_todos, link_counsel}` (명세서 부속표 E, `special_terms.yaml`의 `on_inserted`·`on_rejected`). 넣음이면 기록함에 남길 서류(특약이 보이는 계약서 사진), 거절당함이면 위험 안내·맨 위로 올라간 할 일(담보 설정 금지 → T4, 보증 거절 시 해제 → T2)·공공 상담 창구. 할 일 순서 자체는 `todos.yaml` `move_to_top_when`이 바꾸고, 두 파일이 서로 맞는지는 `rules/check_rules.py`가 검사한다
 - `todos`는 `sort_order` 순서다: 맨 위 규칙(특약 거절·경보, `moved_to_top`) → 고정(T5~T9, `pinned`) → 기한 빠른 순. 재알림(T6·T8)은 `due_date` 대신 `remind_date`, HF·SGI 반환보증(T5)은 기관 기준이 없어 `due_date`가 null. 대출은 있는데 `loan_execution_date`를 비우면 T5 시작일은 전입신고(T4) 다음 날
 - 기한 계산은 `docs/validation/기한계산_정답표.md`의 계산 약속을 따르고, `tests/test_todos.py`가 정답표(`deadline_scenarios.yaml`) S1~S10·재계산 3개와 대조한다
 - `contracts` 테이블에 `check_id`(unique)·`email`·`report_required`·`alert_level`, `todos`에 새 칸들을, `verdicts`에 `market` 칸과 `trades` 테이블을 넣었다. 금액 칸은 BigInteger로 바꿨다. 예전에 만든 DB는 위 안내대로 다시 만든다
@@ -139,7 +156,13 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - 할 일은 같은 엔진으로 다시 계산한다. 같은 할 일은 `id`·`status`·완료일을 그대로 두고 날짜·순서만 바꾼다. 끝낸 할 일의 완료일은 뒤 할 일의 기준일로 쓴다 (전입신고 완료 다음 날 → 반환보증 가입 시작). 조건이 바뀌어 더는 해당하지 않는 할 일(보증 미가입으로 바꾼 T5·T6, 신고 비대상이 된 T1)은 지우고, 이미 끝낸 것은 맨 뒤에 기록으로 남긴다
 - 잔금일이 미뤄져 끝낸 잔금일 아침 등기부 재비교(T3)·전입신고(T4)의 완료일이 새 잔금일보다 앞서면 다시 `todo`로 돌린다 (`todos.yaml` `reopen_if_done_before_start`, PO 2026-10-15). 올린 증빙은 지우지 않는다. 전입신고가 다시 할 일이 되면 반환보증 가입(T5) 시작일도 새 잔금일 기준으로 다시 계산된다
 - `alert_level`(시작할 때의 경보 단계)은 바꾸지 않는다. 계약 중 재계산은 4주차 (FR-037)
-- 계약 무산(FR-016, `status: "cancelled"`)은 테스트 결제 방식(#40)을 정한 뒤에 만든다
+- `X-Contract-Token`을 확인한다 (아래). 무산된 계약이면 409 `CONTRACT_CANCELLED`
+
+### 계약 접근 토큰과 계약 무산 (#39, FR-016)
+
+- `GET`·`PATCH /api/contracts/{id}`, `POST /api/contracts/{id}/cancel`은 헤더 `X-Contract-Token`이 계약을 만들 때 받은 `access_token`과 맞아야 한다. 틀리면 계약이 없을 때와 같은 404 `NOT_FOUND` (번호를 바꿔 가며 계약이 있는지 알아내지 못하게). `REQUIRE_CONTRACT_AUTH`가 false면 헤더를 보내지 않은 요청은 통과시킨다
+- `POST /api/contracts/{id}/cancel` (본문 없음): 계약 `status: "cancelled"`, 쓴 결제는 `released`. 할 일은 지우지 않고 기록으로 남긴다. 무산된 계약은 `GET`만 되고 `PATCH`·다시 무산은 409 `CONTRACT_CANCELLED`
+- `contracts`에 `access_token_hash`·`payment_id`·`status`·`cancelled_at` 칸, `payments` 테이블을 넣었다. 예전 DB는 서버를 켤 때 새 칸을 자동으로 더한다(`init_db`). 예전 계약은 토큰이 없어 `REQUIRE_CONTRACT_AUTH=true`면 열 수 없으니 시연 전에는 `python reset_demo_db.py`
 
 ### `POST /api/admin/trades` 실거래가 수집 (FR-046)
 
