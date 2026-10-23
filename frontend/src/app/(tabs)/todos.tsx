@@ -6,17 +6,29 @@ import { AppText } from '@/components/AppText';
 import { Icon } from '@/components/Icon';
 import { Button, Screen } from '@/components/layout';
 import { Colors, Radius } from '@/constants/theme';
-import { today, todos as initialTodos, type Todo } from '@/data/demo';
+import { today, todos as demoTodos, type Todo } from '@/data/demo';
+import { todoViews, useLatestContract } from '@/lib/contract';
 
-/** UI-04 할 일 목록: 세로 타임라인에 오늘 선을 긋고, 완료는 증빙 사진 1장으로 */
+/**
+ * UI-04 할 일 목록: 세로 타임라인에 오늘 선을 긋고, 완료는 증빙 사진 1장으로.
+ * 패키지를 시작해 만든 계약(POST /api/contracts)이 있으면 그 할 일을, 없으면 시연 할 일을 보여 준다.
+ */
 export default function TodosScreen() {
-  const [items, setItems] = useState(initialTodos);
+  const contract = useLatestContract();
+  const [items, setItems] = useState<Todo[]>(contract ? todoViews(contract.todos) : demoTodos);
+  // 계약 날짜 입력에서 새 계약을 만들고 돌아오면 그 할 일로 바꾼다 (렌더 중 이전 값과 비교)
+  const [shownContract, setShownContract] = useState(contract);
+  if (shownContract !== contract) {
+    setShownContract(contract);
+    setItems(contract ? todoViews(contract.todos) : demoTodos);
+  }
   const done = items.filter((t) => t.status === 'done').length;
+  const todayLabel = contract ? `${new Date().getMonth() + 1}.${String(new Date().getDate()).padStart(2, '0')}` : today.label;
 
   // 실제 앱에서는 카메라로 증빙 1장을 찍은 뒤 완료 처리한다. 지금은 완료 상태만 바꾼다.
   const complete = (id: string) =>
     setItems((list) =>
-      list.map((t) => (t.id === id ? { ...t, status: 'done', when: `${today.label} 완료 · 증빙 1장`, badge: undefined } : t)),
+      list.map((t) => (t.id === id ? { ...t, status: 'done', when: `${todayLabel} 완료 · 증빙 1장`, badge: undefined } : t)),
     );
 
   return (
@@ -33,14 +45,20 @@ export default function TodosScreen() {
         </Pressable>
       </View>
       <AppText size={13} color={Colors.textSub} style={{ marginTop: 4 }}>
-        완료 {done} · 남은 일 {9 - done} · 날짜를 바꾸면 뒤 기한이 같이 움직여요
+        완료 {done} · 남은 일 {items.length - done} · 날짜를 바꾸면 뒤 기한이 같이 움직여요
       </AppText>
+      {contract ? (
+        // FR-015: 보증금 6천만 원 이하·월세 30만 원 이하면 신고 비대상이라 확정일자를 챙긴다
+        <AppText size={12} color={Colors.textSub} style={{ marginTop: 2 }}>
+          {contract.report_required ? '임대차 신고 대상 계약이에요' : '임대차 신고 비대상이라 확정일자를 챙겨 드려요'}
+        </AppText>
+      ) : null}
 
       <View style={styles.list}>
         <View style={styles.rail} />
         {items.map((t) => (
           <Fragment key={t.id}>
-            {t.todayBefore ? <TodayLine /> : null}
+            {t.todayBefore ? <TodayLine label={todayLabel} /> : null}
             <TodoItem todo={t} onComplete={() => complete(t.id)} />
           </Fragment>
         ))}
@@ -49,12 +67,12 @@ export default function TodosScreen() {
   );
 }
 
-function TodayLine() {
+function TodayLine({ label }: { label: string }) {
   return (
     <View style={styles.today}>
       <View style={styles.todayDot} />
       <AppText size={12} weight="bold">
-        오늘 {today.label}
+        오늘 {label}
       </AppText>
       <View style={{ flex: 1, height: 1, backgroundColor: Colors.text }} />
     </View>

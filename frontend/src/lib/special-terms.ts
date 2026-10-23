@@ -3,8 +3,10 @@
  *
  * rules/special_terms.yaml·linkage.yaml(v1.1)을 옮긴 것이다. 백엔드 GET /api/checks/{id}/special-terms(#32)와 같은 기준으로,
  * 판정에 걸린 MVP 연동 규칙(근저당, 비율 90% 이상, 신탁)에 연결된 MVP 특약만 보여 준다.
- * 백엔드를 붙이면 이 파일 대신 API 응답을 쓴다.
+ * 서버 판정(id가 있는 결과)은 GET /api/checks/{id}/special-terms 응답을 termsFromApi로 바꿔 쓰고,
+ * 서버 없이 앱에서 계산한 결과일 때만 이 파일의 규칙으로 고른다.
  */
+import type { ApiSpecialTerms, ApiTermOutcome } from '@/lib/api';
 import { createStore } from '@/lib/store';
 
 /** 백엔드 POST /api/contracts의 special_term_result 값과 같다 */
@@ -20,11 +22,14 @@ export type TermOutcome = {
   documents: string[];
   /** 할 일 목록 맨 위로 올라가는 할 일 */
   movesToTop: string[];
+  /** 새로 생기는 할 일 */
+  addsTodos?: string[];
   linkCounsel: boolean;
 };
 
 export type SpecialTermRule = {
-  id: SpecialTermId;
+  /** special_terms.yaml id. 서버 응답의 새 특약도 받을 수 있게 string */
+  id: SpecialTermId | (string & {});
   title: string;
   text: string;
   source: string;
@@ -102,6 +107,29 @@ export function termsFor(matched: LinkedItem[]): ShownTerm[] {
   });
 }
 
+const outcomeFromApi = (o: ApiTermOutcome): TermOutcome => ({
+  warnings: o.warnings,
+  documents: o.documents,
+  movesToTop: o.moves_to_top.map((t) => t.title),
+  addsTodos: o.adds_todos.map((t) => t.title),
+  linkCounsel: o.link_counsel,
+});
+
+/** GET /api/checks/{id}/special-terms 응답 → 계약 당일 화면의 특약 카드 */
+export function termsFromApi(r: ApiSpecialTerms): ShownTerm[] {
+  return r.terms.map((t) => ({
+    id: t.id,
+    title: t.label,
+    text: t.text,
+    source: t.source,
+    shownWhen: t.linked.map((l) => l.id),
+    mvp: true,
+    ifInserted: outcomeFromApi(t.if_inserted),
+    ifRejected: outcomeFromApi(t.if_rejected),
+    link: `${t.linked.map((l) => l.label).join(', ')} 항목과 연결`,
+  }));
+}
+
 /** 걸린 연동 규칙 하나가 보여 주는 특약 제목 (결과 화면 UI-01의 "계약 당일 넣을 특약 예시") */
 export function termTitleFor(linkage: string | undefined): string | undefined {
   if (!linkage || !MVP_LINKAGES.includes(linkage)) return undefined;
@@ -109,6 +137,6 @@ export function termTitleFor(linkage: string | undefined): string | undefined {
 }
 
 // 계약 당일에 고른 "넣음/거절당함". 계약 날짜 입력(5/5)에서 POST /api/contracts의 special_term_result로 보낸다
-const termResults = createStore<Partial<Record<SpecialTermId, SpecialTermResult>>>({});
+const termResults = createStore<Partial<Record<string, SpecialTermResult>>>({});
 export const setSpecialTermResults = termResults.set;
 export const useSpecialTermResults = termResults.use;

@@ -122,6 +122,25 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - 기한 계산은 `docs/validation/기한계산_정답표.md`의 계산 약속을 따르고, `tests/test_todos.py`가 정답표(`deadline_scenarios.yaml`) S1~S10·재계산 3개와 대조한다
 - `contracts` 테이블에 `check_id`(unique)·`email`·`report_required`·`alert_level`, `todos`에 새 칸들을, `verdicts`에 `market` 칸과 `trades` 테이블을 넣었다. 금액 칸은 BigInteger로 바꿨다. 예전에 만든 DB는 위 안내대로 다시 만든다
 
+### `PATCH /api/contracts/{id}` 계약 조건·특약 결과 변경 → 할 일 재계산 (FR-021·049·050)
+
+```json
+{"balance_date": "2026-12-22", "loan_execution_date": "2026-12-22"}
+```
+
+```json
+{"special_term_result": {"S-NO-MORTGAGE": "rejected"}}
+```
+
+- 보낸 칸만 바꾼다. 바꿀 수 있는 것: 날짜 3개, `monthly_rent`, `loan`, `loan_execution_date`, `guarantor`, `brokered`, `renewal_right_used`, `co_tenant`, `email`, `special_term_result`. 주택 유형·보증금은 판정에서 가져온 값이라 못 바꾼다 (보증금이 바뀌면 계약 전 확인부터 다시)
+- `special_term_result`는 보낸 특약만 바꾸고 나머지는 그대로 둔다. 그 판정에서 안내한 특약만 받는다 (계약 생성과 같은 기준)
+- `loan_execution_date`·`email`은 `null`을 보내면 지운다. 다른 칸에 `null`을 보내면 422
+- 바꾼 뒤의 조건 전체가 계약 생성 때와 같은 규칙(잔금일 ≥ 계약일, 만기일 > 잔금일, 대출이 없으면 실행일 없음)을 지켜야 한다. 아니면 422이고 아무것도 바뀌지 않는다
+- 할 일은 같은 엔진으로 다시 계산한다. 같은 할 일은 `id`·`status`·완료일을 그대로 두고 날짜·순서만 바꾼다. 끝낸 할 일의 완료일은 뒤 할 일의 기준일로 쓴다 (전입신고 완료 다음 날 → 반환보증 가입 시작). 조건이 바뀌어 더는 해당하지 않는 할 일(보증 미가입으로 바꾼 T5·T6, 신고 비대상이 된 T1)은 지우고, 이미 끝낸 것은 맨 뒤에 기록으로 남긴다
+- 잔금일이 미뤄져 끝낸 잔금일 아침 등기부 재비교(T3)·전입신고(T4)의 완료일이 새 잔금일보다 앞서면 다시 `todo`로 돌린다 (`todos.yaml` `reopen_if_done_before_start`, PO 2026-10-15). 올린 증빙은 지우지 않는다. 전입신고가 다시 할 일이 되면 반환보증 가입(T5) 시작일도 새 잔금일 기준으로 다시 계산된다
+- `alert_level`(시작할 때의 경보 단계)은 바꾸지 않는다. 계약 중 재계산은 4주차 (FR-037)
+- 계약 무산(FR-016, `status: "cancelled"`)은 테스트 결제 방식(#40)을 정한 뒤에 만든다
+
 ### `POST /api/admin/trades` 실거래가 수집 (FR-046)
 
 공공데이터포털 인증키가 있어야 한다 (`.env.example`). 시연 집이 있는 구를 한 번 받아 두면 판정·검증은 저장본으로 한다.

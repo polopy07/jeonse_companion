@@ -57,6 +57,17 @@ export function DashedBox({ children, style }: { children: ReactNode; style?: Vi
   return <View style={[styles.dashed, style]}>{children}</View>;
 }
 
+/** 실제 자료가 아닌 시연용 값 표시 (예: "시연용 가상 근저당"). 판정 색은 쓰지 않는다 */
+export function DemoTag({ label, style }: { label: string; style?: ViewStyle }) {
+  return (
+    <View style={[styles.demoTag, style]}>
+      <AppText size={11} weight="semibold" color={Colors.textSub}>
+        {label}
+      </AppText>
+    </View>
+  );
+}
+
 export function SectionLabel({ children, style }: { children: ReactNode; style?: ViewStyle }) {
   return (
     <View style={[{ marginTop: 20, marginBottom: 8 }, style]}>
@@ -132,6 +143,16 @@ export function Disclaimer({ children, style }: { children: ReactNode; style?: V
 }
 
 export const styles = StyleSheet.create({
+  demoTag: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: Colors.dashed,
+    backgroundColor: Colors.muted,
+  },
   safe: { flex: 1, backgroundColor: Colors.bg },
   scroll: { flexGrow: 1, paddingHorizontal: Gutter, paddingBottom: 20 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingTop: 12, paddingHorizontal: 8 },

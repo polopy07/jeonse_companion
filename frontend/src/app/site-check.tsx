@@ -66,7 +66,7 @@ export default function SiteCheckScreen() {
           등기부상 소유자
         </AppText>
         <AppText size={20} weight="bold" style={{ marginTop: 2 }}>
-          {owner ?? '등기부를 올리지 않았어요'}
+          {owner ?? '확인한 이름이 없어요'}
         </AppText>
         {!owner ? (
           <AppText size={12} color={Colors.caution} leading={1.6} style={{ marginTop: 4 }}>
