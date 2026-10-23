@@ -56,6 +56,7 @@ def test_contract_with_big_amounts(client):
 
     r = client.get(f"/api/contracts/{created['id']}")
     assert r.status_code == 200
+    created.pop("access_token")   # 토큰은 만들 때 한 번만
     assert r.json() == created
 
 

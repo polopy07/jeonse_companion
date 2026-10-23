@@ -1,4 +1,4 @@
-"""관리자: 공공 데이터 적재 (FR-046). 환경 변수 ADMIN_TOKEN과 같은 X-Admin-Token 헤더가 있어야 부를 수 있다."""
+"""관리자: 공공 데이터 적재 (FR-046), 알림 실행 (FR-041·044). 환경 변수 ADMIN_TOKEN과 같은 X-Admin-Token 헤더가 있어야 부를 수 있다."""
 import secrets
 from datetime import date
 
@@ -7,10 +7,13 @@ from fastapi import APIRouter, Depends, Header
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app import notifications
+from app.clock import today as today_dep
 from app.config import admin_token, data_go_kr_service_key
 from app.db import get_db
 from app.errors import api_error, responses
-from app.schemas import TradeCollectInput, TradeCollectResult
+from app.rules.loader import get_rules
+from app.schemas import NotificationOut, NotificationRunInput, NotificationRunResult, TradeCollectInput, TradeCollectResult
 from app.trades.client import TradeApiError
 from app.trades.collect import collect
 
@@ -56,3 +59,17 @@ def collect_trades(inp: TradeCollectInput, db: Session = Depends(get_db),
         added=result.added,
         fetched_at=result.fetched_at,
     )
+
+
+@router.post("/notifications/run", response_model=NotificationRunResult, responses=responses(401, 403, 422))
+def run_notifications(inp: NotificationRunInput | None = None, db: Session = Depends(get_db),
+                      rules: dict = Depends(get_rules), today: date = Depends(today_dep)):
+    """그날 보낼 알림을 만든다 (시연용 한 번 실행). 날짜는 본문 date → X-Virtual-Today → 실제 오늘 순서로 정한다.
+
+    같은 알림은 한 번만 만들어서 여러 번 불러도 된다. 무산된 계약·끝낸 할 일은 알리지 않는다.
+    """
+    day = inp.date if inp is not None and inp.date is not None else today
+    created = notifications.run(db, day, rules)
+    return NotificationRunResult(date=day, created=[NotificationOut(
+        contract_id=n.contract_id, todo_rule_id=n.todo_rule_id, kind=n.kind, notify_date=n.notify_date,
+        channel=n.channel, status=n.status, title=n.title) for n in created])

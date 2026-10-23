@@ -164,6 +164,27 @@ def main():
     for term, result, todo in sorted(by_todos - by_terms):
         errors.append(f"special_terms.yaml:{term}: todos.yaml {todo}의 move_to_top_when({result})이 on_{result}에 없음")
 
+    for tid in data["todos"].get("notifications", {}).get("email_todos", []):
+        if tid not in todo_ids:
+            errors.append(f"todos.yaml: notifications.email_todos에 없는 할 일 '{tid}'")
+
+    # 특약 거절 등으로 추가하는 할 일도 같은 식으로 맞춘다 (special_terms.yaml add_todo ↔ todos.yaml extra_todos added_by)
+    adds_by_terms = {
+        (t["id"], result, a["todo"])
+        for t in data["special_terms"]["terms"]
+        for result in ("inserted", "rejected")
+        for a in t.get(f"on_{result}", []) if a["action"] == "add_todo"
+    }
+    adds_by_todos = {
+        (src.split(".")[0], src.split(".")[1], t["id"])
+        for t in data["todos"]["extra_todos"]
+        for src in t.get("added_by", []) if src.split(".")[0] in term_ids
+    }
+    for term, result, todo in sorted(adds_by_terms - adds_by_todos):
+        errors.append(f"todos.yaml:{todo}: special_terms.yaml {term} {result}의 add_todo가 added_by에 없음")
+    for term, result, todo in sorted(adds_by_todos - adds_by_terms):
+        errors.append(f"special_terms.yaml:{term}: todos.yaml {todo}의 added_by({result})가 on_{result}에 없음")
+
     mvp_linkage = [r["id"] for r in data["linkage"]["rules"] if r.get("mvp")]
     mvp_terms = [t["id"] for t in data["special_terms"]["terms"] if t.get("mvp")]
 
