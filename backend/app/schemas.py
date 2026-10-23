@@ -196,6 +196,14 @@ class TermOutcomeOut(BaseModel):
     link_counsel: bool = Field(description="공공 상담 창구 안내를 붙이는지")
 
 
+class SpecialTermEffectOut(TermOutcomeOut):
+    """계약에 기록한 특약 1개의 결과와 분기 (부속표 E, FR-050)."""
+
+    term_id: str = Field(description="special_terms.yaml id")
+    label: str
+    result: Literal["inserted", "rejected"] = Field(description="inserted(넣음) / rejected(거절당함)")
+
+
 class LinkedRuleOut(BaseModel):
     id: str = Field(description="linkage.yaml id")
     label: str
@@ -225,6 +233,7 @@ class SpecialTermsResult(BaseModel):
 
 Guarantor = Literal["HUG", "HF", "SGI", "none"]
 SpecialTermResult = Literal["inserted", "rejected"]
+ContractStatus = Literal["active", "cancelled"]
 
 
 class ContractInput(BaseModel):
@@ -247,6 +256,9 @@ class ContractInput(BaseModel):
     email: str | None = Field(None, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", description="알림 이메일")
     special_term_result: dict[str, SpecialTermResult] = Field(
         default_factory=dict, description="특약별 넣음/거절당함 (special_terms.yaml의 id가 키)")
+    payment_id: int | None = Field(
+        None, description="POST /api/checks/{id}/payment의 payment_id. 이 판정의 결제이거나 무산된 계약에서 풀린 결제. "
+                          "서버 설정 REQUIRE_CONTRACT_AUTH가 true면 꼭 있어야 한다 (API 명세 1.8)")
 
     @model_validator(mode="after")
     def dates_in_order(self):
@@ -308,10 +320,14 @@ class TodoOut(BaseModel):
     sort_order: int
     status: str = Field(description="todo / done / skipped")
     rules_version: str
+    state: Literal["done", "upcoming", "in_progress", "overdue"] = Field(
+        description="오늘(가상 날짜면 그날) 기준: done 끝냄 / upcoming 시작 전 / in_progress 할 때 / overdue 기한 지남")
+    days_left: int | None = Field(description="기한(재알림은 알림일)까지 남은 날. 지났으면 음수, 기한이 없으면 null")
 
 
 class ContractOut(BaseModel):
     id: int
+    today: date = Field(description="할 일 상태를 계산한 오늘 (X-Virtual-Today를 보냈으면 그날)")
     check_id: int
     level: str = Field(description="시작할 때의 판정 단계 (verdict.yaml levels[].id)")
     housing_type: HousingType
@@ -332,7 +348,30 @@ class ContractOut(BaseModel):
     special_term_result: dict[str, SpecialTermResult]
     report_required: bool = Field(description="임대차 신고 대상인지 (FR-015). 비대상이면 T1 없이 T4에서 확정일자를 함께 받는다")
     alert_level: str | None = Field(description="시작할 때의 경보 단계 (alert.yaml levels[].id), 정상이면 null")
+    status: ContractStatus = Field(description="active / cancelled (계약 무산, FR-016)")
+    payment_id: int | None = Field(description="이 계약에 쓴 테스트 결제. 결제 없이 만든 계약이면 null")
+    special_term_effects: list[SpecialTermEffectOut] = Field(
+        description="기록한 특약 결과의 분기 (부속표 E): 넣음이면 기록함에 남길 서류, 거절당함이면 위험 안내·맨 위로 올라간 할 일·상담 창구")
     todos: list[TodoOut] = Field(description="할 일 목록 (sort_order 순서)")
+
+
+class ContractCreatedOut(ContractOut):
+    access_token: str = Field(description="계약 접근 토큰. 이 응답에서 한 번만 준다. 계약 아래 API에 X-Contract-Token 헤더로 보낸다")
+
+
+PaymentProduct = Literal["package", "todo_only"]
+
+
+class PaymentOut(BaseModel):
+    """테스트 결제 (FR-013). 실제 돈은 나가지 않는다."""
+
+    payment_id: int
+    check_id: int
+    product: PaymentProduct = Field(description="package(전동기 패키지) / todo_only(다가구·단독 할 일 관리만)")
+    amount: int = Field(description="금액 (원). 판정 단계로 서버가 정한다")
+    method: Literal["test"] = Field(description="결제 수단. MVP는 test만")
+    status: Literal["paid", "used", "released"] = Field(
+        description="paid(결제함) / used(계약에 씀) / released(계약 무산으로 풀림, 다음 계약에 다시 씀)")
 
 
 TradeHousingType = Literal["apartment", "row_house"]
@@ -382,3 +421,36 @@ class DemoHouseOut(BaseModel):
 class DemoHousesResult(BaseModel):
     as_of: date = Field(description="정답표 기대값의 실거래 기준일. 같은 결과를 보려면 실거래 저장본을 넣고 X-Virtual-Today에 이 날짜를 보낸다")
     houses: list[DemoHouseOut]
+
+
+class AccessLinkInput(BaseModel):
+    email: str = Field(max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", description="계약을 만들 때 넣은 알림 이메일")
+
+
+class AccessLinkResult(BaseModel):
+    message: str = Field(description="이메일이 있든 없든 같은 문구 (계약이 있는지 알아내지 못하게)")
+
+
+date_ = date   # 필드 이름 date와 겹치지 않게 쓰는 별칭
+
+
+class NotificationRunInput(BaseModel):
+    date: date_ | None = Field(None, description="이 날을 오늘로 보고 알림을 만든다 (가상 날짜). 없으면 X-Virtual-Today, 그것도 없으면 실제 오늘")
+
+
+class NotificationOut(BaseModel):
+    contract_id: int
+    todo_rule_id: str
+    kind: Literal["start", "due_before", "remind"] = Field(description="start 시작일 / due_before 기한 며칠 전 / remind 재알림")
+    notify_date: date_
+    channel: Literal["app", "email"]
+    status: Literal["sent", "pending", "failed", "skipped"] = Field(
+        description="app은 sent. email은 sent(보냄) / failed(못 보냄, 다음 실행에서 다시) / skipped(알림 이메일 없음·그사이 무산·완료)")
+    title: str
+
+
+class NotificationRunResult(BaseModel):
+    date: date_
+    email_sent: int = Field(description="이번 실행에서 보낸 이메일 수 (앞서 실패한 것 다시 보낸 것 포함)")
+    email_failed: int = Field(description="보내지 못한 이메일 수. 다음 실행에서 3번까지 다시 보낸다")
+    created: list[NotificationOut] = Field(description="이번 실행에서 새로 만든 알림. 이미 만든 알림은 다시 만들지 않는다")

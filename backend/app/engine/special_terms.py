@@ -1,4 +1,5 @@
-"""판정 결과에 맞는 특약 예시 (special_terms.yaml, linkage.yaml, 명세서 부속표 D·E, FR-039).
+"""판정 결과에 맞는 특약 예시 (special_terms.yaml, linkage.yaml, 명세서 부속표 D·E, FR-039)와
+계약에 기록한 특약 결과(넣음/거절당함)의 분기 (부속표 E, FR-050).
 
 특약은 "추천"이 아니라 "이런 결과일 때 공공 자료가 안내하는 특약 예시"로 보여 준다.
 MVP는 MVP 연동 규칙(근저당, 비율 90% 이상, 신탁)에 연결된 MVP 특약만 보여 준다 (FR-022, FR-050).
@@ -41,6 +42,16 @@ class SpecialTermExample:
 
 
 @dataclass
+class TermEffect:
+    """계약에 기록한 특약 1개의 결과와 그 분기 (부속표 E). 할 일 순서는 todos.yaml move_to_top_when이 바꾼다."""
+
+    term_id: str
+    label: str
+    result: str               # inserted / rejected
+    outcome: TermOutcome
+
+
+@dataclass
 class ContractDayGuide:
     terms: list[SpecialTermExample]
     warnings: list[str]       # 연동 규칙이 계약 당일에 보여 주는 경고 (linkage.yaml contract_day)
@@ -72,7 +83,7 @@ def contract_day_guide(linkages: list[str], rules: dict) -> ContractDayGuide:
     # 규칙 파일에서 없어진 연동 규칙 id(옛 판정)는 건너뛴다
     active = [linkage_by_id[i] for i in linkages if i in linkage_by_id and linkage_by_id[i].get("mvp")]
     active_ids = [r["id"] for r in active]
-    todo_titles = {t["id"]: t["title"] for t in rules["todos"]["todos"] + rules["todos"].get("extra_todos", [])}
+    todo_titles = _todo_titles(rules)
 
     terms = []
     for term in rules["special_terms"]["terms"]:
@@ -95,3 +106,24 @@ def contract_day_guide(linkages: list[str], rules: dict) -> ContractDayGuide:
         warnings=[a["text"] for a in day_actions if a["action"] == "show_warning"],
         checks=[a["check"] for a in day_actions if a["action"] == "require_check"],
     )
+
+
+def _todo_titles(rules: dict) -> dict[str, str]:
+    return {t["id"]: t["title"] for t in rules["todos"]["todos"] + rules["todos"].get("extra_todos", [])}
+
+
+def term_effects(results: dict[str, str], rules: dict) -> list[TermEffect]:
+    """계약의 특약 결과 {"S-NO-MORTGAGE": "rejected", ...}로 분기를 만든다 (special_terms.yaml 순서).
+
+    넣음: 기록함에 남길 서류(특약이 보이는 계약서 사진)·안내. 거절당함: 위험 안내·맨 위로 올라가는 할 일·상담 창구.
+    규칙 파일에서 없어진 특약은 건너뛴다.
+    """
+    titles = _todo_titles(rules)
+    effects = []
+    for term in rules["special_terms"]["terms"]:
+        result = results.get(term["id"])
+        if result not in ("inserted", "rejected"):
+            continue
+        actions = term.get("on_inserted" if result == "inserted" else "on_rejected", [])
+        effects.append(TermEffect(term["id"], term["label"], result, _outcome(actions, titles)))
+    return effects
