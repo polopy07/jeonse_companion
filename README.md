@@ -54,7 +54,7 @@
 
 | 영역 | 기술 |
 | --- | --- |
-| 프론트엔드 | Expo(React Native) 한 코드로 웹(PWA)·안드로이드·iOS, MVP 시연은 웹(PWA) |
+| 프론트엔드 | Expo(React Native) 한 코드로 안드로이드·iOS 앱, MVP 시연은 휴대폰 앱(Expo Go). 웹은 개발 편의용 |
 | 백엔드 | Python FastAPI, PostgreSQL |
 | 등기부 처리 | pdfplumber + 등기부 요약("부동산정보요약"·"주요 등기사항 요약") 페이지 규칙 기반 파서 |
 | 할 일 엔진 | 규칙 기반 (기한 계산은 LLM이 아닌 규칙으로 처리) |

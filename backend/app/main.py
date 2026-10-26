@@ -2,9 +2,11 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app import errors
 from app.api import admin, checks, contracts, demo, registry
+from app.config import cors_origins
 from app.db import init_db
 from app.rules.loader import get_rules
 
@@ -18,6 +20,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="전동기 API", version="0.1.0", lifespan=lifespan)
 errors.install(app)
+if cors_origins():
+    # 웹(expo start --web)으로 개발할 때 브라우저가 API를 부르게. 쿠키는 쓰지 않고 계약 토큰은 헤더로 보낸다
+    app.add_middleware(CORSMiddleware, allow_origins=cors_origins(), allow_credentials=False, allow_methods=["*"],
+                       allow_headers=["Content-Type", "X-Contract-Token", "X-Virtual-Today", "X-Admin-Token"])
 app.include_router(checks.router)
 app.include_router(contracts.router)
 app.include_router(registry.router)

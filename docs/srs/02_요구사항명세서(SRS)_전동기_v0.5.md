@@ -111,7 +111,7 @@ Software Requirements Specification (SRS)
 | **용어/약어**     | **정의**                                                                                                              |
 |-------------------|-----------------------------------------------------------------------------------------------------------------------|
 | LLM               | Large Language Model. 본 서비스에서는 등기 항목의 쉬운 말 설명과 할 일 안내 문구 생성에만 사용                        |
-| PWA               | Progressive Web App. 설치형 앱처럼 쓰는 모바일 웹                                                                     |
+| Expo Go           | Expo로 만든 앱을 설치 파일 없이 휴대폰에서 바로 여는 앱. MVP 시연에 씀                                               |
 | HUG / HF / SGI    | 주택도시보증공사 / 한국주택금융공사 / 서울보증보험. 전세 관련 보증기관                                                |
 | 반환보증          | 임대인이 보증금을 돌려주지 못할 때 보증기관이 대신 지급하는 보증 상품                                                 |
 | 선순위 채권       | 세입자 보증금보다 먼저 변제받는 채권 (근저당 채권최고액, 등기된 임차권·전세권 보증금 등)                                                  |
@@ -134,7 +134,7 @@ Software Requirements Specification (SRS)
 
 2.1 제품 관점 (Product Perspective)
 
-전동기는 독립형 서비스로, MVP는 모바일 웹(PWA)으로 제공하고 이후 같은 코드(Expo)로 안드로이드·iOS 앱을 낸다. 보증기관 등 공식 창구 시스템과 직접 연동하지 않고, 공공 데이터(실거래가는 공공데이터포털 API, 공시가격·건축물대장은 파일)와 사용자가 올린 자료로 계산한 뒤 공식 창구는 링크로 연결한다.
+전동기는 독립형 서비스로, MVP는 휴대폰 앱(Expo, 안드로이드·iOS)으로 제공하고 시연은 Expo Go로 한다. 보증기관 등 공식 창구 시스템과 직접 연동하지 않고, 공공 데이터(실거래가는 공공데이터포털 API, 공시가격·건축물대장은 파일)와 사용자가 올린 자료로 계산한 뒤 공식 창구는 링크로 연결한다.
 
 | **외부 요소**                                                         | **관계**                                              |
 |-----------------------------------------------------------------------|-------------------------------------------------------|
@@ -160,9 +160,9 @@ Software Requirements Specification (SRS)
 
 2.3 운영 환경 (Operating Environment)
 
-- **Client:** MVP는 모바일 웹(PWA) — iOS Safari, Android Chrome 최신 버전 / 데스크톱 Chrome·Edge 최신 버전. 이후 같은 코드로 안드로이드·iOS 앱
+- **Client:** MVP는 휴대폰 앱 — 안드로이드·iOS의 Expo Go(Expo SDK 57). 같은 코드의 웹은 개발·확인용(데스크톱 Chrome·Edge)으로만 쓴다
 
-- **Frontend:** Expo(React Native, Expo Router). 한 코드로 웹(PWA)·안드로이드·iOS를 내고, MVP는 웹(PWA)으로 시연
+- **Frontend:** Expo(React Native, Expo Router). 한 코드로 안드로이드·iOS 앱을 내고, MVP는 휴대폰 앱(Expo Go)으로 시연. 웹은 개발 편의용
 
 - **Server:** Linux / Docker, Python FastAPI, APScheduler(알림·재계산 스케줄러)
 
@@ -1029,7 +1029,7 @@ Software Requirements Specification (SRS)
 
 | **ID**  | **설계 요소**                              | **담당** |
 |---------|--------------------------------------------|----------|
-| COMP-01 | 프론트엔드 (Expo, 웹은 PWA)                | 개발 B   |
+| COMP-01 | 프론트엔드 (Expo 앱, 웹은 개발용)                | 개발 B   |
 | COMP-02 | 등기부 파서 (pdfplumber + 규칙 파서)       | 개발 A   |
 | COMP-03 | 판정·경보 계산 엔진                        | 개발 A   |
 | COMP-04 | 할 일 엔진 (기한·선행·연동 규칙·특약 분기) | 개발 A   |
