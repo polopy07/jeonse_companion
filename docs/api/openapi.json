@@ -884,6 +884,116 @@
         }
       }
     },
+    "/api/todos/{todo_id}": {
+      "patch": {
+        "tags": [
+          "할 일"
+        ],
+        "summary": "Update Todo",
+        "description": "할 일을 끝내거나(done·skipped) 되돌린다(todo). 할 일과 계약은 계약 접근 토큰으로 확인한다.\n\n- done: 증빙이 필요한 할 일은 증빙을 올려야 끝낼 수 있다 (FR-029). 아직이면 409 EVIDENCE_REQUIRED → \"나중에 올리기\"\n- skipped: 나중에 올리기. 완료로 치고 기록함은 빈칸 (FR-030)\n- 먼저 끝낼 할 일(prerequisites)이 남았으면 409 PREREQUISITE_NOT_DONE (FR-020)\n- 잔금일에 하는 할 일(T3·T4, reopen_if_done_before_start)은 시작일 전 날짜로 끝낼 수 없다 (409 TODO_NOT_STARTED)\n- 되돌리기는 이 할 일을 먼저 끝내야 하는 뒤 할 일이 끝나 있으면 409 DEPENDENT_DONE\n무산된 계약은 409 CONTRACT_CANCELLED, 없는 할 일이나 토큰이 틀리면 404.",
+        "operationId": "update_todo_api_todos__todo_id__patch",
+        "parameters": [
+          {
+            "name": "todo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Todo Id"
+            }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
+          },
+          {
+            "name": "x-virtual-today",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없으면 실제 오늘",
+              "title": "X-Virtual-Today"
+            },
+            "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없으면 실제 오늘"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TodoPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
     "/api/registry/parse": {
       "post": {
         "tags": [
@@ -3765,6 +3875,19 @@
             "title": "Status",
             "description": "todo / done / skipped"
           },
+          "done_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Done Date",
+            "description": "끝낸 날 (done·skipped). 뒤 할 일의 기준일"
+          },
           "rules_version": {
             "type": "string",
             "title": "Rules Version"
@@ -3809,12 +3932,46 @@
           "moved_to_top",
           "sort_order",
           "status",
+          "done_date",
           "rules_version",
           "state",
           "days_left"
         ],
         "title": "TodoOut",
         "description": "할 일 1개 (todos.yaml의 T1~T9). 목록은 sort_order 순서 (맨 위 규칙 → 고정 → 기한순)."
+      },
+      "TodoPatch": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "done",
+              "skipped",
+              "todo"
+            ],
+            "title": "Status",
+            "description": "done 완료(증빙을 올린 할 일만) / skipped 나중에 올리기(완료 처리, 기록함은 빈칸) / todo 되돌리기"
+          },
+          "done_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Done Date",
+            "description": "끝낸 날. 없으면 오늘(가상 날짜면 그날). 뒤 할 일의 기준일이 된다 (예: 전입신고 완료 다음 날 → 반환보증 시작)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "TodoPatch",
+        "description": "할 일 완료·나중에 올리기·되돌리기 (FR-020, FR-029·030, UI-04)."
       },
       "TodoRefOut": {
         "properties": {

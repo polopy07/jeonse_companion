@@ -319,6 +319,7 @@ class TodoOut(BaseModel):
     moved_to_top: bool = Field(description="특약 거절·경보로 맨 위에 올린 할 일")
     sort_order: int
     status: str = Field(description="todo / done / skipped")
+    done_date: date | None = Field(description="끝낸 날 (done·skipped). 뒤 할 일의 기준일")
     rules_version: str
     state: Literal["done", "upcoming", "in_progress", "overdue"] = Field(
         description="오늘(가상 날짜면 그날) 기준: done 끝냄 / upcoming 시작 전 / in_progress 할 때 / overdue 기한 지남")
@@ -527,3 +528,12 @@ class MoveOut(BaseModel):
     next_todos: list[MoveTodoOut] = Field(description="다음 집 할 일 9종 (다음 집 날짜로 계산, 할 일 순서대로). "
                                                        "다음 집 계약 전 확인의 연동 규칙·특약은 계약을 만들 때 반영된다")
     todos: list[MoveTodoOut] = Field(description="지금 집 + 다음 집 할 일을 날짜순으로 묶은 목록 (FR-025)")
+
+
+class TodoPatch(BaseModel):
+    """할 일 완료·나중에 올리기·되돌리기 (FR-020, FR-029·030, UI-04)."""
+
+    status: Literal["done", "skipped", "todo"] = Field(
+        description="done 완료(증빙을 올린 할 일만) / skipped 나중에 올리기(완료 처리, 기록함은 빈칸) / todo 되돌리기")
+    done_date: date | None = Field(
+        None, description="끝낸 날. 없으면 오늘(가상 날짜면 그날). 뒤 할 일의 기준일이 된다 (예: 전입신고 완료 다음 날 → 반환보증 시작)")

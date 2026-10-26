@@ -100,7 +100,11 @@
 | `CHECK_ALREADY_USED` | 409 | 이미 계약을 만든 판정 결과로 다시 계약을 만들려 함(동시 요청 포함). `hint`는 화면에 그대로 보여 주는 안내이고, 만든 계약 id는 `GET /api/checks/{id}`의 `contract_id`로 찾는다 |
 | `CHECK_OUTDATED` | 409 | 판정 기준(규칙 파일)이 바뀌어 저장된 판정 단계 id를 찾을 수 없음 → 계약 전 확인을 다시. 단계 id 기준이라 `rules_version`만 달라지고 단계 id가 남아 있으면 걸리지 않음. `GET /api/checks/{id}`·`POST /api/contracts` |
 | `PAYMENT_REQUIRED` | 402 | 계약 생성에 쓸 테스트 결제가 없음, 다른 판정의 결제, 이미 쓴 결제, 또는 풀린 결제의 상품이 모자람(할 일 관리만 → 패키지). `hint`는 다시 결제 안내 (1.8) |
-| `CONTRACT_CANCELLED` | 409 | 무산된 계약이라 바꿀 수 없음 (`PATCH`, 다시 무산). `GET`은 됨 (FR-016) |
+| `CONTRACT_CANCELLED` | 409 | 무산된 계약이라 바꿀 수 없음 (`PATCH`, 다시 무산, 할 일 완료). `GET`은 됨 (FR-016) |
+| `PREREQUISITE_NOT_DONE` | 409 | 먼저 끝낼 할 일(`prerequisites`)이 남아 이 할 일을 끝낼 수 없음. `message`에 먼저 할 일 이름 (FR-020) |
+| `EVIDENCE_REQUIRED` | 409 | 증빙이 필요한 할 일을 증빙 없이 `done`으로 바꾸려 함. `hint`는 증빙 올리기 또는 "나중에 올리기"(`skipped`) (FR-029·030) |
+| `TODO_NOT_STARTED` | 409 | 잔금일에 하는 할 일(3번 재비교·4번 전입신고)을 시작일 전 날짜로 끝내려 함 |
+| `DEPENDENT_DONE` | 409 | 이 할 일을 먼저 끝내야 하는 뒤 할 일이 이미 끝나 있어 되돌릴 수 없음. 뒤 할 일부터 되돌림 |
 | `ADMIN_TOKEN_INVALID` | 401 | 관리자 API에 `X-Admin-Token` 헤더가 없거나 서버 `ADMIN_TOKEN`과 다름 |
 | `ADMIN_DISABLED` | 403 | 서버에 `ADMIN_TOKEN`이 없어 관리자 API가 꺼져 있음 |
 | `TRADES_COLLECT_CONFLICT` | 409 | 같은 거래를 동시에 수집한 다른 요청과 겹쳐 저장하지 못함 → 다시 시도 |
@@ -161,6 +165,7 @@ A = 개발 A(백엔드·규칙), B = 개발 B(화면). 주차는 노션 "할 일
 | `GET /api/contracts/{id}` | 계약 정보와 할 일 목록. 응답 `today`(가상 날짜면 그날)와 할 일마다 `state`(done / upcoming / in_progress / overdue)·`days_left`(1.7). `X-Contract-Token` 확인(1.8), 무산된 계약도 기록으로 볼 수 있음 | FR-014, 017 | UI-03, UI-04 |
 | `POST /api/contracts/{id}/move` | 갈아타기 저장: 다음 집 계약일·잔금일·만기일·보증금·계약금(·대출·보증기관·전입 예정일). 지금 집 반환 예정일(9번 할 일 기한)과 비교해 자금 틈 `gap_days`·`gap_amount`(min(지금 집 보증금, 다음 집 잔금), Q5), 두 집 모두 대출이면 대출 순서 `loan_order`, 전입 예정일이 반환 예정일과 같거나 앞서면 `move_in_warning`(반환 확인을 끝냈으면 false), 안내 문구 `warnings`, 다음 집 할 일 9종 `next_todos`, 두 집 할 일을 날짜순으로 묶은 `todos`. 다시 보내면 다음 집 입력을 바꿈. `X-Contract-Token` 확인, 무산된 계약은 409 | FR-025~027 | UI-07 |
 | `GET /api/contracts/{id}/move` | 저장한 갈아타기를 지금 계약 상태로 다시 계산 (지금 계약의 만기·반환 확인이 바뀌어도 맞게). 저장한 적이 없으면 404 | FR-025~027 | UI-07 |
+| `PATCH /api/todos/{id}` | 할 일 끝내기·되돌리기: 본문 `status`(`done` 완료 / `skipped` 나중에 올리기 / `todo` 되돌리기)와 `done_date`(없으면 오늘, 가상 날짜면 그날, 오늘보다 뒤면 422). `done`은 증빙을 올린 할 일만(아니면 409 `EVIDENCE_REQUIRED`), `skipped`는 완료로 치고 기록함만 빈칸. 먼저 끝낼 할 일이 남았으면 409 `PREREQUISITE_NOT_DONE`, 3·4번을 잔금일 전 날짜로 끝내면 409 `TODO_NOT_STARTED`, 되돌리기는 뒤 할 일부터(409 `DEPENDENT_DONE`). 끝낸 날로 뒤 할 일 날짜를 다시 계산해 계약 전체를 돌려줌(`ContractOut`, 할 일마다 `done_date`). 할 일이 속한 계약의 `X-Contract-Token` 확인, 무산된 계약은 409 | FR-020, 029~030 | UI-04 |
 | `POST /api/contracts/{id}/cancel` | 계약 무산 → 계약 `status: "cancelled"`, 쓴 결제는 `released`(다음 집 계약에 다시 씀). 할 일은 기록으로 남김. `X-Contract-Token` 확인, 이미 무산이면 409 `CONTRACT_CANCELLED` | FR-016 | UI-03 |
 | `POST /api/admin/notifications/run` | 알림 실행 (관리자, 시연용): 날짜(본문 `date` → `X-Virtual-Today` → 실제 오늘)를 오늘로 보고 그날 보낼 알림을 만든다. 할 일 시작일·기한 7일 전·1일 전·재알림일(`todos.yaml` `notifications`), 건너뛴 날의 알림은 7일 안의 것만. 앱 안 알림은 `sent`, 이메일은 반환보증(T5·T6)만 보내고(`EMAIL_BACKEND`), 못 보내면 `failed`로 남겨 다음 실행에서 3번까지 다시 보냄(NFR-008). 알림 이메일이 없거나 그사이 무산·완료, 또는 알림일이 7일보다 지났으면(남은 날 문구가 틀려서) `skipped`. 응답에 `email_sent`·`email_failed`. 같은 알림은 한 번만 | FR-040, 041, 044 | |
 | `POST /api/contracts/access-link` | 접근 링크 이메일로 다시 받기: 본문 `{"email"}`. 그 이메일로 만든 진행 중 계약마다 새 접근 토큰을 만들어 계약 이메일로 보냄(처음 토큰은 그대로, 계약마다 한 시간에 3번). 이메일이 없어도 같은 202 (계약이 있는지 알아내지 못하게). 링크는 `APP_LINK_BASE`가 있으면 `{APP_LINK_BASE}?contract={id}&token=...`, 없으면 접근 코드 | NFR-011 | UI-04 |
@@ -176,7 +181,6 @@ GitHub 이슈와 마일스톤(2주차·3주차·4주차)으로 진행을 관리�
 | 메서드·주소 | 하는 일 | FR | 화면 | 주차 | 이슈 |
 | --- | --- | --- | --- | --- | --- |
 | `POST /api/contracts/{id}/registry-compare` | 계약 당일·잔금일 등기부를 다시 올려 점검 때와 비교, 바뀐 항목 표시 | FR-023, 048 | UI-03 | 3 | #41 |
-| `PATCH /api/todos/{id}` | 완료 체크, "나중에 올리기". 선행 조건이 안 끝났으면 완료 불가 | FR-020, 029~030 | UI-04 | 3 | #43 |
 | `POST /api/todos/{id}/evidence` | 증빙 사진 올리기 → 할 일 완료, 기록함에 자동 기록 | FR-029, 031 | UI-05 | 3 | #44 |
 | `DELETE /api/todos/{id}/evidence` | 증빙 삭제 | FR-033 | UI-05 | 3 | #45 |
 | `POST /api/contracts/{id}/documents` | 첫 계약 서류(계약서·이체 내역) 저장 | FR-051 | UI-03, UI-05 | 3 | #46 |
