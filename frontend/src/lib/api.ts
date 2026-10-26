@@ -269,6 +269,14 @@ export type ApiTodo = {
   rules_version: string;
 };
 
+/** 계약에 기록한 특약 1개의 결과와 분기 (부속표 E, FR-050) */
+export type ApiTermEffect = ApiTermOutcome & {
+  /** special_terms.yaml id */
+  term_id: string;
+  label: string;
+  result: 'inserted' | 'rejected';
+};
+
 export type ApiContract = {
   id: number;
   check_id: number;
@@ -287,6 +295,8 @@ export type ApiContract = {
   status: 'active' | 'cancelled';
   /** 이 계약에 쓴 테스트 결제. 결제 없이 만든 계약이면 null */
   payment_id: number | null;
+  /** 기록한 특약 결과의 분기: 거절당함이면 위험 안내·맨 위로 올라간 할 일·상담 창구, 넣음이면 기록함 서류 */
+  special_term_effects: ApiTermEffect[];
   /** sort_order 순서 */
   todos: ApiTodo[];
 };
@@ -309,6 +319,21 @@ export function postContract(input: ApiContractInput) {
 /** 계약 정보와 할 일 목록 (앱을 다시 켰을 때 이어 보기). token은 계약을 만들 때 받은 access_token */
 export function getContract(contractId: number, token: string | null) {
   return request<ApiContract>(`/api/contracts/${contractId}`, { method: 'GET', headers: contractHeaders(token) });
+}
+
+/** PATCH로 바꿀 수 있는 칸. 보낸 칸만 바꾸고, 특약은 보낸 특약만 바꾼다 */
+export type ApiContractPatch = Partial<Omit<ApiContractInput, 'check_id' | 'payment_id'>>;
+
+/**
+ * 계약 조건·특약 결과를 바꾸고 할 일을 다시 계산한다 (FR-021, FR-049·050).
+ * 무산된 계약이면 409 CONTRACT_CANCELLED, 날짜 순서가 틀리면 422 (아무것도 안 바뀜)
+ */
+export function patchContract(contractId: number, token: string | null, patch: ApiContractPatch) {
+  return request<ApiContract>(`/api/contracts/${contractId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...contractHeaders(token) },
+    body: JSON.stringify(patch),
+  });
 }
 
 // ---- GET /api/demo-houses ----

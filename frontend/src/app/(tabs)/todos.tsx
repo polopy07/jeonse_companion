@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/AppText';
 import { Icon } from '@/components/Icon';
 import { Button, Screen } from '@/components/layout';
+import { TermEffectCard } from '@/components/term';
 import { Colors, Radius } from '@/constants/theme';
 import { today, todos as demoTodos, type Todo } from '@/data/demo';
 import { clearContractNotice, todoViews, useContractNotice, useLatestContract } from '@/lib/contract';
@@ -62,6 +63,30 @@ export default function TodosScreen() {
             {notice}
           </AppText>
         </Pressable>
+      ) : null}
+
+      {contract?.status === 'cancelled' ? (
+        <AppText size={12} color={Colors.textSub} style={{ marginTop: 2 }}>
+          무산된 계약이에요. 할 일은 기록으로만 남고 알림은 보내지 않아요
+        </AppText>
+      ) : contract ? (
+        // FR-021·049·050: 잔금일이 미뤄지거나 특약 결과가 바뀌면 할 일을 다시 계산한다
+        <Button
+          variant="outline"
+          height={44}
+          label="계약 날짜·특약 결과 고치기"
+          onPress={() => router.push('/contract-edit')}
+          style={{ marginTop: 12 }}
+        />
+      ) : null}
+
+      {contract?.special_term_effects.length ? (
+        // FR-050: 특약 결과별 안내 (거절당함 → 위험 안내·맨 위 할 일·상담, 넣음 → 기록함 서류)
+        <View style={{ marginTop: 12, gap: 8 }}>
+          {contract.special_term_effects.map((e) => (
+            <TermEffectCard key={e.term_id} effect={e} />
+          ))}
+        </View>
       ) : null}
 
       <View style={styles.list}>
