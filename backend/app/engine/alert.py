@@ -12,3 +12,10 @@ def alert_level(values: dict, alert_rules: dict) -> str | None:
         if evaluate(lv["when"], values):
             level = lv["id"]
     return level
+
+
+def level_rank(level: str | None, alert_rules: dict) -> int:
+    """단계 높낮이 비교용 순서. 정상(None)은 -1, 그 위로 levels 순서 (주의 0, 경고 1, 위험 2)."""
+    if level is None:
+        return -1
+    return [lv["id"] for lv in alert_rules["levels"]].index(level)

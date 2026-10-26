@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app import errors
-from app.api import admin, checks, contracts, demo, registry, todos
+from app.api import admin, alerts, checks, contracts, demo, registry, todos
 from app.db import init_db
 from app.rules.loader import get_rules
 
@@ -21,6 +21,7 @@ errors.install(app)
 app.include_router(checks.router)
 app.include_router(contracts.router)
 app.include_router(todos.router)
+app.include_router(alerts.router)
 app.include_router(registry.router)
 app.include_router(demo.router)
 app.include_router(admin.router)

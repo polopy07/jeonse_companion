@@ -177,6 +177,7 @@ class Alert(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     contract_id: Mapped[int] = mapped_column(ForeignKey("contracts.id"))
+    as_of: Mapped[date | None] = mapped_column(Date)          # 계산 기준일 (재계산한 날, 가상 날짜면 그날)
     level: Mapped[str | None] = mapped_column(String(16))    # caution / warning / danger, 해당 없으면 None
     estimated_price: Mapped[int] = mapped_column(BigInteger)
     deposit_ratio: Mapped[float] = mapped_column(Float)

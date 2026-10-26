@@ -68,6 +68,7 @@ def create_check(inp: CheckInput, db: Session = Depends(get_db), rules: dict = D
         as_of = x_virtual_today or date.today()
         pick, nearby = _market(inp, db, rules, as_of)
         market["as_of"] = as_of.isoformat()
+        market["complex"] = inp.complex.model_dump()   # 계약 중 경보 재계산(FR-037)에서 같은 단지 실거래를 다시 찾는다
         if pick is not None and inp.trade_price is None:
             inp = inp.model_copy(update={"trade_price": pick.price})
 
