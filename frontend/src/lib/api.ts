@@ -205,6 +205,27 @@ export function getSpecialTerms(checkId: number) {
   return request<ApiSpecialTerms>(`/api/checks/${checkId}/special-terms`, { method: 'GET' });
 }
 
+// ---- POST /api/checks/{id}/payment ----
+
+export type ApiPayment = {
+  payment_id: number;
+  check_id: number;
+  /** package(전동기 패키지 9,900원) / todo_only(다가구·단독 할 일 관리만 4,900원) */
+  product: 'package' | 'todo_only';
+  /** 원. 판정 단계로 서버가 정한다 */
+  amount: number;
+  method: 'test';
+  status: 'paid' | 'used' | 'released';
+};
+
+/**
+ * 테스트 결제 (실제 돈은 나가지 않음, API 명세 1.8). 같은 판정에 다시 부르면 앞서 한 결제를 돌려준다.
+ * "문제 항목"이면 409 CHECK_BLOCKED, 이미 계약을 만든 판정이면 409 CHECK_ALREADY_USED
+ */
+export function postPayment(checkId: number) {
+  return request<ApiPayment>(`/api/checks/${checkId}/payment`, { method: 'POST' });
+}
+
 // ---- POST /api/contracts ----
 
 export type Guarantor = 'HUG' | 'HF' | 'SGI' | 'none';
@@ -225,6 +246,8 @@ export type ApiContractInput = {
   email?: string | null;
   /** 특약 id → 넣음/거절당함 (계약 당일 화면에서 보여 준 특약만) */
   special_term_result?: Record<string, 'inserted' | 'rejected'>;
+  /** 테스트 결제 (postPayment). 없거나 이 판정에 쓸 수 없으면 402 PAYMENT_REQUIRED (서버 설정에 따라 없어도 통과) */
+  payment_id?: number | null;
 };
 
 export type ApiTodo = {
@@ -260,22 +283,32 @@ export type ApiContract = {
   report_required: boolean;
   /** 계약 시작 때 경보 단계 (alert.yaml id). 정상이면 null */
   alert_level: 'caution' | 'warning' | 'danger' | null;
+  /** active / cancelled (계약 무산) */
+  status: 'active' | 'cancelled';
+  /** 이 계약에 쓴 테스트 결제. 결제 없이 만든 계약이면 null */
+  payment_id: number | null;
   /** sort_order 순서 */
   todos: ApiTodo[];
 };
 
+/** 계약을 만들 때만 오는 응답: 계약 접근 토큰은 이때 한 번만 준다 (휴대폰에 저장해 X-Contract-Token으로 보냄) */
+export type ApiContractCreated = ApiContract & { access_token: string };
+
+/** 계약 아래 API에 붙이는 접근 토큰 헤더. 토큰이 없거나 틀리면 서버는 계약이 없을 때와 같은 404를 준다 */
+const contractHeaders = (token: string | null): Record<string, string> => (token ? { 'X-Contract-Token': token } : {});
+
 /** 패키지 시작: 계약 생성 + 할 일 9종 생성 */
 export function postContract(input: ApiContractInput) {
-  return request<ApiContract>('/api/contracts', {
+  return request<ApiContractCreated>('/api/contracts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
 }
 
-/** 계약 정보와 할 일 목록 (앱을 다시 켰을 때 이어 보기) */
-export function getContract(contractId: number) {
-  return request<ApiContract>(`/api/contracts/${contractId}`, { method: 'GET' });
+/** 계약 정보와 할 일 목록 (앱을 다시 켰을 때 이어 보기). token은 계약을 만들 때 받은 access_token */
+export function getContract(contractId: number, token: string | null) {
+  return request<ApiContract>(`/api/contracts/${contractId}`, { method: 'GET', headers: contractHeaders(token) });
 }
 
 // ---- GET /api/demo-houses ----

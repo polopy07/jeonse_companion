@@ -1,7 +1,8 @@
 /**
  * 패키지 시작으로 만든 계약 (POST /api/contracts 응답). 할 일 탭이 이 계약의 할 일을 그린다.
  * 없으면 할 일 탭은 시연 데이터(data/demo.ts)를 보여 준다.
- * 계약 id는 휴대폰에 저장해 두고, 앱을 다시 켜면 GET /api/contracts/{id}로 다시 불러온다.
+ * 계약 id와 접근 토큰(access_token, 만들 때 한 번만 옴)은 휴대폰에 저장해 두고, 앱을 다시 켜면
+ * GET /api/contracts/{id}에 X-Contract-Token으로 붙여 다시 불러온다 (API 명세 1.8).
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -9,35 +10,77 @@ import { ApiError, apiEnabled, getContract, type ApiContract, type ApiTodo } fro
 import { createStore } from '@/lib/store';
 
 const CONTRACT_ID_KEY = 'jeonse.contractId';
+const CONTRACT_TOKEN_KEY = 'jeonse.contractToken';
+/** 토큰이 없거나 틀려 서버가 404를 줄 때 안내 (결정 자료 결정 3) */
+export const NOT_MY_CONTRACT = '이 휴대폰에서 만든 계약이 아니에요. 저장해 둔 계약을 지웠어요';
 
 const latestContract = createStore<ApiContract | null>(null);
 export const useLatestContract = latestContract.use;
 
-/** 새 계약을 보여 주고 id를 저장한다. null이면 지운다 (시연 할 일로) */
-export function setLatestContract(contract: ApiContract | null) {
+/** 저장한 계약을 불러오지 못했을 때 할 일 탭 위에 보여 줄 안내 */
+const contractNotice = createStore<string | null>(null);
+export const useContractNotice = contractNotice.use;
+export const clearContractNotice = () => contractNotice.set(null);
+
+let savedToken: { contractId: number; token: string } | null = null;
+
+/** 이 휴대폰에 저장한 그 계약의 접근 토큰 (계약 아래 API의 X-Contract-Token). 없으면 null */
+export function contractToken(contractId: number): string | null {
+  return savedToken?.contractId === contractId ? savedToken.token : null;
+}
+
+function forget() {
+  savedToken = null;
+  AsyncStorage.multiRemove([CONTRACT_ID_KEY, CONTRACT_TOKEN_KEY]).catch(() => {});
+}
+
+/**
+ * 계약을 보여 주고 id를 저장한다. 새로 만든 계약이면 token(access_token)도 저장한다. null이면 지운다 (시연 할 일로).
+ * token 없이 부르면(이미 있는 계약을 다시 불러온 경우) 같은 계약의 저장한 토큰은 그대로 둔다
+ */
+export function setLatestContract(contract: ApiContract | null, token?: string) {
   latestContract.set(contract);
-  const save = contract ? AsyncStorage.setItem(CONTRACT_ID_KEY, String(contract.id)) : AsyncStorage.removeItem(CONTRACT_ID_KEY);
+  contractNotice.set(null);
+  if (!contract) {
+    forget();
+    return;
+  }
+  if (token) savedToken = { contractId: contract.id, token };
+  else if (savedToken?.contractId !== contract.id) savedToken = null;
+  const save = savedToken
+    ? AsyncStorage.multiSet([
+        [CONTRACT_ID_KEY, String(contract.id)],
+        [CONTRACT_TOKEN_KEY, savedToken.token],
+      ])
+    : AsyncStorage.setItem(CONTRACT_ID_KEY, String(contract.id)).then(() => AsyncStorage.removeItem(CONTRACT_TOKEN_KEY));
   save.catch(() => {}); // 저장에 실패해도 이번 실행 동안은 계약을 보여 준다
 }
 
 /**
- * 앱을 켤 때 한 번: 저장한 계약 id가 있으면 서버에서 다시 불러온다.
- * 서버에 그 계약이 없으면(DB를 다시 만든 경우 등, 404) 저장한 id를 지우고, 연결 실패면 id는 남겨 다음에 다시 시도한다.
+ * 앱을 켤 때 한 번: 저장한 계약 id·토큰이 있으면 서버에서 다시 불러온다.
+ * 404면(DB를 다시 만들었거나 토큰이 맞지 않음) 저장한 계약을 지우고 안내하고, 연결 실패면 남겨 다음에 다시 시도한다.
  */
 export async function restoreContract(): Promise<void> {
   if (!apiEnabled || latestContract.get()) return;
   let id: number;
+  let token: string | null;
   try {
-    id = Number(await AsyncStorage.getItem(CONTRACT_ID_KEY));
+    const [[, rawId], [, rawToken]] = await AsyncStorage.multiGet([CONTRACT_ID_KEY, CONTRACT_TOKEN_KEY]);
+    id = Number(rawId);
+    token = rawToken;
   } catch {
     return;
   }
   if (!Number.isInteger(id) || id <= 0) return;
+  if (token) savedToken = { contractId: id, token };
   try {
-    const contract = await getContract(id);
+    const contract = await getContract(id, token);
     if (!latestContract.get()) latestContract.set(contract);
   } catch (e) {
-    if (e instanceof ApiError && e.status === 404) AsyncStorage.removeItem(CONTRACT_ID_KEY).catch(() => {});
+    if (e instanceof ApiError && e.status === 404) {
+      forget();
+      contractNotice.set(NOT_MY_CONTRACT);
+    }
   }
 }
 
