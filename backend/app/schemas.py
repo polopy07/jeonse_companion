@@ -315,6 +315,7 @@ class TodoOut(BaseModel):
     prerequisites: list[str] = Field(description="먼저 끝내야 하는 할 일 rule_id")
     required_checks: list[str] = Field(description="연동 규칙이 붙인 필수 확인 (예: 근저당 금액 변동 비교)")
     evidence: str | None = Field(description="완료 증빙으로 올릴 것")
+    evidence_uploaded: bool = Field(description="증빙 사진을 올렸는지. 보기는 GET /api/todos/{id}/evidence")
     pinned: bool = Field(description="맨 위 고정 할 일 (T5~T9). 시작일 전이면 화면에서 흐리게")
     moved_to_top: bool = Field(description="특약 거절·경보로 맨 위에 올린 할 일")
     sort_order: int
@@ -442,7 +443,8 @@ class NotificationRunInput(BaseModel):
 class NotificationOut(BaseModel):
     contract_id: int
     todo_rule_id: str
-    kind: Literal["start", "due_before", "remind"] = Field(description="start 시작일 / due_before 기한 며칠 전 / remind 재알림")
+    kind: Literal["start", "due_before", "remind", "evidence"] = Field(
+        description="start 시작일 / due_before 기한 며칠 전 / remind 재알림 / evidence 나중에 올리기 한 증빙을 올리라는 알림")
     notify_date: date_
     channel: Literal["app", "email"]
     status: Literal["sent", "pending", "failed", "skipped"] = Field(

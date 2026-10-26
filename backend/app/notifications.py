@@ -20,6 +20,8 @@ DONE = ("done", "skipped")   # 알리지 않는 할 일 상태
 
 
 def _title(todo: Todo, notice: Notice) -> str:
+    if notice.kind == "evidence":
+        return f"증빙을 아직 안 올렸어요: {todo.title} ({todo.evidence})"
     if notice.kind == "remind":
         return todo.title
     if notice.kind == "start":
@@ -39,24 +41,34 @@ def run(db: Session, day: date, rules: dict) -> list[Notification]:
         for n in db.scalars(select(Notification).where(Notification.notify_date > since))
     }
 
+    evidence_after = cfg.get("evidence_after_days")
     created = []
+
+    def add(c: Contract, t: Todo, n: Notice, channels: list[str]) -> None:
+        for channel in channels:
+            key = (c.id, t.rule_id, n.kind, n.notify_date, channel)
+            if key in made:
+                continue
+            made.add(key)
+            status = "sent" if channel == "app" else ("pending" if c.email else "skipped")
+            row = Notification(contract_id=c.id, todo_rule_id=t.rule_id, kind=n.kind, notify_date=n.notify_date,
+                               channel=channel, status=status, title=_title(t, n))
+            db.add(row)
+            created.append(row)
+
     for c in contracts:   # 무산된 계약은 알림을 보내지 않는다 (FR-016)
         for t in c.todos:
+            # 나중에 올리기(FR-030): 끝낸 날로부터 며칠 뒤 증빙을 올리라고 다시 알린다 (앱 안 알림만)
+            if (evidence_after is not None and t.status == "skipped" and t.evidence and not t.evidence_path
+                    and t.done_date is not None):
+                n = Notice("evidence", t.done_date + timedelta(days=evidence_after))
+                if due_on(n, day, catch_up):
+                    add(c, t, n, ["app"])
             if t.status in DONE:
                 continue
             for n in notices(t.start_date, t.due_date, t.remind_date, cfg):
-                if not due_on(n, day, catch_up):
-                    continue
-                for channel in ["app"] + (["email"] if t.rule_id in email_todos else []):
-                    key = (c.id, t.rule_id, n.kind, n.notify_date, channel)
-                    if key in made:
-                        continue
-                    made.add(key)
-                    status = "sent" if channel == "app" else ("pending" if c.email else "skipped")
-                    row = Notification(contract_id=c.id, todo_rule_id=t.rule_id, kind=n.kind, notify_date=n.notify_date,
-                                       channel=channel, status=status, title=_title(t, n))
-                    db.add(row)
-                    created.append(row)
+                if due_on(n, day, catch_up):
+                    add(c, t, n, ["app"] + (["email"] if t.rule_id in email_todos else []))
     db.commit()
     return created
 

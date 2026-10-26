@@ -145,7 +145,7 @@ class Notification(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     contract_id: Mapped[int] = mapped_column(ForeignKey("contracts.id"), index=True)
     todo_rule_id: Mapped[str] = mapped_column(String(32))
-    kind: Mapped[str] = mapped_column(String(16))          # start / due_before / remind
+    kind: Mapped[str] = mapped_column(String(16))          # start / due_before / remind / evidence(나중에 올리기)
     notify_date: Mapped[date] = mapped_column(Date)
     channel: Mapped[str] = mapped_column(String(8))         # app / email
     status: Mapped[str] = mapped_column(String(16))

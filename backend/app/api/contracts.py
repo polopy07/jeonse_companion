@@ -181,9 +181,10 @@ def _sync_todos(row: Contract, check: Verdict, rules: dict) -> None:
 
 
 def _todo_out(t: Todo, today: date) -> TodoOut:
-    fields = {name: getattr(t, name) for name in TodoOut.model_fields if name not in ("state", "days_left")}
+    computed = ("state", "days_left", "evidence_uploaded")
+    fields = {name: getattr(t, name) for name in TodoOut.model_fields if name not in computed}
     return TodoOut(**fields, state=todo_state(t.status, t.start_date, t.due_date, t.remind_date, today),
-                   days_left=days_left(t.due_date, t.remind_date, today))
+                   days_left=days_left(t.due_date, t.remind_date, today), evidence_uploaded=t.evidence_path is not None)
 
 
 def _to_out(row: Contract, db: Session, rules: dict, today: date) -> ContractOut:

@@ -67,7 +67,8 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/engine/special_terms.py` | 판정에 맞는 특약 예시와 넣음/거절당함 결과 (special_terms.yaml, linkage.yaml) |
 | `app/api/checks.py` | `POST /api/checks`, `GET /api/checks/{id}`, `GET /api/checks/{id}/special-terms` |
 | `app/api/contracts.py` | `POST /api/contracts`, `GET /api/contracts/{id}` |
-| `app/api/todos.py` | `PATCH /api/todos/{id}` 할 일 끝내기·나중에 올리기·되돌리기 |
+| `app/api/todos.py` | `PATCH /api/todos/{id}` 할 일 끝내기·나중에 올리기·되돌리기, `POST`·`GET`·`DELETE /api/todos/{id}/evidence` 증빙 |
+| `app/evidence.py` | 증빙 파일 저장·삭제 (`EVIDENCE_DIR`, 기본 `backend/data/evidence`, git 제외) |
 | `app/registry/pdf.py` | 등기부 PDF → 요약 페이지 글자 ("부동산정보요약" 또는 증명서의 "주요 등기사항 요약", pdfplumber) |
 | `app/registry/parser.py` | 요약 글자 → 소유자, 근저당 채권최고액, 압류 등, 신탁 (규칙 파서) |
 | `app/api/registry.py` | `POST /api/registry/parse` |
@@ -176,6 +177,14 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - 막는 것(409): 먼저 끝낼 할 일이 남음 `PREREQUISITE_NOT_DONE`, 증빙 없이 완료 `EVIDENCE_REQUIRED`, 3·4번을 잔금일 전 날짜로 `TODO_NOT_STARTED`, 뒤 할 일이 끝났는데 되돌리기 `DEPENDENT_DONE`, 무산된 계약 `CONTRACT_CANCELLED`. 끝낸 날이 오늘보다 뒤면 422
 - 끝낸 날은 뒤 할 일의 기준일이라(전입신고 완료 다음 날 → 반환보증 시작) 바꿀 때마다 계약의 할 일을 다시 계산해 계약 전체를 돌려준다. `skipped`도 끝낸 할 일로 친다
 - 할 일 `id`는 계약 응답 `todos[].id`. 헤더 `X-Contract-Token`은 그 할 일이 속한 계약의 토큰
+
+### 증빙 사진 올리기·보기·삭제 (FR-029·031·033, #44·#45)
+
+- `POST /api/todos/{id}/evidence` (multipart `file`, 선택 `done_date`): 사진 1장으로 할 일 완료(`done`). 형식·화질 제한 없이 20MB까지. 나중에 올리기였던 할 일은 끝낸 날 그대로 `done`, 다시 올리면 앞 사진을 바꿈. 끝낼 수 있는 조건은 `PATCH /api/todos/{id}`와 같음
+- `GET /api/todos/{id}/evidence`: 파일. 사진·PDF는 `inline`, 다른 형식은 내려받기(`X-Content-Type-Options: nosniff`)
+- `DELETE /api/todos/{id}/evidence`: 언제든(무산된 계약도) 지움. 완료했던 할 일은 `skipped`(완료 그대로, 기록함만 빈칸)
+- 파일은 `EVIDENCE_DIR`(기본 `backend/data/evidence/<계약 id>/`, git 제외)에 저장, DB에는 상대 경로만. `reset_demo_db.py`가 같이 지움. 암호화 저장은 출시 준비
+- 나중에 올리기 한 할 일은 끝낸 날 7일 뒤 "증빙을 아직 안 올렸어요" 앱 안 알림 (`todos.yaml` `notifications.evidence_after_days`, FR-030)
 
 ### `POST /api/contracts/access-link` 접근 링크 이메일로 다시 받기 (#39)
 

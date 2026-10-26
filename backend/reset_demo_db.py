@@ -1,15 +1,16 @@
 """시연 전 DB 초기화: 모든 표를 지우고 다시 만든 뒤 시연 집 실거래 저장본을 넣는다.
 
-판정·계약·할 일이 모두 지워진다. 시연 노트북에서 리허설·시연 직전에 쓴다.
+판정·계약·할 일과 증빙 사진(EVIDENCE_DIR)이 모두 지워진다. 시연 노트북에서 리허설·시연 직전에 쓴다.
 backend/ 폴더에서 DATABASE_URL을 서버와 같게 두고 실행: python reset_demo_db.py (확인 없이: --yes)
 SQLite는 서버를 끄고 실행한다 (서버가 파일을 잡고 있으면 지우지 못할 수 있음). 앱이 저장해 둔 예전 계약은
 서버에 없으면(404) 앱이 지운다.
 """
+import shutil
 import sys
 
 from sqlalchemy.engine import make_url
 
-from app.config import database_url
+from app.config import database_url, evidence_dir
 from app.db import Base, get_engine, init_db
 from load_demo_trades import load
 
@@ -21,6 +22,7 @@ def reset() -> tuple[str, int]:
     engine = get_engine()
     Base.metadata.drop_all(engine)
     init_db(engine)
+    shutil.rmtree(evidence_dir(), ignore_errors=True)   # 지운 할 일의 증빙 사진도
     return load()
 
 
