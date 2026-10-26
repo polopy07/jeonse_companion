@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/AppText';
 import { Icon } from '@/components/Icon';
 import { Button, Card, Disclaimer, Screen, StepProgress } from '@/components/layout';
+import { Change, PickButton } from '@/components/term';
 import { useCopy } from '@/components/verdict';
 import { Colors, Radius, Touch } from '@/constants/theme';
 import { checkResult, siteCheckDemo } from '@/data/demo';
@@ -208,50 +209,7 @@ function Outcome({ term, pick }: { term: ShownTerm; pick: SpecialTermResult }) {
   );
 }
 
-function PickButton({ label, selected, color, onPress }: { label: string; selected: boolean; color: string; onPress: () => void }) {
-  return (
-    <Pressable
-      accessibilityRole="radio"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      style={[
-        styles.pick,
-        selected ? { backgroundColor: color, borderColor: color } : { backgroundColor: Colors.card, borderColor: Colors.inputBorder },
-      ]}>
-      <AppText size={15} weight="bold" color={selected ? '#FFFFFF' : Colors.text}>
-        {label}
-      </AppText>
-    </Pressable>
-  );
-}
-
-function Change({ tag, text, color = Colors.cautionStrong }: { tag: string; text: string; color?: string }) {
-  return (
-    <View style={styles.change}>
-      <View style={[styles.tag, { backgroundColor: color }]}>
-        <AppText size={11} weight="bold" color="#FFFFFF">
-          {tag}
-        </AppText>
-      </View>
-      <AppText size={13} style={{ flex: 1 }}>
-        {text}
-      </AppText>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   termText: { marginTop: 12, paddingVertical: 12, paddingHorizontal: 14, backgroundColor: Colors.bg, borderRadius: Radius.input },
-  pick: { flex: 1, height: Touch.primary, borderRadius: Radius.button, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   result: { marginTop: 12, padding: 16, borderRadius: Radius.card },
-  change: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: Colors.card,
-    borderRadius: Radius.input,
-  },
-  tag: { paddingVertical: 2, paddingHorizontal: 6, borderRadius: 4 },
 });
