@@ -99,7 +99,7 @@
 | `CHECK_BLOCKED` | 409 | "문제 항목" 판정이라 패키지를 시작할 수 없음 (FR-011) |
 | `CHECK_ALREADY_USED` | 409 | 이미 계약을 만든 판정 결과로 다시 계약을 만들려 함(동시 요청 포함). `hint`는 화면에 그대로 보여 주는 안내이고, 만든 계약 id는 `GET /api/checks/{id}`의 `contract_id`로 찾는다 |
 | `CHECK_OUTDATED` | 409 | 판정 기준(규칙 파일)이 바뀌어 저장된 판정 단계 id를 찾을 수 없음 → 계약 전 확인을 다시. 단계 id 기준이라 `rules_version`만 달라지고 단계 id가 남아 있으면 걸리지 않음. `GET /api/checks/{id}`·`POST /api/contracts` |
-| `PAYMENT_REQUIRED` | 402 | 계약 생성에 쓸 테스트 결제가 없음, 다른 판정의 결제, 이미 쓴 결제, 또는 풀린 결제의 상품이 모자람(할 일 관리만 → 패키지). `hint`는 다시 결제 안내 (1.8) |
+| `PAYMENT_REQUIRED` | 402 | 계약 생성에 쓸 테스트 결제가 없음, 다른 판정의 결제, 이미 쓴 결제, 풀린 결제인데 무산된 계약의 접근 토큰이 없거나 틀림, 또는 풀린 결제의 상품이 모자람(할 일 관리만 → 패키지). `hint`는 다시 결제 안내 (1.8) |
 | `CONTRACT_CANCELLED` | 409 | 무산된 계약이라 바꿀 수 없음 (`PATCH`, 다시 무산). `GET`은 됨 (FR-016) |
 | `ADMIN_TOKEN_INVALID` | 401 | 관리자 API에 `X-Admin-Token` 헤더가 없거나 서버 `ADMIN_TOKEN`과 다름 |
 | `ADMIN_DISABLED` | 403 | 서버에 `ADMIN_TOKEN`이 없어 관리자 API가 꺼져 있음 |
@@ -127,7 +127,8 @@
 
 - 요청 헤더 `X-Virtual-Today: 2027-08-01`을 보내면 서버는 그날을 "오늘"로 보고 할 일·알림·경보를 계산한다
 - 쓰는 곳: `POST /api/checks`의 실거래 기준일(`as_of`), 계약 응답(`POST`·`GET`·`PATCH /api/contracts`, `/cancel`)의 `today`와 할 일 `state`·`days_left`, 알림 실행(`POST /api/admin/notifications/run`, 본문 `date`가 없을 때). 계약 중 경보 재계산은 4주차 (#53·#54)
-- 헤더가 없으면 실제 오늘 날짜
+- 헤더가 없으면 실제 오늘 날짜(한국 시간). 서버가 UTC여도 한국 날짜로 계산한다
+- 서버 설정 `ALLOW_VIRTUAL_TODAY`(기본 true): **배포 서버는 `false`**로 두어 헤더를 무시하고 실제 오늘로만 계산한다 (아무 앱이나 다른 날짜 기준 결과를 받지 않게). 관리자 알림 실행의 본문 `date`는 관리자 토큰이 있어야 하므로 그대로 쓴다
 
 ### 1.8 로그인·테스트 결제 (2026-10-17 확정, 백엔드 2026-10-22)
 
@@ -137,7 +138,7 @@
 - **계약별 접근 토큰 (#39)**: `POST /api/contracts` 응답에 `access_token`을 한 번만 준다(서버는 해시만 저장). 계약 아래 API(`GET·PATCH /api/contracts/{id}`, 앞으로 만들 할 일 완료·증빙·서류)는 헤더 `X-Contract-Token`이 맞아야 한다. 토큰이 없거나 틀리면 계약이 없을 때와 같은 404 `NOT_FOUND`(번호를 바꿔 가며 계약이 있는지 알아내지 못하게). 회원 식별은 이메일만 (NFR-011). 휴대폰을 바꾸거나 앱을 지우면 "접근 링크 이메일로 다시 받기"(`POST /api/contracts/access-link`, 2.1)로 다시 들어온다. 다시 받은 토큰은 `contract_tokens`에 해시로 더하고 처음 토큰은 그대로 쓸 수 있다
 - 캘린더 파일(`calendar.ics`, #47)은 캘린더 앱이 헤더를 못 보내므로 주소에 별도 구독용 토큰을 넣는다
 - **테스트 결제 (#40, FR-013)**: `POST /api/checks/{id}/payment` → `{payment_id, product: "package" | "todo_only", amount, method: "test", status: "paid"}`. 금액은 서버가 판정 단계로 정한다(9,900원, 다가구·단독 할 일 관리만 4,900원). "문제 항목" 판정이면 409 `CHECK_BLOCKED`. 실제 돈은 나가지 않는다
-- `POST /api/contracts`에 `payment_id`. 이 판정의 결제이거나 무산된 계약에서 풀린 결제(`released`)여야 하고, 아니면 402 `PAYMENT_REQUIRED`. 풀린 결제가 할 일 관리만(4,900원)인데 다음 집이 패키지면 402(다시 결제). 결제 화면은 UI-02의 확인 창
+- `POST /api/contracts`에 `payment_id`. 이 판정의 결제이거나 무산된 계약에서 풀린 결제(`released`)여야 하고, 아니면 402 `PAYMENT_REQUIRED`. 풀린 결제는 그 결제를 썼던 무산된 계약의 접근 토큰을 `X-Contract-Token`으로 함께 보내야 한다(결제 번호만 바꿔 남의 풀린 결제를 쓰지 못하게, `REQUIRE_CONTRACT_AUTH`와 상관없이 언제나). 풀린 결제가 할 일 관리만(4,900원)인데 다음 집이 패키지면 402(다시 결제). 결제 화면은 UI-02의 확인 창
 - 계약 무산(FR-016): `POST /api/contracts/{id}/cancel` → 계약 `cancelled`, 결제 `released`. 무산된 계약은 `GET`만 되고 바꾸는 요청은 409 `CONTRACT_CANCELLED`, 알림은 보내지 않는다
 - 계약을 만들 때 준 토큰은 서버에 SHA-256 해시만 남는다. 이 기능 전에 만든 계약은 토큰이 없어 `REQUIRE_CONTRACT_AUTH=true`면 열 수 없다 (시연 전 `reset_demo_db.py`로 지움)
 - 앱 연결 전까지: 서버 설정 `REQUIRE_CONTRACT_AUTH=false`면 `payment_id`·`X-Contract-Token`이 없는 요청도 통과시킨다(보냈는데 틀리면 402·404). **배포 서버는 처음부터 `true`**. 앱 연결(배승환)이 끝나면 기본값을 `true`로 바꾸고 여기에 날짜를 적는다

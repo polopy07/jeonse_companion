@@ -1,9 +1,9 @@
 """가상 날짜로 할 일 상태와 알림 (FR-040, FR-041, FR-044, API 명세 1.7)."""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
-from app import mailer
+from app import clock, mailer
 from app.engine.schedule import days_left, todo_state
 from tests.test_contracts import DATES, VILLA, _check
 
@@ -47,6 +47,7 @@ def test_todo_state_rules():
     assert todo_state("todo", s, e, None, e) == "in_progress"
     assert todo_state("todo", s, e, None, D("2026-12-11")) == "overdue"
     assert todo_state("done", s, e, None, D("2027-01-01")) == "done"
+    assert todo_state("skipped", s, e, None, D("2027-01-01")) == "done"   # 건너뛴 할 일도 끝낸 것과 같게
     # 재알림은 알림일이 시작이자 기한
     r = D("2027-11-15")
     assert todo_state("todo", None, None, r, D("2027-11-14")) == "upcoming"
@@ -69,8 +70,27 @@ def test_virtual_today_changes_state(client):
     assert _todo(on, "T3")["state"] == "in_progress" and _todo(on, "T3")["days_left"] == 0
     after = client.get(url, headers={"X-Virtual-Today": "2026-12-05"}).json()
     assert _todo(after, "T3")["state"] == "overdue" and _todo(after, "T3")["days_left"] == -4
-    # 헤더가 없으면 실제 오늘
-    assert client.get(url).json()["today"] == date.today().isoformat()
+    # 헤더가 없으면 실제 오늘 (한국 시간)
+    assert client.get(url).json()["today"] == clock.real_today().isoformat()
+
+
+def test_virtual_today_off_on_deploy(client, monkeypatch):
+    # 배포 서버(ALLOW_VIRTUAL_TODAY=false)는 헤더를 무시하고 실제 오늘로 계산한다 (#92 리뷰)
+    c = _contract(client)
+    monkeypatch.setenv("ALLOW_VIRTUAL_TODAY", "false")
+    got = client.get(f"/api/contracts/{c['id']}", headers={"X-Virtual-Today": "2030-01-01"}).json()
+    assert got["today"] == clock.real_today().isoformat()
+
+
+def test_real_today_is_korea_time(monkeypatch):
+    # UTC 10/26 16:30 = 한국 10/27 01:30 → 오늘은 10/27 (#92 리뷰: 서버가 UTC여도 하루 어긋나지 않게)
+    class FakeDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 10, 26, 16, 30, tzinfo=timezone.utc).astimezone(tz)
+
+    monkeypatch.setattr(clock, "datetime", FakeDatetime)
+    assert clock.real_today() == D("2026-10-27")
 
 
 # ---- 알림 실행 ----

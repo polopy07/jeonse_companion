@@ -29,6 +29,14 @@ def require_contract_auth() -> bool:
     return os.environ.get("REQUIRE_CONTRACT_AUTH", "false").strip().lower() in ("1", "true", "yes", "on")
 
 
+def allow_virtual_today() -> bool:
+    """X-Virtual-Today(시연용 가상 날짜)를 받을지 (API 명세 1.7).
+
+    로컬 개발·시연은 기본 true. 배포 서버는 false로 두어 헤더를 무시하고 실제 오늘(한국 시간)로만 계산한다.
+    """
+    return os.environ.get("ALLOW_VIRTUAL_TODAY", "true").strip().lower() in ("1", "true", "yes", "on")
+
+
 def app_link_base() -> str:
     """접근 링크 이메일의 링크 앞부분 (예: 앱 딥링크 jeonse://contract). 없으면 링크 대신 접근 코드만 보낸다."""
     return os.environ.get("APP_LINK_BASE", "").strip()

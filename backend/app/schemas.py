@@ -321,7 +321,8 @@ class TodoOut(BaseModel):
     status: str = Field(description="todo / done / skipped")
     rules_version: str
     state: Literal["done", "upcoming", "in_progress", "overdue"] = Field(
-        description="오늘(가상 날짜면 그날) 기준: done 끝냄 / upcoming 시작 전 / in_progress 할 때 / overdue 기한 지남")
+        description="오늘(가상 날짜면 그날) 기준: done 끝냄(status skipped 포함) / upcoming 시작 전 / in_progress 할 때 / "
+                    "overdue 기한 지남")
     days_left: int | None = Field(description="기한(재알림은 알림일)까지 남은 날. 지났으면 음수, 기한이 없으면 null")
 
 

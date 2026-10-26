@@ -127,7 +127,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 }
 ```
 
-- `payment_id`: 이 판정의 결제(`paid`)이거나 무산된 계약에서 풀린 결제(`released`)여야 한다. 아니면 402 `PAYMENT_REQUIRED`. 풀린 결제가 할 일 관리만(4,900원)인데 이 집이 패키지면 402(다시 결제), 반대는 그대로 쓴다. 서버 설정 `REQUIRE_CONTRACT_AUTH`가 false(기본, 앱 연결 전)면 `payment_id` 없이도 만든다
+- `payment_id`: 이 판정의 결제(`paid`)이거나 무산된 계약에서 풀린 결제(`released`)여야 한다. 아니면 402 `PAYMENT_REQUIRED`. 풀린 결제는 무산된 계약의 접근 토큰을 헤더 `X-Contract-Token`으로 함께 보내야 다시 쓴다(아니면 402). 풀린 결제가 할 일 관리만(4,900원)인데 이 집이 패키지면 402(다시 결제), 반대는 그대로 쓴다. 서버 설정 `REQUIRE_CONTRACT_AUTH`가 false(기본, 앱 연결 전)면 `payment_id` 없이도 만든다
 - 응답의 `access_token`(계약 접근 토큰)은 **이 응답에서 한 번만** 준다. 서버에는 SHA-256 해시만 남는다. 앱은 계약 id와 함께 저장해 두고 계약 아래 요청에 `X-Contract-Token` 헤더로 보낸다
 - 주택 유형·보증금·공시가격·전용면적은 `check_id` 판정의 입력을 그대로 쓴다. 보증금이 바뀌었으면 계약 전 확인을 다시 한다
 - 선택 입력과 기본값: `monthly_rent` 0, `loan` false, `guarantor` `none`(HUG / HF / SGI / none), `brokered` true(직거래면 false), `renewal_right_used` false, `co_tenant` false, `email`, `special_term_result`(키는 `special_terms.yaml`의 id, 값은 `inserted` / `rejected`)
@@ -160,7 +160,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 
 ### 가상 날짜와 알림 실행 (FR-040·041·044)
 
-- 계약 응답(`POST`·`GET`·`PATCH /api/contracts`, `/cancel`)에 `today`, 할 일마다 `state`(`done` / `upcoming` 시작 전 / `in_progress` / `overdue` 기한 지남)와 `days_left`. 헤더 `X-Virtual-Today: 2027-11-08`을 보내면 그날 기준 (`app/clock.py`, `app/engine/schedule.py`)
+- 계약 응답(`POST`·`GET`·`PATCH /api/contracts`, `/cancel`)에 `today`, 할 일마다 `state`(`done` / `upcoming` 시작 전 / `in_progress` / `overdue` 기한 지남)와 `days_left`. 헤더 `X-Virtual-Today: 2027-11-08`을 보내면 그날 기준 (`app/clock.py`, `app/engine/schedule.py`). 헤더가 없으면 한국 시간 오늘. 배포 서버는 `ALLOW_VIRTUAL_TODAY=false`로 헤더를 무시한다. 할 일 `status`가 `skipped`면 `state`는 `done`
 - `POST /api/admin/notifications/run` (관리자, `X-Admin-Token`): 본문 `{"date": "2027-11-08"}`(없으면 `X-Virtual-Today`, 그것도 없으면 오늘)을 오늘로 보고 그날 보낼 알림을 만들어 `notifications` 표에 남긴다
   - 언제: 할 일 시작일(재알림 T6·T8은 알림일), 기한 7일 전·1일 전 (`rules/todos.yaml` `notifications`, 팀 제안 값)
   - 건너뛴 날: 알림일이 지났어도 7일 안이면 보낸다. 가상 날짜로 몇 달을 건너뛰어도 지난 알림이 쏟아지지 않는다

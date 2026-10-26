@@ -20,11 +20,11 @@ def _pay(client, check_id) -> dict:
     return r.json()
 
 
-def _contract(client, check_id, payment_id=None) -> dict:
+def _contract(client, check_id, payment_id=None, headers=None) -> dict:
     body = {"check_id": check_id, **DATES}
     if payment_id is not None:
         body["payment_id"] = payment_id
-    r = client.post("/api/contracts", json=body)
+    r = client.post("/api/contracts", json=body, headers=headers or {})
     assert r.status_code == 201, r.text
     return r.json()
 
@@ -152,12 +152,13 @@ def test_cancel_releases_payment_for_next_house(client):
     r = client.post(f"{url}/cancel", headers=_auth(c))
     assert r.status_code == 409 and _detail(r)["code"] == "CONTRACT_CANCELLED"
 
-    # 풀린 결제를 다음 집 판정의 계약에 다시 쓴다 (한 번만)
+    # 풀린 결제를 다음 집 판정의 계약에 다시 쓴다 (무산된 계약의 토큰과 함께, 한 번만)
     nxt = _check(client)
-    c2 = _contract(client, nxt["id"], pay["payment_id"])
+    c2 = _contract(client, nxt["id"], pay["payment_id"], headers=_auth(c))
     assert c2["payment_id"] == pay["payment_id"]
     third = _check(client)
-    r = client.post("/api/contracts", json={"check_id": third["id"], **DATES, "payment_id": pay["payment_id"]})
+    r = client.post("/api/contracts", json={"check_id": third["id"], **DATES, "payment_id": pay["payment_id"]},
+                    headers=_auth(c))
     assert r.status_code == 402
 
 
@@ -167,16 +168,34 @@ def test_released_payment_product_rules(client):
     pay = _pay(client, villa["id"])
     c = _contract(client, villa["id"], pay["payment_id"])
     client.post(f"/api/contracts/{c['id']}/cancel", headers=_auth(c))
-    assert _contract(client, _check(client, HOUSE)["id"], pay["payment_id"])["payment_id"] == pay["payment_id"]
+    reused = _contract(client, _check(client, HOUSE)["id"], pay["payment_id"], headers=_auth(c))
+    assert reused["payment_id"] == pay["payment_id"]
 
     # 할 일 관리만 결제 → 패키지 집: 다시 결제 (402)
     house = _check(client, HOUSE)
     small = _pay(client, house["id"])
     c = _contract(client, house["id"], small["payment_id"])
     client.post(f"/api/contracts/{c['id']}/cancel", headers=_auth(c))
-    r = client.post("/api/contracts", json={"check_id": _check(client)["id"], **DATES, "payment_id": small["payment_id"]})
+    r = client.post("/api/contracts", json={"check_id": _check(client)["id"], **DATES, "payment_id": small["payment_id"]},
+                    headers=_auth(c))
     assert r.status_code == 402
     assert "다시 결제" in _detail(r)["hint"]
+
+
+def test_released_payment_needs_owner_token(client):
+    # 결제 번호만 알아서는 남의 풀린 결제를 쓸 수 없다 (#89 리뷰). 배포 설정과 상관없이 언제나
+    check = _check(client)
+    pay = _pay(client, check["id"])
+    c = _contract(client, check["id"], pay["payment_id"])
+    client.post(f"/api/contracts/{c['id']}/cancel", headers=_auth(c))
+    other = _contract(client, _check(client)["id"])   # 다른 사람의 계약 토큰
+
+    nxt = _check(client)
+    body = {"check_id": nxt["id"], **DATES, "payment_id": pay["payment_id"]}
+    for headers in ({}, {"X-Contract-Token": "wrong"}, _auth(other)):
+        r = client.post("/api/contracts", json=body, headers=headers)
+        assert r.status_code == 402 and _detail(r)["code"] == "PAYMENT_REQUIRED"
+    assert _contract(client, nxt["id"], pay["payment_id"], headers=_auth(c))["payment_id"] == pay["payment_id"]
 
 
 def test_cancel_needs_token(client):
