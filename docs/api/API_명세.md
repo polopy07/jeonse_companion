@@ -126,17 +126,17 @@
 - 지금 쓰는 곳: `POST /api/checks`의 실거래 기준일(`as_of`). 할 일·알림·경보는 3주차 (#50)
 - 헤더가 없으면 실제 오늘 날짜
 
-### 1.8 로그인·테스트 결제 (2026-10-15 결정, 만드는 중)
+### 1.8 로그인·테스트 결제 (2026-10-17 확정, 만드는 중)
 
-결정과 이유는 [`결정자료_로그인_테스트결제.md`](결정자료_로그인_테스트결제.md) 맨 위 "결정". 백엔드는 10/17~10/20에 만들고, 만들면 2.1·1.5 오류 표로 옮긴다.
+결정과 이유는 [`결정자료_로그인_테스트결제.md`](결정자료_로그인_테스트결제.md) 맨 위 "결정"·"세부 규칙". 백엔드는 10/22~10/24에 만들고, 만들면 2.1·1.5 오류 표로 옮긴다.
 
 - 계약 전 확인(`/api/checks`, `/api/registry/parse`)은 그대로 로그인 없이 쓴다 (UC-001)
-- **계약별 접근 토큰 (#39)**: `POST /api/contracts` 응답에 `access_token`을 한 번만 준다(서버는 해시만 저장). 계약 아래 API(`GET·PATCH /api/contracts/{id}`, 앞으로 만들 할 일 완료·증빙·서류)는 헤더 `X-Contract-Token`이 맞아야 한다. 토큰이 없거나 틀리면 계약이 없을 때와 같은 404 `NOT_FOUND`(번호를 바꿔 가며 계약이 있는지 알아내지 못하게). 회원 식별은 이메일만 (NFR-011). 휴대폰을 바꾸면 3주차에 "접근 링크 이메일로 다시 받기"로 다시 들어온다
+- **계약별 접근 토큰 (#39)**: `POST /api/contracts` 응답에 `access_token`을 한 번만 준다(서버는 해시만 저장). 계약 아래 API(`GET·PATCH /api/contracts/{id}`, 앞으로 만들 할 일 완료·증빙·서류)는 헤더 `X-Contract-Token`이 맞아야 한다. 토큰이 없거나 틀리면 계약이 없을 때와 같은 404 `NOT_FOUND`(번호를 바꿔 가며 계약이 있는지 알아내지 못하게). 회원 식별은 이메일만 (NFR-011). 휴대폰을 바꾸면 "접근 링크 이메일로 다시 받기"(3주차, 4주차 사용성 테스트 전까지)로 다시 들어온다
 - 캘린더 파일(`calendar.ics`, #47)은 캘린더 앱이 헤더를 못 보내므로 주소에 별도 구독용 토큰을 넣는다
 - **테스트 결제 (#40, FR-013)**: `POST /api/checks/{id}/payment` → `{payment_id, product: "package" | "todo_only", amount, method: "test", status: "paid"}`. 금액은 서버가 판정 단계로 정한다(9,900원, 다가구·단독 할 일 관리만 4,900원). "문제 항목" 판정이면 409 `CHECK_BLOCKED`. 실제 돈은 나가지 않는다
-- `POST /api/contracts`에 `payment_id`. 결제하지 않은 판정이면 402 `PAYMENT_REQUIRED`
-- 계약 무산(FR-016): `PATCH /api/contracts/{id}` `{"status": "cancelled"}` → 그 결제를 다시 쓸 수 있음으로 바꾸고, 다음 판정의 계약 생성에 같은 `payment_id`를 쓴다
-- 앱 연결 전까지: `payment_id`·`X-Contract-Token`이 없는 요청도 통과시킨다(보냈는데 틀리면 402·404). 앱 연결(배승환)이 끝나면 필수로 바꾸고 여기에 날짜를 적는다
+- `POST /api/contracts`에 `payment_id`. 이 판정의 결제이거나 무산된 계약에서 풀린 결제(`released`)여야 하고, 아니면 402 `PAYMENT_REQUIRED`. 풀린 결제가 할 일 관리만(4,900원)인데 다음 집이 패키지면 402(다시 결제). 결제 화면은 UI-02의 확인 창
+- 계약 무산(FR-016): `POST /api/contracts/{id}/cancel` → 계약 `cancelled`, 결제 `released`. 무산된 계약은 `GET`만 되고 바꾸는 요청은 409 `CONTRACT_CANCELLED`, 알림은 보내지 않는다
+- 앱 연결 전까지: 서버 설정 `REQUIRE_CONTRACT_AUTH=false`면 `payment_id`·`X-Contract-Token`이 없는 요청도 통과시킨다(보냈는데 틀리면 402·404). **배포 서버는 처음부터 `true`**. 앱 연결(배승환)이 끝나면 기본값을 `true`로 바꾸고 여기에 날짜를 적는다
 
 ## 2. API 목록
 
@@ -165,7 +165,7 @@ GitHub 이슈와 마일스톤(2주차·3주차·4주차)으로 진행을 관리�
 
 | 메서드·주소 | 하는 일 | FR | 화면 | 주차 | 이슈 |
 | --- | --- | --- | --- | --- | --- |
-| `PATCH /api/contracts/{id}` 계약 무산 | `status: "cancelled"`. 테스트 결제 방식(#40)을 정한 뒤 | FR-016 | UI-03 | 3 | #37 |
+| `POST /api/contracts/{id}/cancel` | 계약 무산 → 계약 `cancelled`, 결제 `released`(다음 계약에 다시 씀). 무산된 계약은 `GET`만, 바꾸는 요청은 409 `CONTRACT_CANCELLED` (1.8) | FR-016 | UI-03 | 3 | #37 |
 | `POST /api/contracts/{id}/registry-compare` | 계약 당일·잔금일 등기부를 다시 올려 점검 때와 비교, 바뀐 항목 표시 | FR-023, 048 | UI-03 | 3 | #41 |
 | `GET /api/contracts/{id}/todos` | 할 일 목록에 오늘 기준 상태(시작 전·진행 중·지남)를 더해서. 그 전까지는 `GET /api/contracts/{id}`의 `todos`를 쓴다 | FR-040 | UI-04 | 3 | #42 |
 | `PATCH /api/todos/{id}` | 완료 체크, "나중에 올리기". 선행 조건이 안 끝났으면 완료 불가 | FR-020, 029~030 | UI-04 | 3 | #43 |
@@ -180,7 +180,7 @@ GitHub 이슈와 마일스톤(2주차·3주차·4주차)으로 진행을 관리�
 | `GET /api/contracts/{id}/return-guide` | 반환 대응 단계, 청구 서류 대조 | FR-024, 034~035 | UI-08 | 4 | #52 |
 | `GET /api/contracts/{id}/alerts/latest` | 최근 역전세 경보 단계·계산 근거·기준일 | FR-036~038 | UI-09 | 4 | #53 |
 | `POST /api/admin/alerts/recalculate` | 경보 재계산 (관리자, 스케줄러는 서버 안에서 직접 실행) | FR-037 | | 4 | #54 |
-| `POST /api/checks/{id}/payment` | 테스트 결제 기록 → `payment_id`. 금액은 판정 단계로 서버가, "문제 항목"이면 409 `CHECK_BLOCKED`. `POST /api/contracts`에 `payment_id`(없으면 402 `PAYMENT_REQUIRED`) (1.8) | FR-011, 013 | UI-02 | 2 | #40 |
+| `POST /api/checks/{id}/payment` | 테스트 결제 기록 → `payment_id`. 금액은 판정 단계로 서버가, "문제 항목"이면 409 `CHECK_BLOCKED`. `POST /api/contracts`에 `payment_id`(없으면 402 `PAYMENT_REQUIRED`) (1.8) | FR-011, 013 | UI-02 (확인 창) | 2 | #40 |
 | (공통) 계약 접근 토큰 | `POST /api/contracts` 응답 `access_token`, 계약 아래 API는 `X-Contract-Token` 확인, 틀리면 404 (1.8) | NFR-011 | UI-03, UI-04 | 2 | #39 |
 
 ### 2.3 정할 것 (2주차)
