@@ -46,6 +46,12 @@ class Contract(Base):
     report_required: Mapped[bool] = mapped_column(Boolean, default=True)   # 임대차 신고 대상 (FR-015)
     alert_level: Mapped[str | None] = mapped_column(String(16))            # 시작할 때의 경보 단계 (정상이면 null)
 
+    # 계약 접근 토큰의 SHA-256 (토큰 원문은 만들 때 응답으로 한 번만 준다, API 명세 1.8). 예전 계약은 null
+    access_token_hash: Mapped[str | None] = mapped_column(String(64))
+    payment_id: Mapped[int | None] = mapped_column(Integer)                 # 이 계약에 쓴 테스트 결제 (payments.id)
+    status: Mapped[str] = mapped_column(String(16), default="active", server_default="active")   # active / cancelled
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     todos: Mapped[list["Todo"]] = relationship(back_populates="contract", cascade="all, delete-orphan",
@@ -106,6 +112,62 @@ class Todo(Base):
     evidence_path: Mapped[str | None] = mapped_column(String(500))     # 기록함 증빙 사진
 
     contract: Mapped[Contract] = relationship(back_populates="todos")
+
+
+class Payment(Base):
+    """테스트 결제 1건 (FR-013, #40). 실제 돈은 나가지 않는다. 판정에 결제하고 계약 생성에 쓴다.
+
+    status: paid(결제함, 아직 계약에 안 씀) / used(계약에 씀) / released(계약 무산으로 풀림, 다음 계약에 다시 씀, FR-016)
+    """
+
+    __tablename__ = "payments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    check_id: Mapped[int] = mapped_column(Integer, index=True)    # 결제한 판정 (verdicts.id)
+    product: Mapped[str] = mapped_column(String(16))              # package / todo_only
+    amount: Mapped[int] = mapped_column(Integer)                  # 원
+    method: Mapped[str] = mapped_column(String(16), default="test")
+    status: Mapped[str] = mapped_column(String(16), default="paid")
+    contract_id: Mapped[int | None] = mapped_column(Integer)      # 마지막으로 쓴 계약
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Notification(Base):
+    """보낸 알림 기록 (FR-040, FR-041). 같은 할 일·종류·알림일은 한 번만 만든다 (알림 실행을 여러 번 불러도).
+
+    channel: app(앱 안 기한표) / email. status: sent / pending(이메일 발송 전) / failed / skipped(이메일 주소 없음)
+    """
+
+    __tablename__ = "notifications"
+    __table_args__ = (UniqueConstraint("contract_id", "todo_rule_id", "kind", "notify_date", "channel",
+                                       name="uq_notifications_once"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    contract_id: Mapped[int] = mapped_column(ForeignKey("contracts.id"), index=True)
+    todo_rule_id: Mapped[str] = mapped_column(String(32))
+    kind: Mapped[str] = mapped_column(String(16))          # start / due_before / remind
+    notify_date: Mapped[date] = mapped_column(Date)
+    channel: Mapped[str] = mapped_column(String(8))         # app / email
+    status: Mapped[str] = mapped_column(String(16))
+    title: Mapped[str] = mapped_column(String(200))         # 보낸 문구 (할 일 제목 + 남은 날)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")   # 이메일 보내기 시도 횟수 (NFR-008 재시도)
+    last_error: Mapped[str | None] = mapped_column(String(200))                     # 마지막 실패 이유 (비밀번호 등은 넣지 않음)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ContractToken(Base):
+    """계약을 만든 뒤 이메일로 다시 보낸 접근 토큰 (휴대폰을 바꾸거나 앱을 지웠을 때, #39). 해시만 저장한다.
+
+    처음 토큰(contracts.access_token_hash)을 없애지 않고 더한다: 남이 이메일 주소로 다시 받기를 눌러도
+    원래 휴대폰이 쫓겨나지 않게. 새 토큰은 계약 이메일로만 간다.
+    """
+
+    __tablename__ = "contract_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    contract_id: Mapped[int] = mapped_column(ForeignKey("contracts.id"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Alert(Base):

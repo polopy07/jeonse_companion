@@ -21,6 +21,19 @@ def admin_token() -> str:
     return os.environ.get("ADMIN_TOKEN", "")
 
 
+def require_contract_auth() -> bool:
+    """계약 생성에 테스트 결제(payment_id), 계약 아래 API에 접근 토큰(X-Contract-Token)을 꼭 요구할지 (API 명세 1.8).
+
+    앱 연결 전까지 기본은 false(없으면 통과, 보냈는데 틀리면 402·404). 배포 서버는 처음부터 true로 둔다.
+    """
+    return os.environ.get("REQUIRE_CONTRACT_AUTH", "false").strip().lower() in ("1", "true", "yes", "on")
+
+
+def app_link_base() -> str:
+    """접근 링크 이메일의 링크 앞부분 (예: 앱 딥링크 jeonse://contract). 없으면 링크 대신 접근 코드만 보낸다."""
+    return os.environ.get("APP_LINK_BASE", "").strip()
+
+
 def data_go_kr_service_key() -> str:
     """공공데이터포털 일반 인증키를 Decoding 키로. 없으면 빈 문자열.
 
