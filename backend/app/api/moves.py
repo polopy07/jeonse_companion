@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Header
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.contracts import TOKEN_HEADER_DESC, _active, _contract_for
+from app.api.contracts import FINISHED, TOKEN_HEADER_DESC, _active, _contract_for
 from app.clock import today as today_dep
 from app.db import get_db
 from app.engine.move import plan_move
@@ -39,7 +39,7 @@ def _to_out(row: Contract, move: Move, rules: dict, today: date) -> MoveOut:
     nxt = MoveInput.model_validate(move.next_inputs)
     t9 = next((t for t in row.todos if t.rule_id == "T9"), None)
     return_date = (t9.due_date if t9 is not None and t9.due_date is not None else row.end_date)
-    returned = t9 is not None and t9.status == "done"
+    returned = t9 is not None and t9.status in FINISHED   # 나중에 올리기(skipped)도 반환 확인을 끝낸 것
     plan = plan_move({"deposit": row.deposit, "loan": row.loan}, nxt.model_dump(), return_date, returned)
 
     planned = build_todos({name: getattr(nxt, name) for name in _NEXT_TODO_FIELDS}, linkages=[], special_terms={},

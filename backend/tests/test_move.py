@@ -2,8 +2,12 @@
 from datetime import date
 
 import pytest
+from sqlalchemy import update
+from sqlalchemy.orm import Session
 
+from app.db import get_engine
 from app.engine.move import MOVE_IN_BEFORE_RETURN, MOVE_IN_SAME_DAY, plan_move
+from app.models import Todo
 from tests.test_contracts import EOK, _check, _detail
 from tests.test_todos import BY_ID, _assert_matches, _build, _values
 
@@ -143,6 +147,19 @@ def test_move_follows_current_contract_changes(client):
     client.patch(url, json={"end_date": "2028-12-20"}, headers=_auth(c))
     m = client.get(f"{url}/move", headers=_auth(c)).json()
     assert m["return_date"] == "2028-12-20" and m["gap_days"] == 20
+
+
+def test_move_returned_when_t9_skipped(client):
+    # 반환 확인(9번)을 "나중에 올리기"(skipped)로 끝내도 반환한 것으로 보고 전입 경고를 끈다
+    c = _current(client)
+    url = f"/api/contracts/{c['id']}/move"
+    client.post(url, json=_next_input(BY_ID["S10"]), headers=_auth(c))
+    with Session(get_engine()) as s:
+        s.execute(update(Todo).where(Todo.contract_id == c["id"], Todo.rule_id == "T9")
+                  .values(status="skipped", done_date=date(2028, 12, 14)))
+        s.commit()
+    m = client.get(url, headers=_auth(c)).json()
+    assert m["returned"] is True and m["move_in_warning"] is False
 
 
 def test_move_validation_and_access(client):
