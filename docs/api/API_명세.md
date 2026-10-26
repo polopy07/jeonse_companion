@@ -99,7 +99,7 @@
 | `CHECK_BLOCKED` | 409 | "문제 항목" 판정이라 패키지를 시작할 수 없음 (FR-011) |
 | `CHECK_ALREADY_USED` | 409 | 이미 계약을 만든 판정 결과로 다시 계약을 만들려 함(동시 요청 포함). `hint`는 화면에 그대로 보여 주는 안내이고, 만든 계약 id는 `GET /api/checks/{id}`의 `contract_id`로 찾는다 |
 | `CHECK_OUTDATED` | 409 | 판정 기준(규칙 파일)이 바뀌어 저장된 판정 단계 id를 찾을 수 없음 → 계약 전 확인을 다시. 단계 id 기준이라 `rules_version`만 달라지고 단계 id가 남아 있으면 걸리지 않음. `GET /api/checks/{id}`·`POST /api/contracts` |
-| `PAYMENT_REQUIRED` | 402 | 계약 생성에 쓸 테스트 결제가 없음, 다른 판정의 결제, 이미 쓴 결제, 풀린 결제인데 무산된 계약의 접근 토큰이 없거나 틀림, 또는 풀린 결제의 상품이 모자람(할 일 관리만 → 패키지). `hint`는 다시 결제 안내 (1.8) |
+| `PAYMENT_REQUIRED` | 402 | 계약 생성에 쓸 테스트 결제가 없음, 다른 판정의 결제, 이미 쓴 결제(같은 풀린 결제로 동시에 들어온 요청 중 늦은 쪽 포함), 풀린 결제인데 무산된 계약의 접근 토큰이 없거나 틀림, 또는 풀린 결제의 상품이 모자람(할 일 관리만 → 패키지). `hint`는 다시 결제 안내 (1.8) |
 | `CONTRACT_CANCELLED` | 409 | 무산된 계약이라 바꿀 수 없음 (`PATCH`, 다시 무산, 할 일 완료). `GET`은 됨 (FR-016) |
 | `PREREQUISITE_NOT_DONE` | 409 | 먼저 끝낼 할 일(`prerequisites`)이 남아 이 할 일을 끝낼 수 없음. `message`에 먼저 할 일 이름 (FR-020) |
 | `EVIDENCE_REQUIRED` | 409 | 증빙이 필요한 할 일을 증빙 없이 `done`으로 바꾸려 함. `hint`는 증빙 올리기 또는 "나중에 올리기"(`skipped`) (FR-029·030) |

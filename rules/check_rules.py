@@ -175,11 +175,16 @@ def main():
         for result in ("inserted", "rejected")
         for a in t.get(f"on_{result}", []) if a["action"] == "add_todo"
     }
-    adds_by_todos = {
-        (src.split(".")[0], src.split(".")[1], t["id"])
-        for t in data["todos"]["extra_todos"]
-        for src in t.get("added_by", []) if src.split(".")[0] in term_ids
-    }
+    adds_by_todos = set()
+    for t in data["todos"]["extra_todos"]:
+        for src in t.get("added_by", []):
+            term, _, result = src.partition(".")
+            if term not in term_ids:
+                continue
+            if result not in ("inserted", "rejected"):
+                errors.append(f"todos.yaml:{t['id']}: added_by '{src}'는 '{term}.inserted' 또는 '{term}.rejected' 형식이어야 함")
+                continue
+            adds_by_todos.add((term, result, t["id"]))
     for term, result, todo in sorted(adds_by_terms - adds_by_todos):
         errors.append(f"todos.yaml:{todo}: special_terms.yaml {term} {result}의 add_todo가 added_by에 없음")
     for term, result, todo in sorted(adds_by_todos - adds_by_terms):

@@ -13,7 +13,7 @@ from datetime import date, datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Header
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -269,7 +269,13 @@ def create_contract(inp: ContractInput, db: Session = Depends(get_db), rules: di
     try:
         db.flush()
         if payment is not None:
-            payment.status, payment.contract_id = "used", row.id
+            # 확인한 상태(paid·released) 그대로일 때만 쓴다. 같은 풀린 결제로 동시에 들어온 요청 중 늦은 쪽은 0행
+            taken = db.execute(update(Payment).where(Payment.id == payment.id, Payment.status == payment.status)
+                               .values(status="used", contract_id=row.id))
+            if taken.rowcount != 1:
+                db.rollback()
+                raise api_error(402, "PAYMENT_REQUIRED", "이미 다른 계약에 쓴 결제입니다",
+                                "결과 화면에서 패키지 시작을 눌러 결제를 확인하세요")
             row.payment_id = payment.id
         db.commit()
     except IntegrityError:   # 같은 판정으로 동시에 들어온 요청 중 늦은 쪽 (check_id unique)

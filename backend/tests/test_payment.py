@@ -2,6 +2,7 @@
 import pytest
 from sqlalchemy import text
 
+from app.api import contracts
 from app.db import get_engine, init_db
 from tests.test_contracts import DATES, EOK, VILLA, _check, _detail
 
@@ -196,6 +197,30 @@ def test_released_payment_needs_owner_token(client):
         r = client.post("/api/contracts", json=body, headers=headers)
         assert r.status_code == 402 and _detail(r)["code"] == "PAYMENT_REQUIRED"
     assert _contract(client, nxt["id"], pay["payment_id"], headers=_auth(c))["payment_id"] == pay["payment_id"]
+
+
+def test_released_payment_taken_once_under_race(client, monkeypatch):
+    # 같은 풀린 결제로 두 계약이 동시에 들어와 둘 다 확인을 통과해도, 먼저 커밋한 쪽만 쓴다 (#89 리뷰)
+    check = _check(client)
+    pay = _pay(client, check["id"])
+    c = _contract(client, check["id"], pay["payment_id"])
+    client.post(f"/api/contracts/{c['id']}/cancel", headers=_auth(c))
+
+    original = contracts._alert_level
+
+    def other_request_commits_first(check, rules):
+        # 이 요청이 결제를 확인한 뒤, 계약을 저장하기 전에 다른 요청이 같은 결제를 먼저 씀
+        with get_engine().begin() as conn:
+            conn.execute(text("UPDATE payments SET status = 'used', contract_id = 999 WHERE id = :id"),
+                         {"id": pay["payment_id"]})
+        return original(check, rules)
+
+    monkeypatch.setattr(contracts, "_alert_level", other_request_commits_first)
+    nxt = _check(client)
+    r = client.post("/api/contracts", json={"check_id": nxt["id"], **DATES, "payment_id": pay["payment_id"]},
+                    headers=_auth(c))
+    assert r.status_code == 402 and _detail(r)["code"] == "PAYMENT_REQUIRED"
+    assert client.get(f"/api/checks/{nxt['id']}").json()["contract_id"] is None   # 늦은 쪽 계약은 남지 않는다
 
 
 def test_cancel_needs_token(client):
