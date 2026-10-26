@@ -100,7 +100,11 @@
 | `CHECK_ALREADY_USED` | 409 | 이미 계약을 만든 판정 결과로 다시 계약을 만들려 함(동시 요청 포함). `hint`는 화면에 그대로 보여 주는 안내이고, 만든 계약 id는 `GET /api/checks/{id}`의 `contract_id`로 찾는다 |
 | `CHECK_OUTDATED` | 409 | 판정 기준(규칙 파일)이 바뀌어 저장된 판정 단계 id를 찾을 수 없음 → 계약 전 확인을 다시. 단계 id 기준이라 `rules_version`만 달라지고 단계 id가 남아 있으면 걸리지 않음. `GET /api/checks/{id}`·`POST /api/contracts` |
 | `PAYMENT_REQUIRED` | 402 | 계약 생성에 쓸 테스트 결제가 없음, 다른 판정의 결제, 이미 쓴 결제, 풀린 결제인데 무산된 계약의 접근 토큰이 없거나 틀림, 또는 풀린 결제의 상품이 모자람(할 일 관리만 → 패키지). `hint`는 다시 결제 안내 (1.8) |
-| `CONTRACT_CANCELLED` | 409 | 무산된 계약이라 바꿀 수 없음 (`PATCH`, 다시 무산). `GET`은 됨 (FR-016) |
+| `CONTRACT_CANCELLED` | 409 | 무산된 계약이라 바꿀 수 없음 (`PATCH`, 다시 무산, 할 일 완료). `GET`은 됨 (FR-016) |
+| `PREREQUISITE_NOT_DONE` | 409 | 먼저 끝낼 할 일(`prerequisites`)이 남아 이 할 일을 끝낼 수 없음. `message`에 먼저 할 일 이름 (FR-020) |
+| `EVIDENCE_REQUIRED` | 409 | 증빙이 필요한 할 일을 증빙 없이 `done`으로 바꾸려 함. `hint`는 증빙 올리기 또는 "나중에 올리기"(`skipped`) (FR-029·030) |
+| `TODO_NOT_STARTED` | 409 | 잔금일에 하는 할 일(3번 재비교·4번 전입신고)을 시작일 전 날짜로 끝내려 함 |
+| `DEPENDENT_DONE` | 409 | 이 할 일을 먼저 끝내야 하는 뒤 할 일이 이미 끝나 있어 되돌릴 수 없음. 뒤 할 일부터 되돌림 |
 | `ADMIN_TOKEN_INVALID` | 401 | 관리자 API에 `X-Admin-Token` 헤더가 없거나 서버 `ADMIN_TOKEN`과 다름 |
 | `ADMIN_DISABLED` | 403 | 서버에 `ADMIN_TOKEN`이 없어 관리자 API가 꺼져 있음 |
 | `TRADES_COLLECT_CONFLICT` | 409 | 같은 거래를 동시에 수집한 다른 요청과 겹쳐 저장하지 못함 → 다시 시도 |
@@ -160,6 +164,7 @@ A = 개발 A(백엔드·규칙), B = 개발 B(화면). 주차는 노션 "할 일
 | `POST /api/registry/parse` | 등기부 PDF → 요약 추출 결과 (저장 안 함). `fields`를 확인·수정해 `POST /api/checks`의 `registry`로 보낸다. 을구 임차권·전세권 보증금은 `fields.lease_amount`(선순위 채권)에 들어 있고, 이미 돌려받았거나 내 계약이면 확인 화면에서 `leases` 항목별로 빼서 보낸다. 같은 보증금이 전세권·임차권으로 함께 있으면 한 항목만 넣고 나머지는 `same_deposit_as`(남긴 항목의 순위번호)를 달아 뺀 상태로 준다 | FR-005~006 | UI-01 |
 | `POST /api/contracts` | 패키지 시작: `check_id` + 계약 조건(계약일·잔금일·만기일·월세·대출·보증기관·중개·갱신·공동 계약·알림 이메일) + 특약 넣음/거절당함 → 계약 생성. 주택 유형·보증금·공시가격·전용면적은 판정 입력에서 가져온다. "문제 항목" 판정이면 409 `CHECK_BLOCKED`, 이미 계약을 만든 판정이면 409 `CHECK_ALREADY_USED`, 판정 기준이 바뀌었으면 409 `CHECK_OUTDATED`. 특약 결과는 그 판정에서 안내한 특약(MVP 연동 규칙의 특약 예시)만 받고 나머지는 422. 계약을 만들면서 할 일 9종도 생성해 응답 `todos`에 순서대로 넣는다 (신고 대상 판별·조건별 분기·우선 노출·선행 조건, `rules/todos.yaml`). 응답에 `report_required`(신고 대상), `alert_level`(시작할 때의 경보 단계)도 넣는다 `payment_id`(테스트 결제)를 확인해 아니면 402 `PAYMENT_REQUIRED`(1.8), 응답에 계약 접근 토큰 `access_token`(이 응답에서 한 번만)과 `status`·`payment_id`, 특약 반영 분기 `special_term_effects`(특약별 넣음/거절당함에 따른 위험 안내·기록함 서류·맨 위로 올라간 할 일·상담 창구, 부속표 E). `GET`·`PATCH` 응답에도 같은 칸 | FR-011, 013~015, 017~020, 049~050 | UI-03, UI-04 |
 | `GET /api/contracts/{id}` | 계약 정보와 할 일 목록. 응답 `today`(가상 날짜면 그날)와 할 일마다 `state`(done / upcoming / in_progress / overdue)·`days_left`(1.7). `X-Contract-Token` 확인(1.8), 무산된 계약도 기록으로 볼 수 있음 | FR-014, 017 | UI-03, UI-04 |
+| `PATCH /api/todos/{id}` | 할 일 끝내기·되돌리기: 본문 `status`(`done` 완료 / `skipped` 나중에 올리기 / `todo` 되돌리기)와 `done_date`(없으면 오늘, 가상 날짜면 그날, 오늘보다 뒤면 422). `done`은 증빙을 올린 할 일만(아니면 409 `EVIDENCE_REQUIRED`), `skipped`는 완료로 치고 기록함만 빈칸. 먼저 끝낼 할 일이 남았으면 409 `PREREQUISITE_NOT_DONE`, 3·4번을 잔금일 전 날짜로 끝내면 409 `TODO_NOT_STARTED`, 되돌리기는 뒤 할 일부터(409 `DEPENDENT_DONE`). 끝낸 날로 뒤 할 일 날짜를 다시 계산해 계약 전체를 돌려줌(`ContractOut`, 할 일마다 `done_date`). 할 일이 속한 계약의 `X-Contract-Token` 확인, 무산된 계약은 409 | FR-020, 029~030 | UI-04 |
 | `POST /api/contracts/{id}/cancel` | 계약 무산 → 계약 `status: "cancelled"`, 쓴 결제는 `released`(다음 집 계약에 다시 씀). 할 일은 기록으로 남김. `X-Contract-Token` 확인, 이미 무산이면 409 `CONTRACT_CANCELLED` | FR-016 | UI-03 |
 | `POST /api/admin/notifications/run` | 알림 실행 (관리자, 시연용): 날짜(본문 `date` → `X-Virtual-Today` → 실제 오늘)를 오늘로 보고 그날 보낼 알림을 만든다. 할 일 시작일·기한 7일 전·1일 전·재알림일(`todos.yaml` `notifications`), 건너뛴 날의 알림은 7일 안의 것만. 앱 안 알림은 `sent`, 이메일은 반환보증(T5·T6)만 보내고(`EMAIL_BACKEND`), 못 보내면 `failed`로 남겨 다음 실행에서 3번까지 다시 보냄(NFR-008). 알림 이메일이 없거나 그사이 무산·완료, 또는 알림일이 7일보다 지났으면(남은 날 문구가 틀려서) `skipped`. 응답에 `email_sent`·`email_failed`. 같은 알림은 한 번만 | FR-040, 041, 044 | |
 | `POST /api/contracts/access-link` | 접근 링크 이메일로 다시 받기: 본문 `{"email"}`. 그 이메일로 만든 진행 중 계약마다 새 접근 토큰을 만들어 계약 이메일로 보냄(처음 토큰은 그대로, 계약마다 한 시간에 3번). 이메일이 없어도 같은 202 (계약이 있는지 알아내지 못하게). 링크는 `APP_LINK_BASE`가 있으면 `{APP_LINK_BASE}?contract={id}&token=...`, 없으면 접근 코드 | NFR-011 | UI-04 |
@@ -175,7 +180,6 @@ GitHub 이슈와 마일스톤(2주차·3주차·4주차)으로 진행을 관리�
 | 메서드·주소 | 하는 일 | FR | 화면 | 주차 | 이슈 |
 | --- | --- | --- | --- | --- | --- |
 | `POST /api/contracts/{id}/registry-compare` | 계약 당일·잔금일 등기부를 다시 올려 점검 때와 비교, 바뀐 항목 표시 | FR-023, 048 | UI-03 | 3 | #41 |
-| `PATCH /api/todos/{id}` | 완료 체크, "나중에 올리기". 선행 조건이 안 끝났으면 완료 불가 | FR-020, 029~030 | UI-04 | 3 | #43 |
 | `POST /api/todos/{id}/evidence` | 증빙 사진 올리기 → 할 일 완료, 기록함에 자동 기록 | FR-029, 031 | UI-05 | 3 | #44 |
 | `DELETE /api/todos/{id}/evidence` | 증빙 삭제 | FR-033 | UI-05 | 3 | #45 |
 | `POST /api/contracts/{id}/documents` | 첫 계약 서류(계약서·이체 내역) 저장 | FR-051 | UI-03, UI-05 | 3 | #46 |

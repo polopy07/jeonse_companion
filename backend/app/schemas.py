@@ -319,6 +319,7 @@ class TodoOut(BaseModel):
     moved_to_top: bool = Field(description="특약 거절·경보로 맨 위에 올린 할 일")
     sort_order: int
     status: str = Field(description="todo / done / skipped")
+    done_date: date | None = Field(description="끝낸 날 (done·skipped). 뒤 할 일의 기준일")
     rules_version: str
     state: Literal["done", "upcoming", "in_progress", "overdue"] = Field(
         description="오늘(가상 날짜면 그날) 기준: done 끝냄(status skipped 포함) / upcoming 시작 전 / in_progress 할 때 / "
@@ -455,3 +456,12 @@ class NotificationRunResult(BaseModel):
     email_sent: int = Field(description="이번 실행에서 보낸 이메일 수 (앞서 실패한 것 다시 보낸 것 포함)")
     email_failed: int = Field(description="보내지 못한 이메일 수. 다음 실행에서 3번까지 다시 보낸다")
     created: list[NotificationOut] = Field(description="이번 실행에서 새로 만든 알림. 이미 만든 알림은 다시 만들지 않는다")
+
+
+class TodoPatch(BaseModel):
+    """할 일 완료·나중에 올리기·되돌리기 (FR-020, FR-029·030, UI-04)."""
+
+    status: Literal["done", "skipped", "todo"] = Field(
+        description="done 완료(증빙을 올린 할 일만) / skipped 나중에 올리기(완료 처리, 기록함은 빈칸) / todo 되돌리기")
+    done_date: date | None = Field(
+        None, description="끝낸 날. 없으면 오늘(가상 날짜면 그날). 뒤 할 일의 기준일이 된다 (예: 전입신고 완료 다음 날 → 반환보증 시작)")

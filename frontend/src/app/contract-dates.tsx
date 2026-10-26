@@ -10,7 +10,8 @@ import { checkResult, house } from '@/data/demo';
 import { ApiError, apiEnabled, getCheck, getContract, postContract, type Guarantor } from '@/lib/api';
 import { useLatestCheck } from '@/lib/check';
 import { parseManwon } from '@/lib/format';
-import { setLatestContract } from '@/lib/contract';
+import { contractToken, setLatestContract } from '@/lib/contract';
+import { paymentIdFor, setLatestPayment } from '@/lib/payment';
 import { useSpecialTermResults } from '@/lib/special-terms';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -77,8 +78,11 @@ export default function ContractDatesScreen() {
         special_term_result: Object.fromEntries(
           Object.entries(termResults).filter((e): e is [string, 'inserted' | 'rejected'] => !!e[1]),
         ),
+        payment_id: paymentIdFor(check.id),
       });
-      setLatestContract(contract);
+      // 접근 토큰은 이 응답에서 한 번만 온다. 휴대폰에 저장해 계약 아래 API에 붙인다
+      setLatestContract(contract, contract.access_token);
+      setLatestPayment(null); // 계약에 쓴 결제 (무산되면 서버가 풀어 준다)
       router.push('/todos');
     } catch (e) {
       // 이미 이 판정으로 계약을 만들었으면 그 계약의 할 일로 간다
@@ -86,13 +90,15 @@ export default function ContractDatesScreen() {
         const contractId = await getCheck(check.id)
           .then((c) => c.contract_id)
           .catch(() => null);
-        const existing = contractId === null ? null : await getContract(contractId).catch(() => null);
+        const existing =
+          contractId === null ? null : await getContract(contractId, contractToken(contractId)).catch(() => null);
         if (existing) {
           setLatestContract(existing);
           router.push('/todos');
           return;
         }
       }
+      // 402 PAYMENT_REQUIRED: 결과 화면의 결제 확인 창으로 돌아가라는 안내(hint)를 그대로 보여 준다
       setError(e instanceof ApiError ? [e.message, e.hint].filter(Boolean).join('. ') : '계약을 만들지 못했어요');
     } finally {
       setSubmitting(false);

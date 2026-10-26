@@ -41,6 +41,7 @@ ACCESS_LINK_MESSAGE = "이 이메일로 만든 계약이 있으면 접근 링크
 ACCESS_LINK_PER_HOUR = 3   # 계약마다 한 시간에 다시 보내는 횟수 (메일 폭탄 막기)
 TOKEN_HEADER_DESC = "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
 RELEASED_TOKEN_DESC = "풀린 결제(released)를 다시 쓸 때만: 그 결제를 썼던 무산된 계약의 접근 토큰 (API 명세 1.8)"
+FINISHED = ("done", "skipped")   # 끝낸 할 일 (skipped = 나중에 올리기: 완료 처리, 증빙만 빈칸)
 
 # 판정 입력에서 그대로 가져오는 값 (fields.yaml 이름)
 _FROM_CHECK = ("housing_type", "deposit", "official_price", "exclusive_area")
@@ -161,7 +162,8 @@ def _sync_todos(row: Contract, check: Verdict, rules: dict) -> None:
     """
     row.report_required = report_required(_todo_values(row), rules["todos"])
     existing = {t.rule_id: t for t in row.todos}
-    done_dates = {t.rule_id: t.done_date for t in row.todos if t.status == "done" and t.done_date}
+    # "나중에 올리기"(skipped)도 끝낸 할 일이다 (FR-030: 완료 처리하되 기록함만 빈칸)
+    done_dates = {t.rule_id: t.done_date for t in row.todos if t.status in FINISHED and t.done_date}
 
     def plan():
         return build_todos(_todo_values(row), check.linkages, row.special_term_result, row.alert_level, rules,
@@ -187,7 +189,7 @@ def _sync_todos(row: Contract, check: Verdict, rules: dict) -> None:
         t.rules_version = version
         todos.append(t)
     for t in sorted(existing.values(), key=lambda t: t.sort_order):
-        if t.status == "done":
+        if t.status in FINISHED:
             t.sort_order = len(todos) + 1
             todos.append(t)
     row.todos = todos   # 남기지 않은 할 일은 delete-orphan으로 지워진다
