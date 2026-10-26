@@ -8,6 +8,7 @@ import { Button, Screen } from '@/components/layout';
 import { TermEffectCard } from '@/components/term';
 import { Colors, Radius } from '@/constants/theme';
 import { today, todos as demoTodos, type Todo } from '@/data/demo';
+import { useToday } from '@/lib/clock';
 import { clearContractNotice, todoViews, useContractNotice, useLatestContract } from '@/lib/contract';
 
 /**
@@ -17,15 +18,16 @@ import { clearContractNotice, todoViews, useContractNotice, useLatestContract } 
 export default function TodosScreen() {
   const contract = useLatestContract();
   const notice = useContractNotice();
-  const [items, setItems] = useState<Todo[]>(contract ? todoViews(contract.todos) : demoTodos);
+  const now = useToday();
+  const [items, setItems] = useState<Todo[]>(contract ? todoViews(contract.todos, now) : demoTodos);
   // 계약 날짜 입력에서 새 계약을 만들고 돌아오면 그 할 일로 바꾼다 (렌더 중 이전 값과 비교)
   const [shownContract, setShownContract] = useState(contract);
   if (shownContract !== contract) {
     setShownContract(contract);
-    setItems(contract ? todoViews(contract.todos) : demoTodos);
+    setItems(contract ? todoViews(contract.todos, now) : demoTodos);
   }
   const done = items.filter((t) => t.status === 'done').length;
-  const todayLabel = contract ? `${new Date().getMonth() + 1}.${String(new Date().getDate()).padStart(2, '0')}` : today.label;
+  const todayLabel = contract ? `${now.getMonth() + 1}.${String(now.getDate()).padStart(2, '0')}` : today.label;
 
   // 실제 앱에서는 카메라로 증빙 1장을 찍은 뒤 완료 처리한다. 지금은 완료 상태만 바꾼다.
   const complete = (id: string) =>

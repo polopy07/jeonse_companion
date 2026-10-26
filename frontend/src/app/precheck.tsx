@@ -25,6 +25,7 @@ import {
   type RegistryLease,
   type TrustConsent,
 } from '@/lib/check';
+import { dottedDate, todayDate } from '@/lib/clock';
 import { formatWon, parseManwon, parseNumber } from '@/lib/format';
 
 const steps = ['집 정보', '공시가격', '등기부', '확인·수정'];
@@ -43,10 +44,8 @@ const uploadSteps = [
   '아래에서 저장한 PDF를 골라요',
 ];
 
-const todayText = () => {
-  const d = new Date();
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
-};
+/** 조회일 (가상 날짜면 그날) */
+const todayText = () => dottedDate(todayDate());
 
 const toManwonText = (won: number) => (won ? String(Math.round(won / 10_000)) : '');
 
