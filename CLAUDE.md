@@ -73,11 +73,13 @@
 ## 다음 세션 시작점 (2026-10-26 기준)
 
 - 지금: 3주차 여섯째 날(3주차 끝 10/27, 최종 시연 11/3). 중간 점검(10/20)은 등기부 추출 100%로 통과, 범위 축소 없음(10/22 기록, `docs/plan/4주_개발계획.md`). main에 기획서 v4.35·명세서 v0.5(FR-005 임차권·전세권), 규칙 파일 v1.1(todos.yaml v1.2·alert.yaml v1.2·fields.yaml v1.1), API 명세·오류 형식, CI, 기한 계산 정답표(S1-R4·Q10·Q11, #84)·시뮬레이터, 시연 집 2채·경보 정답표(`docs/validation/`), 로그인·테스트 결제 결정(#86)과 세부 규칙(#88: `REQUIRE_CONTRACT_AUTH`, 402, 계약 무산 `/cancel`, `docs/api/결정자료_로그인_테스트결제.md`)까지 됨
-- 백엔드(main): 계약 전 확인·판정 설명(`POST/GET /api/checks`), 특약 예시(`GET /api/checks/{id}/special-terms`), 계약 생성·할 일 9종(`POST/GET /api/contracts`), 계약 조건·특약 변경 → 할 일 재계산(`PATCH /api/contracts/{id}`, 잔금일이 미뤄지면 끝낸 T3·T4 되돌림), 등기부 요약 파서(`POST /api/registry/parse`), 실거래가 수집(`POST /api/admin/trades`), 시연 집(`GET /api/demo-houses`), 시연 전 DB 초기화 `reset_demo_db.py`. DB는 시연까지 SQLite
+- 백엔드(main): 계약 전 확인·판정 설명(`POST/GET /api/checks`), 특약 예시(`GET /api/checks/{id}/special-terms`), 테스트 결제(`POST /api/checks/{id}/payment`), 계약 생성·할 일 9종(`POST/GET /api/contracts`, 접근 토큰 `X-Contract-Token`, 특약 반영 분기 `special_term_effects`, 할 일 `state`·`days_left`), 계약 조건·특약 변경 → 할 일 재계산(`PATCH /api/contracts/{id}`, 잔금일이 미뤄지면 끝낸 T3·T4 되돌림), 계약 무산(`POST /api/contracts/{id}/cancel`), 접근 링크 다시 받기(`POST /api/contracts/access-link`), 알림 실행·반환보증 이메일(`POST /api/admin/notifications/run`, `EMAIL_BACKEND`), 등기부 요약 파서(`POST /api/registry/parse`), 실거래가 수집(`POST /api/admin/trades`), 시연 집(`GET /api/demo-houses`), 시연 전 DB 초기화 `reset_demo_db.py`. DB는 시연까지 SQLite (#89·#91·#92·#93은 10/26 병합)
 - 검증: 등기부 요약 추출 정확도 샘플 10건 112/112 = 100%. 파서를 만들며 맞춘 샘플이라 처음 보는 등기부 3~5건으로 다시 잴 예정(샘플 확보 필요)
-- 열린 PR: #89(테스트 결제·계약 접근 토큰·계약 무산) → #91(특약 반영 분기 `special_term_effects`) → #92(가상 날짜 할 일 상태·알림 실행) → #93(알림 이메일 발송·접근 링크 다시 받기, 10/26 리뷰 반영 `d0e7db9`)은 쌓인 PR이라 **#93 하나만 재승인·병합**(#89·#91·#92도 병합 처리). #88 병합으로 넷 다 승인이 풀렸고, 10/26 #93 재승인도 GitHub가 기준 커밋을 옛 main으로 들고 있어 세지 않음 → main을 합쳐 올림(`e16afe3`), 배승환 승인 대기
-- #93 병합 뒤 다음 PR로 고칠 것(배승환 리뷰): 풀린 결제는 본인 것만·동시 사용 막기(#89), 배포 서버에서 `X-Virtual-Today` 끄기·`todo_state`의 `skipped`·오늘 날짜 `Asia/Seoul`(#92), 접근 링크 메일을 백그라운드로(응답 시간, 배포 전, #93)
-- 이번 주(3주차) 마감 10/27: 갈아타기(백엔드 마지막, #93 브랜치 위에 쌓음), 앱 결제 확인 창·토큰·특약 분기 표시·기록함·ICS(배승환). 알림 시점(기한 7·1일 전) PO 확인, 시연 전 Gmail SMTP로 실제 발송 확인
+- 열린 PR (모두 배승환 승인 대기, 모두 main 대상): #95(#89·#92 리뷰 반영: 풀린 결제는 무산된 계약 토큰과 함께, `ALLOW_VIRTUAL_TODAY`·한국 시간 오늘, `skipped` 상태), #97(갈아타기 `POST`·`GET /api/contracts/{id}/move`, 정답표 S10 대조 일치, Closes #48), #94(10/26 일지), #96(발표회 포스터 초안 `docs/poster/`)
+- 리뷰 남은 것: 같은 풀린 결제로 계약 동시 생성 막기(#89), `check_rules.py` `added_by` 형식 오류 메시지(#91), 접근 링크 메일을 백그라운드로(응답 시간, 배포 전, #93). 갈아타기의 "다음 집 전입신고 완료 시 경고"(FR-027)는 할 일 완료 API(#43)와 함께
+- 기한 정답표 PO 결정은 Q12까지(10/26 Q12: 같은 날 전입은 "보증금 먼저 받고 전입신고" 순서 안내, 앞서면 날짜 경고)
+- 3주차 백엔드는 모두 PR까지 올라감(갈아타기 #97이 마지막). 남은 3주차(마감 10/27)는 앱: 결제 확인 창·토큰·특약 분기 표시·D-day 서버 값·기록함·ICS·갈아타기 화면(배승환). 알림 시점(기한 7·1일 전) PO 확인, 시연 전 Gmail SMTP로 실제 발송 확인. 4주차(10/28~): 역전세 경보 재계산(#53·#54), 경보 정답표 대조, 등기부 재비교(#41), 사용성 테스트, 리허설
+- 발표회 포스터 초안: `docs/poster/AI·SW 신기술 전공 프로젝트 발표회_분반_전동기_초안.pptx`(#96). 빈 칸은 지도교수·학과·팀 사진·앱 스크린샷 4곳
 - main은 Rulesets로 보호(PR 필수·승인 1개·`test` 필수). 병합은 PR 작성자가 함. 배승환 PR은 배승환이 병합
 - 프론트엔드는 Expo(배승환). 앱–백엔드 연결(#71)·경보 단계 서버 기준·주변 전세 시세(#87)는 10/23 main에. 휴대폰 접속은 `docs/guide/휴대폰_접속_방법.md`(아이폰 Expo Go 확인함)
 - 다음 할 일 목록은 최신 작업일지 `worklog/YYYY-MM-DD-황웅재.md`의 "다음에 할 일"을 따른다 (10/12까지 일지와 배승환 10/13 일지는 날짜만 있는 파일 이름)
