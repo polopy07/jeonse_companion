@@ -170,7 +170,8 @@ export function todoViews(todos: ApiTodo[], today: Date): TodoView[] {
         id: `${t.rule_id}-${t.id}`,
         title: t.title,
         when: whenLabel(t, today),
-        dday: t.days_left !== null && status !== 'later' ? ddayLabel(t.days_left) : undefined,
+        // FR-040: 시작 전인 할 일도 기한과 남은 날을 보여 준다
+        dday: t.days_left !== null && status !== 'done' ? ddayLabel(t.days_left) : undefined,
         badge: badges.length ? badges.join(' · ') : undefined,
         status,
         todayBefore: status === 'current',
