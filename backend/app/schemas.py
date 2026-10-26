@@ -454,3 +454,76 @@ class NotificationRunResult(BaseModel):
     email_sent: int = Field(description="이번 실행에서 보낸 이메일 수 (앞서 실패한 것 다시 보낸 것 포함)")
     email_failed: int = Field(description="보내지 못한 이메일 수. 다음 실행에서 3번까지 다시 보낸다")
     created: list[NotificationOut] = Field(description="이번 실행에서 새로 만든 알림. 이미 만든 알림은 다시 만들지 않는다")
+
+
+class MoveInput(BaseModel):
+    """갈아타기: 다음 집 계약 조건 (FR-025, UI-07). 만기 6개월 전 할 일(7번)에서 "이사할게요"를 고르면 입력한다.
+
+    다음 집 계약 전 확인(POST /api/checks)은 따로 한다 (FR-028). 여기서는 날짜·돈으로 자금 틈과 할 일만 계산한다.
+    """
+
+    contract_date: date = Field(description="다음 집 계약일")
+    balance_date: date = Field(description="다음 집 잔금일")
+    end_date: date = Field(description="다음 집 만기일")
+    deposit: Money = Field(description="다음 집 보증금 (원)")
+    down_payment: MoneyOrZero = Field(description="다음 집 계약금 (원). 잔금 = 보증금 − 계약금")
+    down_payment_date: date | None = Field(None, description="계약금 지급일. 없으면 계약일")
+    monthly_rent: MoneyOrZero = Field(0, description="월세 (원, 전세면 0)")
+    loan: bool = Field(False, description="다음 집 전세대출 유무")
+    loan_execution_date: date | None = Field(None, description="다음 집 대출 실행일, 모르면 비워 둠 (잔금일로 본다)")
+    guarantor: Guarantor = Field("none", description="다음 집 보증기관 (미가입은 none)")
+    brokered: bool = Field(True, description="중개 거래 여부")
+    renewal_right_used: bool = Field(False, description="계약갱신요구권을 써서 갱신한 계약인지")
+    move_in_date: date | None = Field(None, description="다음 집 전입 예정일. 없으면 잔금일")
+
+    @model_validator(mode="after")
+    def dates_and_money(self):
+        if self.balance_date < self.contract_date:
+            raise ValueError("잔금일은 계약일과 같거나 뒤여야 합니다")
+        if self.end_date <= self.balance_date:
+            raise ValueError("만기일은 잔금일보다 뒤여야 합니다")
+        if self.down_payment >= self.deposit:
+            raise ValueError("계약금은 보증금보다 적어야 합니다")
+        if self.down_payment_date is not None and self.down_payment_date > self.balance_date:
+            raise ValueError("계약금 지급일은 잔금일과 같거나 앞이어야 합니다")
+        if self.move_in_date is not None and self.move_in_date < self.balance_date:
+            raise ValueError("전입 예정일은 잔금일과 같거나 뒤여야 합니다")
+        if self.loan_execution_date is not None and not self.loan:
+            raise ValueError("전세대출이 없으면 대출 실행일을 비워 두세요")
+        return self
+
+
+class MoveTodoOut(BaseModel):
+    """지금 집과 다음 집 할 일을 하나로 묶은 목록의 한 줄 (FR-025)."""
+
+    house: Literal["current", "next"] = Field(description="current 지금 집 / next 다음 집")
+    rule_id: str = Field(description="todos.yaml id (T1~T9)")
+    title: str
+    start_date: date | None
+    due_date: date | None
+    remind_date: date | None
+    state: Literal["done", "upcoming", "in_progress", "overdue"] = Field(description="오늘 기준 상태 (TodoOut.state와 같음)")
+    days_left: int | None
+
+
+class MoveOut(BaseModel):
+    contract_id: int = Field(description="지금 계약 id")
+    today: date = Field(description="계산한 오늘 (X-Virtual-Today를 보냈으면 그날)")
+    decided_on: date = Field(description="갈아타기를 처음 저장한 날")
+    next: MoveInput = Field(description="저장한 다음 집 입력")
+    current_deposit: int = Field(description="지금 집 보증금 (원)")
+    return_date: date = Field(description="지금 집 보증금 반환 예정일 (9번 할 일 기한, 없으면 만기일)")
+    returned: bool = Field(description="지금 집 반환 확인(9번 할 일)을 끝냈는지")
+    next_balance: int = Field(description="다음 집 잔금 = 보증금 − 계약금 (원)")
+    gap_days: int = Field(description="반환 예정일이 다음 집 잔금일보다 늦은 일수. 늦지 않으면 0")
+    gap_amount: int = Field(description="그동안 비는 금액 = min(지금 집 보증금, 다음 집 잔금). 틈이 없으면 0 (PO 결정 Q5)")
+    loan_order: Literal["new_loan_first", "old_repayment_first"] | None = Field(
+        description="두 집 모두 전세대출일 때: new_loan_first 새 대출 실행이 기존 대출 상환보다 먼저 / "
+                    "old_repayment_first 기존 대출 상환 뒤 새 대출. 아니면 null")
+    loan_gap_days: int | None = Field(description="새 대출 실행이 기존 대출 상환보다 먼저인 일수")
+    move_in_date: date = Field(description="다음 집 전입 예정일 (입력이 없으면 잔금일)")
+    move_in_warning: bool = Field(description="전입 예정일이 반환 예정일과 같거나 앞서면 true (반환 확인을 끝냈으면 false, FR-027)")
+    warnings: list[str] = Field(description="화면에 그대로 보여 줄 안내 (자금 틈·대출 순서·전입 순서)")
+    next_todos: list[MoveTodoOut] = Field(description="다음 집 할 일 9종 (다음 집 날짜로 계산, 할 일 순서대로). "
+                                                       "다음 집 계약 전 확인의 연동 규칙·특약은 계약을 만들 때 반영된다")
+    todos: list[MoveTodoOut] = Field(description="지금 집 + 다음 집 할 일을 날짜순으로 묶은 목록 (FR-025)")
