@@ -68,6 +68,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/engine/special_terms.py` | 판정에 맞는 특약 예시와 넣음/거절당함 결과 (special_terms.yaml, linkage.yaml) |
 | `app/api/checks.py` | `POST /api/checks`, `GET /api/checks/{id}`, `GET /api/checks/{id}/special-terms` |
 | `app/api/contracts.py` | `POST /api/contracts`, `GET /api/contracts/{id}` |
+| `app/api/todos.py` | `PATCH /api/todos/{id}` 할 일 끝내기·나중에 올리기·되돌리기 |
 | `app/registry/pdf.py` | 등기부 PDF → 요약 페이지 글자 ("부동산정보요약" 또는 증명서의 "주요 등기사항 요약", pdfplumber) |
 | `app/registry/parser.py` | 요약 글자 → 소유자, 근저당 채권최고액, 압류 등, 신탁 (규칙 파서) |
 | `app/api/registry.py` | `POST /api/registry/parse` |
@@ -169,6 +170,13 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
   - 같은 할 일·종류·알림일·경로는 한 번만 만든다. 무산된 계약·끝낸 할 일은 알리지 않는다
 - 시연: 가상 날짜를 반환보증 가입 기한 7일 전으로 두고 알림 실행 → 반환보증 이메일이 나감 (AC-010)
 - 이메일 보내는 방법은 `EMAIL_BACKEND` (`app/mailer.py`): `console`(기본, 보내지 않고 서버 로그에만), `smtp`(실제 발송, `SMTP_HOST`·`SMTP_PORT`·`SMTP_USER`·`SMTP_PASSWORD`·`SMTP_FROM`, Gmail은 앱 비밀번호), `memory`(테스트). `.env.example` 참고
+
+### `PATCH /api/todos/{id}` 할 일 끝내기·나중에 올리기·되돌리기 (FR-020·029·030, #43)
+
+- 본문 `{"status": "skipped"}`(나중에 올리기: 완료로 치고 기록함만 빈칸), `"done"`(증빙을 올린 할 일만), `"todo"`(되돌리기). `done_date`가 없으면 오늘(가상 날짜면 그날)
+- 막는 것(409): 먼저 끝낼 할 일이 남음 `PREREQUISITE_NOT_DONE`, 증빙 없이 완료 `EVIDENCE_REQUIRED`, 3·4번을 잔금일 전 날짜로 `TODO_NOT_STARTED`, 뒤 할 일이 끝났는데 되돌리기 `DEPENDENT_DONE`, 무산된 계약 `CONTRACT_CANCELLED`. 끝낸 날이 오늘보다 뒤면 422
+- 끝낸 날은 뒤 할 일의 기준일이라(전입신고 완료 다음 날 → 반환보증 시작) 바꿀 때마다 계약의 할 일을 다시 계산해 계약 전체를 돌려준다. `skipped`도 끝낸 할 일로 친다
+- 할 일 `id`는 계약 응답 `todos[].id`. 헤더 `X-Contract-Token`은 그 할 일이 속한 계약의 토큰
 
 ### `POST /api/contracts/access-link` 접근 링크 이메일로 다시 받기 (#39)
 

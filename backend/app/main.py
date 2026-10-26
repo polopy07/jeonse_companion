@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import errors
-from app.api import admin, checks, contracts, demo, registry
+from app.api import admin, checks, contracts, demo, registry, todos
 from app.config import cors_origins
 from app.db import init_db
 from app.rules.loader import get_rules
@@ -26,6 +26,7 @@ if cors_origins():
                        allow_headers=["Content-Type", "X-Contract-Token", "X-Virtual-Today", "X-Admin-Token"])
 app.include_router(checks.router)
 app.include_router(contracts.router)
+app.include_router(todos.router)
 app.include_router(registry.router)
 app.include_router(demo.router)
 app.include_router(admin.router)
