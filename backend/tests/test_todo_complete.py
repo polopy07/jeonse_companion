@@ -113,3 +113,29 @@ def test_access_and_cancelled(client):
     client.post(f"/api/contracts/{c['id']}/cancel", headers={"X-Contract-Token": c["access_token"]})
     r = _set(client, c, "T4", {"status": "skipped"})
     assert r.status_code == 409 and _detail(r)["code"] == "CONTRACT_CANCELLED"
+
+
+def test_done_date_not_before_contract_date(client):
+    # #101 리뷰 1번: 끝낸 날은 뒤 할 일의 기준일이라 계약일보다 앞서면 막는다
+    c = _contract(client)
+    r = _set(client, c, "T2", {"status": "skipped", "done_date": "2020-01-01"}, day="2026-11-10")
+    assert r.status_code == 422
+    assert "계약일(2026-11-02)" in r.json()["detail"]["fields"][0]["message"]
+    assert _set(client, c, "T2", {"status": "skipped", "done_date": "2026-11-02"}, day="2026-11-10").status_code == 200
+
+
+def test_finished_todo_out_of_plan_cannot_be_reopened(client):
+    # #101 리뷰 2번: 조건이 바뀌어 목록에서 빠진 끝낸 할 일은 기록으로만 남고, 되돌리면 재계산에서 지워지므로 막는다
+    c = _contract(client)
+    _set(client, c, "T4", {"status": "skipped", "done_date": "2026-12-01"}, day="2026-12-03")
+    _set(client, c, "T5", {"status": "skipped", "done_date": "2026-12-03"}, day="2026-12-03")
+    r = client.patch(f"/api/contracts/{c['id']}", json={"guarantor": "none"},
+                     headers={"X-Contract-Token": c["access_token"]})
+    assert _todo(r.json(), "T5")["status"] == "skipped"   # 보증 미가입이라 계획에는 없지만 기록으로 남음
+
+    r = _set(client, c, "T5", {"status": "todo"}, day="2026-12-05")
+    assert r.status_code == 409 and _detail(r)["code"] == "TODO_NOT_PLANNED"
+    after = client.get(f"/api/contracts/{c['id']}", headers={"X-Contract-Token": c["access_token"]}).json()
+    assert _todo(after, "T5")["status"] == "skipped"
+    # 계획에 있는 할 일은 그대로 되돌릴 수 있다
+    assert _set(client, c, "T4", {"status": "todo"}, day="2026-12-05").status_code == 200

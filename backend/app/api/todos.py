@@ -11,9 +11,11 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app import evidence
-from app.api.contracts import FINISHED, TOKEN_HEADER_DESC, _active, _contract_for, _sync_todos, _to_out
+from app.api.contracts import (FINISHED, TOKEN_HEADER_DESC, _active, _contract_for, _sync_todos, _to_out,
+                               _todo_values)
 from app.clock import today as today_dep
 from app.db import get_db
+from app.engine.todos import build_todos
 from app.errors import api_error, responses
 from app.models import Contract, Todo, Verdict
 from app.rules.loader import get_rules
@@ -34,12 +36,26 @@ def _todo_and_contract(todo_id: int, token: str | None, db: Session) -> tuple[To
     return todo, _contract_for(todo.contract_id, token, db)
 
 
+def _bad_done_date(done_date: date, msg: str):
+    raise RequestValidationError([{"type": "value_error", "loc": ("body", "done_date"), "input": str(done_date),
+                                   "msg": f"Value error, {msg}"}])
+
+
+def _planned(row: Contract, db: Session, rules: dict) -> set[str]:
+    """지금 계약 조건으로 만들어지는 할 일 rule_id (_sync_todos와 같은 입력). 여기에 없는 끝낸 할 일은 기록으로만 남아 있다."""
+    check = db.get(Verdict, row.check_id)
+    return {p.rule_id for p in build_todos(_todo_values(row), check.linkages, row.special_term_result, row.alert_level,
+                                           rules)}
+
+
 def _finish_date(todo: Todo, row: Contract, done_date: date | None, today: date, rules: dict) -> date:
     """끝낼 수 있는지 보고 끝낸 날을 정한다 (완료·나중에 올리기·증빙 올리기 공통)."""
     done_date = done_date or today
-    if done_date > today:   # 오늘은 가상 날짜일 수 있어 형식 검사(schemas)가 아니라 여기서 본다
-        raise RequestValidationError([{"type": "value_error", "loc": ("body", "done_date"), "input": str(done_date),
-                                       "msg": "Value error, 끝낸 날은 오늘보다 뒤일 수 없습니다"}])
+    # 오늘은 가상 날짜일 수 있고 계약일은 계약마다 달라 형식 검사(schemas)가 아니라 여기서 본다
+    if done_date > today:
+        _bad_done_date(done_date, "끝낸 날은 오늘보다 뒤일 수 없습니다")
+    if row.contract_date and done_date < row.contract_date:   # 끝낸 날은 뒤 할 일의 기준일이라 잘못 넣으면 뒤 기한이 모두 당겨진다
+        _bad_done_date(done_date, f"끝낸 날은 계약일({row.contract_date.isoformat()})보다 앞설 수 없습니다")
     by_rule = {t.rule_id: t for t in row.todos}
     before = [by_rule[r] for r in (todo.prerequisites or []) if r in by_rule and by_rule[r].status not in FINISHED]
     if before:
@@ -68,13 +84,19 @@ def update_todo(todo_id: int, inp: TodoPatch, db: Session = Depends(get_db), rul
     - skipped: 나중에 올리기. 완료로 치고 기록함은 빈칸 (FR-030)
     - 먼저 끝낼 할 일(prerequisites)이 남았으면 409 PREREQUISITE_NOT_DONE (FR-020)
     - 잔금일에 하는 할 일(T3·T4, reopen_if_done_before_start)은 시작일 전 날짜로 끝낼 수 없다 (409 TODO_NOT_STARTED)
-    - 되돌리기는 이 할 일을 먼저 끝내야 하는 뒤 할 일이 끝나 있으면 409 DEPENDENT_DONE
+    - 되돌리기는 이 할 일을 먼저 끝내야 하는 뒤 할 일이 끝나 있으면 409 DEPENDENT_DONE, 조건이 바뀌어 지금 계약에 없는
+      끝낸 할 일(기록으로만 남은 것)이면 409 TODO_NOT_PLANNED
+    - 끝낸 날이 오늘보다 뒤이거나 계약일보다 앞서면 422
     무산된 계약은 409 CONTRACT_CANCELLED, 없는 할 일이나 토큰이 틀리면 404.
     """
     todo, row = _todo_and_contract(todo_id, x_contract_token, db)
     _active(row)
 
     if inp.status == "todo":
+        # 조건이 바뀌어 지금 계약에 없는 할 일은 끝낸 기록(증빙 포함)으로만 남는다. 되돌리면 재계산에서 지워지므로 막는다
+        if todo.status in FINISHED and todo.rule_id not in _planned(row, db, rules):
+            raise api_error(409, "TODO_NOT_PLANNED", "지금 계약 조건에는 없는 할 일이라 되돌릴 수 없습니다",
+                            "끝낸 기록으로만 남아요. 계약 조건을 바꿔 다시 생기면 그때 되돌리세요")
         after = [t for t in row.todos if todo.rule_id in (t.prerequisites or []) and t.status in FINISHED]
         if after:
             raise api_error(409, "DEPENDENT_DONE", f"이 할 일 다음에 하는 할 일을 이미 끝냈습니다: {_titles(after)}",

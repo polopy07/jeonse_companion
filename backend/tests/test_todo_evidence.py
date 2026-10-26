@@ -68,6 +68,8 @@ def test_upload_follows_finish_rules(client):
     assert r.status_code == 422
     r = _upload(client, c, "T4", done_date="2026-12-09")   # 오늘(12/05)보다 뒤
     assert r.status_code == 422
+    r = _upload(client, c, "T4", done_date="2026-10-01")   # 계약일(11/02)보다 앞
+    assert r.status_code == 422
 
 
 def test_upload_size_limit(client, monkeypatch):
