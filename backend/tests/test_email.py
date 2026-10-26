@@ -97,6 +97,36 @@ def test_smtp_without_settings_fails(client, monkeypatch):
     assert out["email_failed"] == 1
 
 
+def test_smtp_bad_setting_is_failed_not_error(client, monkeypatch):
+    monkeypatch.setenv("EMAIL_BACKEND", "smtp")
+    monkeypatch.setenv("SMTP_HOST", "smtp.example.com")
+    monkeypatch.setenv("SMTP_FROM", "noreply@example.com")
+    monkeypatch.setenv("SMTP_PORT", "not-a-number")   # MailError가 아닌 예외도 실패로 남긴다
+    c = _contract(client)
+    out = _run(client, _t5_due(c) - timedelta(days=7))
+    assert out["email_failed"] == 1 and out["email_sent"] == 0
+
+
+def test_stale_failed_email_is_not_resent(client, monkeypatch):
+    c = _contract(client)
+    due = _t5_due(c)
+    monkeypatch.setattr(mailer, "send", lambda mail: (_ for _ in ()).throw(mailer.MailError("x")))
+    _run(client, due - timedelta(days=7))             # "기한 7일 전" 알림 실패
+    monkeypatch.setattr(mailer, "send", lambda mail: mailer.outbox.append(mail))
+    _run(client, due)                                 # 7일이 지나 지난 문구는 보내지 않는다 (1일 전 알림만)
+    assert mailer.outbox and all("7일 전" not in m.subject for m in mailer.outbox)
+
+
+def test_skipped_todo_is_not_notified(client, monkeypatch):
+    from app.db import get_engine
+    from sqlalchemy import text
+    c = _contract(client)
+    with get_engine().begin() as conn:
+        conn.execute(text("UPDATE todos SET status = 'skipped' WHERE contract_id = :c AND rule_id = 'T5'"), {"c": c["id"]})
+    out = _run(client, _t5_due(c) - timedelta(days=7))
+    assert out["email_sent"] == 0 and mailer.outbox == []
+
+
 # ---- 접근 링크 다시 받기 ----
 
 def _access_link(client, email):

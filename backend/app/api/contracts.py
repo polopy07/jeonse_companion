@@ -5,6 +5,7 @@
 """
 import hashlib
 import hmac
+import logging
 import secrets
 from dataclasses import asdict
 from datetime import date, datetime, timedelta, timezone
@@ -32,6 +33,7 @@ from app.schemas import (AccessLinkInput, AccessLinkResult, ContractCreatedOut, 
                          SpecialTermEffectOut, TodoOut)
 
 router = APIRouter(prefix="/api/contracts", tags=["계약"])
+logger = logging.getLogger(__name__)
 # 화면에 그대로 보이는 안내. 만든 계약 id는 GET /api/checks/{id}의 contract_id로 찾는다
 ALREADY_USED_HINT = "할 일 탭에서 이 계약의 할 일을 볼 수 있습니다. 다른 집이면 계약 전 확인을 다시 하세요"
 _PRODUCT_LABEL = {"package": "전동기 패키지", "todo_only": "할 일 관리만"}
@@ -285,8 +287,9 @@ def send_access_link(inp: AccessLinkInput, db: Session = Depends(get_db)):
     if issued:
         try:
             mailer.send(mailer.Mail(issued[0][0].email, "[전동기] 계약 접근 링크", _access_link_body(issued)))
-        except mailer.MailError:
+        except mailer.MailError as e:
             db.rollback()   # 보내지 못한 토큰은 남기지 않는다. 응답은 같게
+            logger.warning("접근 링크 이메일 실패 (계약 %s): %s", [r.id for r, _ in issued], e)
             return AccessLinkResult(message=ACCESS_LINK_MESSAGE)
         db.commit()
     return AccessLinkResult(message=ACCESS_LINK_MESSAGE)

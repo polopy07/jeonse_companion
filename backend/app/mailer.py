@@ -42,14 +42,15 @@ def send(mail: Mail) -> None:
 
 
 def _send_smtp(mail: Mail) -> None:
+    """STARTTLS(보통 587)만 지원한다. 465 SSL은 안 됨."""
     host = os.environ.get("SMTP_HOST", "")
     sender = os.environ.get("SMTP_FROM") or os.environ.get("SMTP_USER", "")
     if not host or not sender:
         raise MailError("SMTP 설정이 없습니다 (SMTP_HOST, SMTP_FROM)")
-    msg = EmailMessage()
-    msg["From"], msg["To"], msg["Subject"] = sender, mail.to, mail.subject
-    msg.set_content(mail.body)
     try:
+        msg = EmailMessage()
+        msg["From"], msg["To"], msg["Subject"] = sender, mail.to, mail.subject
+        msg.set_content(mail.body)
         with smtplib.SMTP(host, int(os.environ.get("SMTP_PORT", "587")), timeout=15) as smtp:
             if os.environ.get("SMTP_STARTTLS", "true").strip().lower() in ("1", "true", "yes", "on"):
                 smtp.starttls()
@@ -57,5 +58,5 @@ def _send_smtp(mail: Mail) -> None:
             if user:
                 smtp.login(user, os.environ.get("SMTP_PASSWORD", ""))
             smtp.send_message(msg)
-    except (OSError, smtplib.SMTPException) as e:
+    except Exception as e:   # 설정 오류(포트가 숫자가 아님, 비밀번호 인코딩 등)도 실패로 남겨 다음 실행에서 다시 보낸다
         raise MailError(type(e).__name__) from None

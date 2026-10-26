@@ -16,6 +16,7 @@ from app.models import Contract, Notification, Todo
 
 logger = logging.getLogger(__name__)
 MAX_ATTEMPTS = 3
+DONE = ("done", "skipped")   # 알리지 않는 할 일 상태
 
 
 def _title(todo: Todo, notice: Notice) -> str:
@@ -41,7 +42,7 @@ def run(db: Session, day: date, rules: dict) -> list[Notification]:
     created = []
     for c in contracts:   # 무산된 계약은 알림을 보내지 않는다 (FR-016)
         for t in c.todos:
-            if t.status == "done":
+            if t.status in DONE:
                 continue
             for n in notices(t.start_date, t.due_date, t.remind_date, cfg):
                 if not due_on(n, day, catch_up):
@@ -75,8 +76,13 @@ def _email_body(todo: Todo, n: Notification, rules: dict) -> str:
     return "\n".join(lines)
 
 
-def deliver(db: Session, rules: dict) -> tuple[int, int]:
-    """보내지 않은 이메일 알림(pending, 다시 보낼 failed)을 보낸다. (보냄, 실패) 수를 돌려준다."""
+def deliver(db: Session, day: date, rules: dict) -> tuple[int, int]:
+    """보내지 않은 이메일 알림(pending, 다시 보낼 failed)을 보낸다. (보냄, 실패) 수를 돌려준다.
+
+    알림일이 catch_up_days보다 오래된 것은 문구(남은 날)가 지났으므로 보내지 않는다. 메일마다 저장해서,
+    중간에 예외가 나도 이미 보낸 메일이 다음 실행에서 또 나가지 않게 한다.
+    """
+    since = day - timedelta(days=rules["todos"]["notifications"].get("catch_up_days", 1))
     rows = db.scalars(select(Notification).where(
         Notification.channel == "email",
         or_(Notification.status == "pending",
@@ -86,8 +92,10 @@ def deliver(db: Session, rules: dict) -> tuple[int, int]:
     for n in rows:
         contract = db.get(Contract, n.contract_id)
         todo = next((t for t in contract.todos if t.rule_id == n.todo_rule_id), None) if contract else None
-        if contract is None or contract.status == "cancelled" or not contract.email or todo is None or todo.status == "done":
-            n.status = "skipped"   # 그사이 무산·완료·이메일 삭제
+        if (contract is None or contract.status == "cancelled" or not contract.email or todo is None
+                or todo.status in DONE or n.notify_date <= since):
+            n.status = "skipped"   # 그사이 무산·완료·이메일 삭제, 또는 너무 지난 알림
+            db.commit()
             continue
         n.attempts = (n.attempts or 0) + 1
         try:
@@ -99,5 +107,5 @@ def deliver(db: Session, rules: dict) -> tuple[int, int]:
         else:
             n.status, n.last_error = "sent", None
             sent += 1
-    db.commit()
+        db.commit()
     return sent, failed

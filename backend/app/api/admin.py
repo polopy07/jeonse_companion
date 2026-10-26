@@ -71,7 +71,7 @@ def run_notifications(inp: NotificationRunInput | None = None, db: Session = Dep
     """
     day = inp.date if inp is not None and inp.date is not None else today
     created = notifications.run(db, day, rules)
-    email_sent, email_failed = notifications.deliver(db, rules)
+    email_sent, email_failed = notifications.deliver(db, day, rules)
     return NotificationRunResult(date=day, email_sent=email_sent, email_failed=email_failed, created=[NotificationOut(
         contract_id=n.contract_id, todo_rule_id=n.todo_rule_id, kind=n.kind, notify_date=n.notify_date,
         channel=n.channel, status=n.status, title=n.title) for n in created])
