@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
@@ -8,23 +8,38 @@ import { Button, Card, Disclaimer, Screen, StepProgress } from '@/components/lay
 import { useCopy } from '@/components/verdict';
 import { Colors, Radius, Touch } from '@/constants/theme';
 import { checkResult, siteCheckDemo } from '@/data/demo';
+import { ApiError, apiEnabled, getSpecialTerms } from '@/lib/api';
 import { useLatestCheck } from '@/lib/check';
 import { siteCheckItems, useSiteCheck } from '@/lib/site-check';
 import {
   setSpecialTermResults,
   termsFor,
+  termsFromApi,
   useSpecialTermResults,
   type ShownTerm,
-  type SpecialTermId,
   type SpecialTermResult,
 } from '@/lib/special-terms';
 
-type Picks = Partial<Record<SpecialTermId, SpecialTermResult>>;
+type Picks = Partial<Record<string, SpecialTermResult>>;
+type RemoteGuide = { terms: ShownTerm[]; warnings: string[]; checks: string[] };
 
 /** UI-03 계약 당일 체크: 현장 확인 → 특약 예시 → "넣음/거절당함" 기록 (특약 반영 분기) */
 export default function ContractDayScreen() {
   const check = useLatestCheck() ?? checkResult;
-  const terms = check.block_payment ? [] : termsFor(check.matched);
+  // 서버 판정이면 GET /api/checks/{id}/special-terms, 앱에서 계산한 결과면 앱 안 규칙으로 고른다 (기준은 같음)
+  const [remote, setRemote] = useState<RemoteGuide | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!apiEnabled || check.id === null || check.block_payment) return;
+    let alive = true;
+    getSpecialTerms(check.id)
+      .then((r) => alive && setRemote({ terms: termsFromApi(r), warnings: r.warnings, checks: r.checks }))
+      .catch((e) => alive && setLoadError(e instanceof ApiError ? e.message : '특약 예시를 받지 못했어요'));
+    return () => {
+      alive = false;
+    };
+  }, [check.id, check.block_payment]);
+  const terms = check.block_payment ? [] : (remote?.terms ?? termsFor(check.matched));
   // 처음에는 아무것도 고르지 않은 상태. 전에 골랐던 값이 있으면 이어서 보여 준다
   const [picks, setPicks] = useState<Picks>(useSpecialTermResults());
   // 현장 확인을 거치지 않고 열면(시연) 모두 확인한 시연 값을 보여 준다
@@ -33,7 +48,7 @@ export default function ContractDayScreen() {
   const allPicked = !check.block_payment && terms.every((t) => picks[t.id]);
   const next = () => {
     setSpecialTermResults(Object.fromEntries(terms.map((t) => [t.id, picks[t.id]])) as Picks);
-    router.push('/todos');
+    router.push('/contract-dates');
   };
 
   return (
@@ -81,6 +96,23 @@ export default function ContractDayScreen() {
         </View>
       ) : terms.length ? (
         <>
+          {loadError ? (
+            <AppText size={12} color={Colors.textHint} style={{ marginTop: 12 }}>
+              {loadError} · 앱에 저장된 특약 예시를 보여 드려요
+            </AppText>
+          ) : null}
+          {remote && (remote.checks.length || remote.warnings.length) ? (
+            <Card style={{ marginTop: 14, gap: 6 }}>
+              <AppText size={13} weight="semibold">
+                계약 전에 한 번 더 확인하세요
+              </AppText>
+              {[...remote.checks, ...remote.warnings].map((w) => (
+                <AppText key={w} size={13} color={Colors.textSub} leading={1.6}>
+                  · {w}
+                </AppText>
+              ))}
+            </Card>
+          ) : null}
           <AppText size={18} weight="bold" style={{ marginTop: 18 }}>
             {terms.length > 1 ? `이 특약 ${terms.length}개, 계약서에 넣었나요?` : '이 특약, 계약서에 넣었나요?'}
           </AppText>
@@ -158,10 +190,13 @@ function Outcome({ term, pick }: { term: ShownTerm; pick: SpecialTermResult }) {
           {w}
         </AppText>
       ))}
-      {o.movesToTop.length || o.documents.length || o.linkCounsel ? (
+      {o.movesToTop.length || o.addsTodos?.length || o.documents.length || o.linkCounsel ? (
         <View style={{ gap: 6, marginTop: 12 }}>
           {o.movesToTop.map((t) => (
             <Change key={t} tag="맨 위로" text={t} />
+          ))}
+          {(o.addsTodos ?? []).map((t) => (
+            <Change key={t} tag="새 할 일" text={t} />
           ))}
           {o.documents.map((d) => (
             <Change key={d} tag="기록함" text={`${d} 올리기`} color={Colors.primary} />

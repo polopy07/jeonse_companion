@@ -42,7 +42,7 @@ def collect_trades(inp: TradeCollectInput, db: Session = Depends(get_db),
     key = data_go_kr_service_key()
     if not key:
         raise api_error(503, "SERVICE_KEY_MISSING", "공공데이터포털 인증키가 설정되지 않았습니다",
-                        "서버 환경 변수 DATA_GO_KR_SERVICE_KEY에 Decoding 키를 넣으세요")
+                        "서버 환경 변수 DATA_GO_KR_SERVICE_KEY에 일반 인증키(Encoding·Decoding 아무거나)를 넣으세요")
     end = date.fromisoformat(f"{inp.end_month}-01")
     try:
         result = collect(db, http, key, inp.lawd_cd, end, inp.months, inp.housing_types)

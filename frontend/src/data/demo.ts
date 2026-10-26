@@ -4,15 +4,23 @@
  * 특약 문구는 lib/special-terms.ts(rules/special_terms.yaml)에 있다. 백엔드 API가 붙으면 이 파일 대신 응답을 쓴다. 필드 이름은 백엔드 CheckResult와 맞췄다.
  */
 
+import type { ApiDemoHouse } from '@/lib/api';
+import {
+  runCheckLocal,
+  type CheckInput,
+  type CheckView,
+  type ComplexInput,
+  type HousingType,
+  type RegistryLease,
+} from '@/lib/check';
 import type { SiteCheckState } from '@/lib/site-check';
-import { runCheckLocal, type CheckInput, type CheckView, type HousingType, type VerdictLevel } from '@/lib/check';
 
 export const house = {
-  name: '수영구 ○○동 빌라 201호',
+  name: '수영구 광안동 제이제이 빌라',
   type: '다세대',
   deposit: 140_000_000,
-  mortgage: 36_000_000,
-  officialPrice: 150_000_000,
+  mortgage: 14_400_000,
+  officialPrice: 116_000_000,
   contractDate: '2026.10.20',
   balanceDate: '2026.11.20',
   endDate: '2028.11.19',
@@ -22,8 +30,9 @@ export const house = {
 export const today = { label: '11.10', full: '2026.11.10' };
 
 /**
- * 시연 집 2채. 공시가격·건축물대장은 미리 매칭해 둔 값이고(MVP 범위), 등기부는 올리면 이 값으로 추출된 것처럼 보여 준다.
- * 아파트 값은 화면 확인용 가상 값이라 시연 데이터가 정해지면 바꾼다.
+ * 시연 집 2채 (docs/validation/demo_houses.yaml, 경보계산_정답표.md). 서버가 있으면 GET /api/demo-houses 값을 쓰고,
+ * 아래 값은 서버 주소가 없거나 연결하지 못할 때 쓰는 같은 내용의 사본이다.
+ * 공시가격·단지는 미리 매칭해 둔 값이고(MVP 범위), 등기부는 올리면 이 값으로 추출된 것처럼 보여 준다.
  */
 export type DemoHouse = {
   id: string;
@@ -35,55 +44,114 @@ export type DemoHouse = {
   area: string;
   official_price: number;
   officialBasis: string;
+  /** 서버가 없을 때 앱 계산에 쓰는 매매 실거래가. 서버가 있으면 비우고 complex로 서버가 찾는다 */
   trade_price: number | null;
-  building_violation: boolean;
-  registry: { owner: string; seizure: boolean; mortgage: boolean; mortgage_amount: number; trust: boolean; source: string[] };
+  building_violation: boolean | null;
+  complex: ComplexInput | null;
+  registry: {
+    owner: string;
+    seizure: boolean;
+    mortgage: boolean;
+    mortgage_amount: number;
+    /** 을구 임차권·전세권 (확인 화면에서 항목별로 뺄 수 있음) */
+    leases: RegistryLease[];
+    trust: boolean;
+    source: string[];
+    warnings: string[];
+    /** 근저당이 실제 등기부에 없는 시연용 가상 값 (docs/validation/경보계산_정답표.md). 화면에 "시연용 가상 근저당"으로 표시 */
+    virtualMortgage?: boolean;
+  };
+  /** 계약 당일 시연 장면의 날짜. 없으면 계약 전 확인까지만 보여 주는 집 */
+  contractDay: { contract_date: string; balance_date: string; end_date: string } | null;
 };
 
 export const demoHouses: DemoHouse[] = [
   {
-    id: 'villa',
+    id: 'demo-villa',
     chip: '수영구 빌라',
     label: house.name,
-    address: '부산 수영구 ○○동 ○○빌라 201호',
+    address: '부산광역시 수영구 무학로52번길 36-11 (광안동 129-46 제이제이), 30.03㎡ 세대',
     housing_type: 'row_house',
     depositManwon: '14000',
-    area: '49.5',
-    official_price: 150_000_000,
+    area: '30.03',
+    official_price: 116_000_000,
     officialBasis: '2026.01.01 기준',
-    trade_price: null,
-    building_violation: false,
+    trade_price: 250_000_000,
+    building_violation: null,
+    complex: { lawd_cd: '26500', umd_name: '광안동', complex_name: '제이제이', jibun: '129-46' },
     registry: {
-      owner: '김○○',
+      owner: '한가상',
       seizure: false,
       mortgage: true,
-      mortgage_amount: 36_000_000,
+      mortgage_amount: 14_400_000,
+      leases: [],
       trust: false,
-      source: ['갑구 1 · 소유권보존 · 소유자 김○○', '을구 1 · 근저당권설정 · 채권최고액 금36,000,000원 · 근저당권자 ○○은행'],
+      virtualMortgage: true,
+      source: ['5 근저당권설정 채권최고액 금14,400,000원 근저당권자 주식회사가상은행 한가상 2026년6월2일 제00000호'],
+      warnings: [],
     },
+    contractDay: { contract_date: '2026-10-14', balance_date: '2026-11-25', end_date: '2028-11-24' },
   },
   {
-    id: 'apt',
-    chip: '해운대구 아파트',
-    label: '해운대구 ○○아파트 101동 1203호',
-    address: '부산 해운대구 ○○동 ○○아파트 101동 1203호',
+    id: 'demo-apartment',
+    chip: '해운대 아파트',
+    label: '해운대구 좌동 해운대상록아파트',
+    address: '부산광역시 해운대구 세실로 7 (좌동 1331 해운대상록아파트), 59.85㎡ 2~3층 세대',
     housing_type: 'apartment',
-    depositManwon: '25000',
-    area: '84.9',
-    official_price: 260_000_000,
+    depositManwon: '20000',
+    area: '59.85',
+    official_price: 165_000_000,
     officialBasis: '2026.01.01 기준',
-    trade_price: 340_000_000,
-    building_violation: false,
+    trade_price: 300_000_000,
+    building_violation: null,
+    complex: { lawd_cd: '26350', umd_name: '좌동', complex_name: '상록', jibun: null },
     registry: {
-      owner: '이○○',
+      owner: '정가상',
       seizure: false,
       mortgage: false,
       mortgage_amount: 0,
+      leases: [],
       trust: false,
-      source: ['갑구 1 · 소유권이전 · 소유자 이○○', '을구 · 기록사항 없음'],
+      source: [],
+      warnings: [],
     },
+    contractDay: null,
   },
 ];
+
+/** GET /api/demo-houses 한 채 → 입력 화면 값 */
+export function demoHouseFromApi(h: ApiDemoHouse): DemoHouse {
+  const r = h.registry;
+  const chip = h.title.split(' (')[0];
+  const { contract_date, balance_date, end_date } = h.contract_day ?? {};
+  const local = demoHouses.find((d) => d.id === h.id);
+  return {
+    id: h.id,
+    chip,
+    label: local?.label ?? chip,
+    address: h.address,
+    housing_type: h.input.housing_type,
+    depositManwon: String(Math.round(h.input.deposit / 10_000)),
+    area: h.input.exclusive_area === null ? '' : String(h.input.exclusive_area),
+    official_price: h.input.official_price ?? 0,
+    officialBasis: local?.officialBasis ?? h.official_price_source.split(' (')[0],
+    trade_price: h.input.trade_price,
+    building_violation: h.input.building_violation,
+    complex: h.input.complex ?? null,
+    registry: {
+      owner: r.owners.join(', '),
+      seizure: r.fields.seizure,
+      mortgage: r.fields.mortgage,
+      mortgage_amount: r.fields.mortgage_amount,
+      leases: r.leases ?? [],
+      trust: r.fields.trust,
+      virtualMortgage: h.virtual.some((v) => v.includes('근저당')),
+      source: [...r.seizures, ...r.trusts, ...r.mortgages, ...(r.leases ?? []), ...r.others].map((e) => e.text),
+      warnings: r.warnings,
+    },
+    contractDay: contract_date && balance_date && end_date ? { contract_date, balance_date, end_date } : null,
+  };
+}
 
 const villa = demoHouses[0];
 const villaInput: CheckInput = {
@@ -92,40 +160,32 @@ const villaInput: CheckInput = {
   official_price: villa.official_price,
   trade_price: villa.trade_price,
   exclusive_area: Number(villa.area),
-  registry: { seizure: false, mortgage: true, mortgage_amount: house.mortgage, trust: false },
+  registry: { seizure: false, mortgage: true, mortgage_amount: house.mortgage, lease_amount: 0, trust: false },
   trust_consent: 'unknown',
-  building_violation: false,
+  building_violation: villa.building_violation,
   guarantor_consult: 'not_yet',
 };
 
 /** 홈에서 "결과 다시 보기"로 여는 시연 집 결과 (계약 전 확인 2026.10.09) */
 export const checkResult: CheckView = {
   ...runCheckLocal(villaInput, `${house.name} · ${house.type}`, '2026.10.09', villa.registry.owner),
+  virtualMortgage: villa.registry.virtualMortgage,
+  sourceLines: villa.registry.source,
+  demoDates: villa.contractDay ?? undefined,
   summary: '근저당이 있는 집이에요. 아래 확인 항목과 특약 예시를 계약 당일에 챙기면 돼요.',
   disclaimer: '조회 2026.10.09 · 공시가격 2026.01.01 기준. 정보 제공이며 보증하지 않습니다.',
 };
 
-export type DetailRow = { label: string; value: string; level: VerdictLevel };
-
-export const detailRows: DetailRow[] = [
-  { label: '압류·가압류·경매', value: '없음', level: 'ok' },
-  { label: '근저당', value: '있음 · 확인 필요', level: 'check' },
-  { label: '신탁등기', value: '없음', level: 'ok' },
-  { label: '내 보증금 비율', value: '84% · 주의 구간', level: 'check' },
-  { label: '위반건축물', value: '해당 없음', level: 'ok' },
-];
-
-
 /** 시연 집 계약 당일 현장 확인 (소유자 본인 참석, 모두 확인) */
 export const siteCheckDemo: SiteCheckState = {
   attendee: 'owner',
-  idName: '김철수',
+  idName: '한가상',
   idChecked: true,
   poaChecked: false,
   sealChecked: false,
   agentIdChecked: false,
   ownerCallChecked: false,
-  accountHolder: '김철수',
+  accountHolder: '한가상',
   accountChecked: true,
 };
 
