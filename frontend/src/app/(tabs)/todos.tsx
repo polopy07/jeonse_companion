@@ -7,7 +7,7 @@ import { Icon } from '@/components/Icon';
 import { Button, Screen } from '@/components/layout';
 import { Colors, Radius } from '@/constants/theme';
 import { today, todos as demoTodos, type Todo } from '@/data/demo';
-import { todoViews, useLatestContract } from '@/lib/contract';
+import { clearContractNotice, todoViews, useContractNotice, useLatestContract } from '@/lib/contract';
 
 /**
  * UI-04 할 일 목록: 세로 타임라인에 오늘 선을 긋고, 완료는 증빙 사진 1장으로.
@@ -15,6 +15,7 @@ import { todoViews, useLatestContract } from '@/lib/contract';
  */
 export default function TodosScreen() {
   const contract = useLatestContract();
+  const notice = useContractNotice();
   const [items, setItems] = useState<Todo[]>(contract ? todoViews(contract.todos) : demoTodos);
   // 계약 날짜 입력에서 새 계약을 만들고 돌아오면 그 할 일로 바꾼다 (렌더 중 이전 값과 비교)
   const [shownContract, setShownContract] = useState(contract);
@@ -52,6 +53,15 @@ export default function TodosScreen() {
         <AppText size={12} color={Colors.textSub} style={{ marginTop: 2 }}>
           {contract.report_required ? '임대차 신고 대상 계약이에요' : '임대차 신고 비대상이라 확정일자를 챙겨 드려요'}
         </AppText>
+      ) : null}
+
+      {notice ? (
+        // 저장한 계약을 불러오지 못함 (토큰이 맞지 않거나 서버에 없는 계약, 404)
+        <Pressable accessibilityRole="button" onPress={clearContractNotice} style={styles.notice}>
+          <AppText size={13} color={Colors.cautionText} leading={1.6}>
+            {notice}
+          </AppText>
+        </Pressable>
       ) : null}
 
       <View style={styles.list}>
@@ -152,6 +162,7 @@ function TodoItem({ todo, onComplete }: { todo: Todo; onComplete: () => void }) 
 }
 
 const styles = StyleSheet.create({
+  notice: { marginTop: 12, padding: 12, borderRadius: Radius.input, backgroundColor: Colors.cautionBg },
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 20 },
   calendarButton: {
     height: 44,
