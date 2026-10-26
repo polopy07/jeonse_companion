@@ -4,7 +4,8 @@
 - 자금 틈: 반환 예정일이 다음 집 잔금일보다 늦으면 그 일수와, 그동안 비는 금액
   min(지금 집 보증금, 다음 집 잔금 = 보증금 − 계약금) (PO 결정 Q5)
 - 대출 순서: 두 집 모두 전세대출이면 새 대출 실행일(모르면 잔금일)과 기존 대출 상환일(= 반환 예정일)을 비교
-- 전입 순서: 다음 집 전입 예정일이 반환 예정일과 같거나 앞서면 경고 (반환을 이미 확인했으면 경고하지 않음)
+- 전입 순서: 다음 집 전입 예정일이 반환 예정일과 같거나 앞서면 경고 (반환을 이미 확인했으면 경고하지 않음).
+  앞서면 날짜를 다시 보라는 경고, 같은 날이면 보증금을 먼저 받고 전입신고하라는 순서 안내 (PO 결정 Q12)
 """
 from dataclasses import dataclass, field
 from datetime import date
@@ -12,8 +13,10 @@ from datetime import date
 GAP_WARNING = "보증금 반환({ret})이 다음 집 잔금일({bal})보다 {days}일 늦어요. 그동안 {amount:,}원이 비니 자금 계획을 세우세요"
 LOAN_NEW_FIRST = "새 대출 실행({new})이 기존 대출 상환({old})보다 {days}일 먼저예요. 대출 이전 가능 여부는 은행에 확인하세요"
 LOAN_OLD_FIRST = "기존 대출 상환({old}) 뒤에 새 대출을 실행({new})해요. 대출 이전 가능 여부는 은행에 확인하세요"
-MOVE_IN_WARNING = ("지금 집 보증금 반환을 확인하거나 임차권등기를 마치기 전에 다음 집으로 전입신고하면 "
-                   "지금 집의 대항력·우선변제권을 잃을 수 있어요. 반환을 확인한 뒤 전입신고하세요")
+MOVE_IN_BEFORE_RETURN = ("보증금을 돌려받기 전({ret})에 다음 집으로 전입({move_in})하게 돼요. 반환 확인이나 임차권등기 전에 "
+                         "주소를 옮기면 지금 집의 대항력·우선변제권을 잃을 수 있으니 날짜를 다시 보세요")
+MOVE_IN_SAME_DAY = ("이사 당일({move_in})에는 지금 집 보증금을 먼저 돌려받은 뒤 전입신고하세요. "
+                    "그날 돌려받지 못하면 전입신고 전에 임차권등기부터 하세요")
 
 
 @dataclass
@@ -58,7 +61,8 @@ def plan_move(current: dict, nxt: dict, return_date: date, returned: bool = Fals
     move_in = nxt["move_in_date"] or balance_date
     move_in_warning = not returned and move_in <= return_date
     if move_in_warning:
-        warnings.append(MOVE_IN_WARNING)
+        text = MOVE_IN_SAME_DAY if move_in == return_date else MOVE_IN_BEFORE_RETURN
+        warnings.append(text.format(ret=_d(return_date), move_in=_d(move_in)))
 
     return MovePlan(return_date, next_balance, gap_days, gap_amount, loan_order, loan_gap_days,
                     move_in, move_in_warning, warnings)

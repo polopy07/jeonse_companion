@@ -3,7 +3,7 @@ from datetime import date
 
 import pytest
 
-from app.engine.move import plan_move
+from app.engine.move import MOVE_IN_BEFORE_RETURN, MOVE_IN_SAME_DAY, plan_move
 from tests.test_contracts import EOK, _check, _detail
 from tests.test_todos import BY_ID, _assert_matches, _build, _values
 
@@ -69,10 +69,20 @@ def test_gap_amount_is_smaller_one():
 
 
 def test_move_in_same_day_warns_unless_returned():
+    # 같은 날 전입도 경고하되, 날짜를 바꾸라는 경고가 아니라 "보증금 먼저, 전입신고 나중" 순서 안내 (Q12)
     nxt = {"balance_date": D("2028-12-14"), "deposit": 300_000_000, "down_payment": 30_000_000, "loan": False,
            "loan_execution_date": None, "move_in_date": None}
-    assert plan_move({"deposit": 250_000_000, "loan": False}, nxt, D("2028-12-14")).move_in_warning
+    plan = plan_move({"deposit": 250_000_000, "loan": False}, nxt, D("2028-12-14"))
+    assert plan.move_in_warning
+    assert plan.warnings == [MOVE_IN_SAME_DAY.format(ret="2028-12-14", move_in="2028-12-14")]
     assert not plan_move({"deposit": 250_000_000, "loan": False}, nxt, D("2028-12-14"), returned=True).move_in_warning
+
+
+def test_move_in_before_return_asks_to_check_dates():
+    nxt = {"balance_date": D("2028-11-30"), "deposit": 300_000_000, "down_payment": 30_000_000, "loan": False,
+           "loan_execution_date": None, "move_in_date": None}
+    plan = plan_move({"deposit": 250_000_000, "loan": False}, nxt, D("2028-12-14"))
+    assert plan.warnings[-1] == MOVE_IN_BEFORE_RETURN.format(ret="2028-12-14", move_in="2028-11-30")
 
 
 # ---- API ----
