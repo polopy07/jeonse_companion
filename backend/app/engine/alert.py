@@ -15,7 +15,9 @@ def alert_level(values: dict, alert_rules: dict) -> str | None:
 
 
 def level_rank(level: str | None, alert_rules: dict) -> int:
-    """단계 높낮이 비교용 순서. 정상(None)은 -1, 그 위로 levels 순서 (주의 0, 경고 1, 위험 2)."""
-    if level is None:
-        return -1
-    return [lv["id"] for lv in alert_rules["levels"]].index(level)
+    """단계 높낮이 비교용 순서. 정상(None)은 -1, 그 위로 levels 순서 (주의 0, 경고 1, 위험 2).
+
+    alert.yaml에서 단계 id를 바꾸거나 지워 예전 기록의 단계를 모르면 정상(-1)으로 본다 (일괄 재계산 전체가 멈추지 않게).
+    """
+    ids = [lv["id"] for lv in alert_rules["levels"]]
+    return ids.index(level) if level in ids else -1

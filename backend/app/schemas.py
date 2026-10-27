@@ -478,6 +478,8 @@ class AlertBasisOut(BaseModel):
     official_estimate: int = Field(description="공시가격 × 140% (원)")
     multiplier: float = Field(description="공시가격에 곱한 비율 (alert.yaml estimated_price.official_price_multiplier)")
     trade: TradeBasisOut | None = Field(description="같은 단지·비슷한 면적 매매 실거래. 단지를 모르거나 거래가 없으면 null")
+    trade_price_input: int | None = Field(
+        None, description="계약 전 확인 때 사용자가 직접 넣은 매매 실거래가 (원). 있으면 판정 때처럼 단지 실거래 대신 이 값을 쓴다")
     nearby_jeonse: NearbyJeonseOut | None = Field(description="주변 전세 시세. 단지를 모르면 null")
     senior_debt: int = Field(description="선순위 채권 (근저당 채권최고액 + 임차권·전세권 보증금, 마지막으로 올린 등기부)")
     ratio_is_minimum: bool = Field(description="등기부를 올리지 않아 선순위 채권을 0원으로 둔 최소 추정치인지")

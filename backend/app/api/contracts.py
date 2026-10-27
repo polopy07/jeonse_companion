@@ -127,7 +127,7 @@ def _take_payment(payment_id: int | None, check: Verdict, db: Session) -> Paymen
 
 
 def _alert_level(check: Verdict, rules: dict) -> str | None:
-    # 시작할 때의 경보 단계는 판정 때 계산한 내 보증금 비율로 정한다. 계약 중 재계산(FR-037)은 4주차
+    # 시작할 때의 경보 단계는 판정 때 계산한 내 보증금 비율로 정한다. 계약 중에는 app.alerts.recalculate가 바꾼다 (FR-037)
     values = {"deposit_ratio": check.deposit_ratio, "deposit": check.inputs.get("deposit"),
               "nearby_jeonse_median": check.inputs.get("nearby_jeonse_median")}
     return alert_level(values, rules["alert"])

@@ -44,7 +44,7 @@ class Contract(Base):
     special_term_result: Mapped[dict] = mapped_column(JSONType, default=dict)
     # 만들 때의 규칙으로 정해 저장한다. 할 일과 같은 시점 기준이라, 규칙이 바뀌어도 한 응답 안에서 어긋나지 않는다
     report_required: Mapped[bool] = mapped_column(Boolean, default=True)   # 임대차 신고 대상 (FR-015)
-    alert_level: Mapped[str | None] = mapped_column(String(16))            # 시작할 때의 경보 단계 (정상이면 null)
+    alert_level: Mapped[str | None] = mapped_column(String(16))            # 지금 경보 단계: 시작할 때 값, 계약 중 재계산(FR-037)이 바꿈 (정상이면 null)
 
     # 계약 접근 토큰의 SHA-256 (토큰 원문은 만들 때 응답으로 한 번만 준다, API 명세 1.8). 예전 계약은 null
     access_token_hash: Mapped[str | None] = mapped_column(String(64))
