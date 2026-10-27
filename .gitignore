@@ -7,3 +7,6 @@ __pycache__/
 
 # 부산 전세 건수 집계 캐시 (docs/plan/figures/busan_jeonse_count.py)
 .busan_rent_cache/
+
+# 증빙 사진 (backend/app/evidence.py, EVIDENCE_DIR)
+backend/data/

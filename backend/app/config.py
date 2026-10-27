@@ -29,6 +29,11 @@ def require_contract_auth() -> bool:
     return os.environ.get("REQUIRE_CONTRACT_AUTH", "false").strip().lower() in ("1", "true", "yes", "on")
 
 
+def evidence_dir() -> Path:
+    """증빙 사진을 저장할 폴더 (FR-029). 기본은 backend/data/evidence (git 제외). 출시 때는 암호화 저장소로 (출시 준비)."""
+    return Path(os.environ.get("EVIDENCE_DIR", REPO_ROOT / "backend" / "data" / "evidence"))
+
+
 def app_link_base() -> str:
     """접근 링크 이메일의 링크 앞부분 (예: 앱 딥링크 jeonse://contract). 없으면 링크 대신 접근 코드만 보낸다."""
     return os.environ.get("APP_LINK_BASE", "").strip()
