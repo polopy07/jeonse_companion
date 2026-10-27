@@ -158,19 +158,6 @@ flowchart LR
 
 각 문서는 원본(.docx)과 읽기용 마크다운 변환본(.md)을 함께 둡니다. 기획안과 명세서가 다르면 기획안을 먼저 고치고 명세서에 반영합니다.
 
-## 브랜치 규칙
+## 브랜치·PR 규칙
 
-- `main`: 최상위 브랜치. 직접 커밋하지 않고 PR로만 병합
-- `feature/<작업명>`: 기능 개발 (예: `feature/todo-engine`)
-- `docs/<작업명>`: 문서 작성·수정 (예: `docs/srs-v0.2`)
-- `fix/<작업명>`: 버그 수정
-- 위 세 가지 외의 접두사(예: `claude/`)는 쓰지 않음
-
-## PR 규칙
-
-- 제목: `<종류>: <한국어 한 줄 요약>` (종류: `feat` / `fix` / `docs` / `refactor` / `test` / `chore`). 예: `feat: 등기부 요약 파서 뼈대 추가`
-- 본문: Summary / 변경 파일 / Test plan 세 절. PR을 열면 [템플릿](.github/pull_request_template.md)이 자동으로 채워짐
-- CI: PR마다 백엔드 테스트와 규칙 파일 검사가 자동으로 돌아감 ([`test.yml`](.github/workflows/test.yml))
-- 병합: **PR을 올린 사람이** 팀원 승인(Approve 1개)과 CI(`test`) 통과를 확인한 뒤 직접 병합. 병합 방식은 merge commit으로 하고, 병합한 브랜치는 병합한 사람이 지운다 (팀 약속. 저장소 설정으로 강제하지는 않음)
-- 쌓인 PR(앞 PR 위에 만든 PR)은 **맨 위 PR만 승인·병합**한다. 맨 위 PR에 아래 PR 내용이 모두 들어 있어 아래 PR도 병합된 것으로 처리된다. 아래 PR부터 하나씩 병합하면 새 커밋 푸시 때 승인 취소 설정 때문에 위 PR 승인이 풀린다
-- `main` 보호 규칙(저장소 Rulesets): PR 없이 직접 푸시 금지, 승인 1개 필수, `test` 통과 필수, 강제 푸시·삭제 금지
+브랜치 이름, PR 제목·본문, 리뷰, 병합(자동 병합), 이어지는 작업 규칙은 [CONTRIBUTING.md](CONTRIBUTING.md)에 있습니다.
