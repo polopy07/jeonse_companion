@@ -7,6 +7,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { ApiError, apiEnabled, getContract, type ApiContract, type ApiTodo } from '@/lib/api';
+import { parseDateKey } from '@/lib/clock';
 import { createStore } from '@/lib/store';
 
 const CONTRACT_ID_KEY = 'jeonse.contractId';
@@ -84,6 +85,27 @@ export async function restoreContract(): Promise<void> {
   }
 }
 
+/**
+ * 보고 있는 계약을 서버에서 다시 불러온다 (가상 날짜를 바꾼 뒤 할 일 상태·남은 날을 그날 기준으로).
+ * 실패하면 보던 계약을 그대로 두고 오류를 던진다
+ */
+export async function refreshContract(): Promise<void> {
+  const current = latestContract.get();
+  if (!apiEnabled || !current) return;
+  try {
+    const contract = await getContract(current.id, contractToken(current.id));
+    if (latestContract.get()?.id === contract.id) latestContract.set(contract);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) {
+      latestContract.set(null);
+      forget();
+      contractNotice.set(NOT_MY_CONTRACT);
+      return;
+    }
+    throw e;
+  }
+}
+
 /** 할 일 화면 상태: 완료 / 지금 할 일 / 다음 / 아직 시작 전(고정 할 일) */
 export type TodoViewStatus = 'done' | 'current' | 'upcoming' | 'later';
 
@@ -100,24 +122,15 @@ export type TodoView = {
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-const parseDate = (s: string) => {
-  const [y, m, d] = s.split('-').map(Number);
-  return new Date(y, m - 1, d);
-};
-
-const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-
 /** "2026-11-20" → 올해면 "11.20(금)", 다른 해면 "2028.11.19(일)" */
 function dateLabel(s: string, today: Date) {
-  const d = parseDate(s);
+  const d = parseDateKey(s);
   const md = `${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}(${WEEKDAYS[d.getDay()]})`;
   return d.getFullYear() === today.getFullYear() ? md : `${d.getFullYear()}.${md}`;
 }
 
-function ddayLabel(s: string, today: Date) {
-  const days = Math.round((parseDate(s).getTime() - startOfDay(today).getTime()) / 86_400_000);
-  return days === 0 ? 'D-DAY' : days > 0 ? `D-${days}` : `D+${-days}`;
-}
+/** 서버가 계산한 남은 날 → "D-3" / "D-DAY" / "D+2" */
+const ddayLabel = (days: number) => (days === 0 ? 'D-DAY' : days > 0 ? `D-${days}` : `D+${-days}`);
 
 function whenLabel(t: ApiTodo, today: Date) {
   if (t.due_date) {
@@ -131,34 +144,34 @@ function whenLabel(t: ApiTodo, today: Date) {
 }
 
 /**
- * 서버 할 일(sort_order 순서) → 할 일 화면 값. 순서는 서버(C7) 그대로 두고,
- * 끝나지 않은 첫 할 일을 "지금 할 일"로, 시작일 전인 고정 할 일은 흐리게 보여 준다.
+ * 서버 할 일(sort_order 순서) → 할 일 화면 값. 순서는 서버(C7) 그대로 두고, 상태(state)·남은 날(days_left)은
+ * 서버가 오늘(가상 날짜면 그날) 기준으로 계산한 값을 쓴다. "지금 할 일"은 할 때가 됐거나 기한이 지난 첫 할 일
+ * (없으면 끝나지 않은 첫 할 일)이고, 시작 전인 고정 할 일은 흐리게 보여 준다. today는 날짜 표기(올해면 연도 생략)에만 쓴다.
+ * 예: 특약 거절로 맨 위에 올라간 전입신고(잔금일)는 목록 맨 위에 두되, 계약일에는 오늘 기한인 할 일이 "지금 할 일"
  */
-export function todoViews(todos: ApiTodo[], today: Date = new Date()): TodoView[] {
-  const todayKey = startOfDay(today).getTime();
-  // 고정 할 일은 시작일(재알림은 알림일) 전이면 흐리게
-  const notStarted = (t: ApiTodo) => {
-    const from = t.start_date ?? t.remind_date;
-    return t.pinned && from !== null && parseDate(from).getTime() > todayKey;
-  };
-  let currentSet = false;
-  return todos
-    .filter((t) => t.status !== 'skipped')
+export function todoViews(todos: ApiTodo[], today: Date): TodoView[] {
+  const shown = todos.filter((t) => t.status !== 'skipped');
+  const isLater = (t: ApiTodo) => t.pinned && t.state === 'upcoming';
+  const due = shown.find((t) => t.state === 'in_progress' || t.state === 'overdue');
+  const current = due ?? shown.find((t) => t.state !== 'done' && !isLater(t));
+  return shown
     .map((t) => {
       let status: TodoViewStatus;
-      if (t.status === 'done') status = 'done';
-      else if (notStarted(t)) status = 'later';
-      else if (!currentSet) {
-        status = 'current';
-        currentSet = true;
-      } else status = 'upcoming';
-      const badges = [t.moved_to_top ? '특약·경보로 맨 위' : null, ...t.required_checks].filter(Boolean);
-      const target = t.due_date ?? t.remind_date;
+      if (t.state === 'done') status = 'done';
+      else if (t === current) status = 'current';
+      else if (isLater(t)) status = 'later';
+      else status = 'upcoming';
+      const badges = [
+        t.state === 'overdue' ? '기한 지남' : null,
+        t.moved_to_top ? '특약·경보로 맨 위' : null,
+        ...t.required_checks,
+      ].filter(Boolean);
       return {
         id: `${t.rule_id}-${t.id}`,
         title: t.title,
         when: whenLabel(t, today),
-        dday: target && status !== 'later' ? ddayLabel(target, today) : undefined,
+        // FR-040: 시작 전인 할 일도 기한과 남은 날을 보여 준다
+        dday: t.days_left !== null && status !== 'done' ? ddayLabel(t.days_left) : undefined,
         badge: badges.length ? badges.join(' · ') : undefined,
         status,
         todayBefore: status === 'current',

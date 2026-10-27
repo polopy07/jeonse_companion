@@ -9,6 +9,7 @@ import { Colors, Radius, Touch } from '@/constants/theme';
 import { checkResult, house, recordDocs, today } from '@/data/demo';
 import type { ApiContract } from '@/lib/api';
 import { useLatestCheck } from '@/lib/check';
+import { dottedDate, parseDateKey, useVirtualToday } from '@/lib/clock';
 import { todoViews, useLatestContract } from '@/lib/contract';
 import { formatWon } from '@/lib/format';
 
@@ -28,10 +29,6 @@ type HomeView = {
 };
 
 const DAY = 86_400_000;
-const parseDate = (s: string) => {
-  const [y, m, d] = s.split('-').map(Number);
-  return new Date(y, m - 1, d);
-};
 const dotted = (s: string) => s.split('-').join('.');
 /** "2026.10.09" → "10/9" */
 const shortDate = (s: string) => {
@@ -57,11 +54,10 @@ const demoHome: HomeView = {
   checkedAt: today.full,
 };
 
-/** 패키지를 시작해 만든 계약(POST /api/contracts)으로 홈을 그린다 */
+/** 패키지를 시작해 만든 계약(POST /api/contracts)으로 홈을 그린다. 오늘은 서버가 계산한 날(가상 날짜면 그날) */
 function homeFromContract(contract: ApiContract, houseLabel: string | null, ratio: number | null, ratioAt: string): HomeView {
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const days = (s: string) => Math.round((parseDate(s).getTime() - todayStart) / DAY);
+  const now = parseDateKey(contract.today);
+  const days = (s: string) => Math.round((parseDateKey(s).getTime() - now.getTime()) / DAY);
   const toBalance = days(contract.balance_date);
   const toEnd = days(contract.end_date);
   // 계약일 전 → 계약 당일, 잔금일 전 → 입주 준비, 만기 2개월 전부터 → 만기
@@ -80,13 +76,14 @@ function homeFromContract(contract: ApiContract, houseLabel: string | null, rati
       : null,
     ratio,
     ratioAt,
-    checkedAt: `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`,
+    checkedAt: dottedDate(now),
   };
 }
 
 /** 홈: "지금 할 일" 1개만 크게, 보증금 비율과 기록함 현황은 작은 카드로 */
 export default function HomeScreen() {
   const contract = useLatestContract();
+  const virtualDay = useVirtualToday();
   const check = useLatestCheck();
   // 계약은 판정 1건으로 만든다. 저장한 판정이 이 계약의 판정이 아니면 집 이름·비율은 쓰지 않는다
   const sameCheck = check && contract && check.id === contract.check_id ? check : null;
@@ -111,9 +108,22 @@ export default function HomeScreen() {
         <AppText size={20} weight="bold">
           전동기
         </AppText>
-        <Pressable accessibilityRole="button" accessibilityLabel="알림" style={styles.iconButton}>
-          <Icon name="bell" />
-        </Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          {/* FR-044: 시연용 가상 날짜. 가상 날짜면 그 날짜를 보여 준다 */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="시연 날짜 바꾸기"
+            onPress={() => router.push('/virtual-date')}
+            style={[styles.dateChip, virtualDay ? styles.dateChipOn : null]}>
+            <Icon name="calendar" size={14} color={virtualDay ? '#FFFFFF' : Colors.textSub} strokeWidth={2} />
+            <AppText size={12} weight="semibold" color={virtualDay ? '#FFFFFF' : Colors.textSub}>
+              {virtualDay ? dottedDate(parseDateKey(virtualDay)) : '시연 날짜'}
+            </AppText>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="알림" style={styles.iconButton}>
+            <Icon name="bell" />
+          </Pressable>
+        </View>
       </View>
 
       <AppText size={13} color={Colors.textSub} style={{ marginTop: 8 }}>
@@ -251,6 +261,17 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  dateChip: {
+    height: 32,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.inputBorder,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  dateChipOn: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 20 },
   iconButton: { width: Touch.min, height: Touch.min, alignItems: 'center', justifyContent: 'center', marginRight: -12 },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between' },

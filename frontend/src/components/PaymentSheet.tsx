@@ -1,10 +1,12 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/layout';
 import { Colors, Gutter, MaxAppWidth, Radius } from '@/constants/theme';
-import { ApiError, apiEnabled, postPayment } from '@/lib/api';
+import { ApiError, apiEnabled, getCheck, getContract, postPayment } from '@/lib/api';
+import { contractToken, setLatestContract } from '@/lib/contract';
 import { formatWon } from '@/lib/format';
 import { products, setLatestPayment, useLatestPayment } from '@/lib/payment';
 
@@ -49,6 +51,20 @@ export function PaymentSheet({ visible, product, checkId, onClose, onPaid }: Pro
       setLatestPayment(await postPayment(checkId));
       onPaid();
     } catch (e) {
+      // 이미 이 판정으로 계약을 만들었으면 그 계약의 할 일로 간다 (계약 날짜 입력과 같게)
+      if (e instanceof ApiError && e.code === 'CHECK_ALREADY_USED') {
+        const contractId = await getCheck(checkId)
+          .then((c) => c.contract_id)
+          .catch(() => null);
+        const existing =
+          contractId === null ? null : await getContract(contractId, contractToken(contractId)).catch(() => null);
+        if (existing) {
+          setLatestContract(existing);
+          onClose();
+          router.push('/todos');
+          return;
+        }
+      }
       setError(e instanceof ApiError ? [e.message, e.hint].filter(Boolean).join('. ') : '결제를 확인하지 못했어요');
     } finally {
       setPaying(false);

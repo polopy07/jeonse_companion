@@ -4,10 +4,14 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Icon } from '@/components/Icon';
-import { Button, Screen } from '@/components/layout';
+import { Button, Disclaimer, Screen } from '@/components/layout';
+import { TermEffectCard } from '@/components/term';
 import { Colors, Radius } from '@/constants/theme';
 import { today, todos as demoTodos, type Todo } from '@/data/demo';
+import { useLatestCheck } from '@/lib/check';
+import { useToday } from '@/lib/clock';
 import { clearContractNotice, todoViews, useContractNotice, useLatestContract } from '@/lib/contract';
+import { exportIcs, icsEventCount } from '@/lib/ics';
 
 /**
  * UI-04 할 일 목록: 세로 타임라인에 오늘 선을 긋고, 완료는 증빙 사진 1장으로.
@@ -16,15 +20,36 @@ import { clearContractNotice, todoViews, useContractNotice, useLatestContract } 
 export default function TodosScreen() {
   const contract = useLatestContract();
   const notice = useContractNotice();
-  const [items, setItems] = useState<Todo[]>(contract ? todoViews(contract.todos) : demoTodos);
+  const now = useToday();
+  const check = useLatestCheck();
+  const [calendarMessage, setCalendarMessage] = useState<string | null>(null);
+  const [items, setItems] = useState<Todo[]>(contract ? todoViews(contract.todos, now) : demoTodos);
   // 계약 날짜 입력에서 새 계약을 만들고 돌아오면 그 할 일로 바꾼다 (렌더 중 이전 값과 비교)
   const [shownContract, setShownContract] = useState(contract);
   if (shownContract !== contract) {
     setShownContract(contract);
-    setItems(contract ? todoViews(contract.todos) : demoTodos);
+    setItems(contract ? todoViews(contract.todos, now) : demoTodos);
   }
   const done = items.filter((t) => t.status === 'done').length;
-  const todayLabel = contract ? `${new Date().getMonth() + 1}.${String(new Date().getDate()).padStart(2, '0')}` : today.label;
+  const todayLabel = contract ? `${now.getMonth() + 1}.${String(now.getDate()).padStart(2, '0')}` : today.label;
+
+  // FR-042: 끝나지 않은 할 일 기한을 ICS로 (휴대폰은 공유 창 → 캘린더 앱, 웹은 내려받기)
+  const addToCalendar = async () => {
+    if (!contract) {
+      setCalendarMessage('계약을 만들면 할 일 기한을 캘린더에 넣을 수 있어요');
+      return;
+    }
+    if (!icsEventCount(contract)) {
+      setCalendarMessage('캘린더에 넣을 남은 할 일이 없어요');
+      return;
+    }
+    try {
+      await exportIcs(contract, check && check.id === contract.check_id ? check.houseLabel : null);
+      setCalendarMessage(null);
+    } catch (e) {
+      setCalendarMessage(e instanceof Error ? e.message : '캘린더 파일을 만들지 못했어요');
+    }
+  };
 
   // 실제 앱에서는 카메라로 증빙 1장을 찍은 뒤 완료 처리한다. 지금은 완료 상태만 바꾼다.
   const complete = (id: string) =>
@@ -38,7 +63,7 @@ export default function TodosScreen() {
         <AppText size={22} weight="bold">
           할 일
         </AppText>
-        <Pressable accessibilityRole="button" style={styles.calendarButton}>
+        <Pressable accessibilityRole="button" onPress={addToCalendar} style={styles.calendarButton}>
           <Icon name="calendar" size={16} color={Colors.primary} strokeWidth={2} />
           <AppText size={13} weight="semibold" color={Colors.primary}>
             캘린더에 추가
@@ -48,6 +73,11 @@ export default function TodosScreen() {
       <AppText size={13} color={Colors.textSub} style={{ marginTop: 4 }}>
         완료 {done} · 남은 일 {items.length - done} · 날짜를 바꾸면 뒤 기한이 같이 움직여요
       </AppText>
+      {calendarMessage ? (
+        <AppText size={12} color={Colors.caution} style={{ marginTop: 2 }}>
+          {calendarMessage}
+        </AppText>
+      ) : null}
       {contract ? (
         // FR-015: 보증금 6천만 원 이하·월세 30만 원 이하면 신고 비대상이라 확정일자를 챙긴다
         <AppText size={12} color={Colors.textSub} style={{ marginTop: 2 }}>
@@ -64,6 +94,30 @@ export default function TodosScreen() {
         </Pressable>
       ) : null}
 
+      {contract?.status === 'cancelled' ? (
+        <AppText size={12} color={Colors.textSub} style={{ marginTop: 2 }}>
+          무산된 계약이에요. 할 일은 기록으로만 남고 알림은 보내지 않아요
+        </AppText>
+      ) : contract ? (
+        // FR-021·049·050: 잔금일이 미뤄지거나 특약 결과가 바뀌면 할 일을 다시 계산한다
+        <Button
+          variant="outline"
+          height={44}
+          label="계약 날짜·특약 결과 고치기"
+          onPress={() => router.push('/contract-edit')}
+          style={{ marginTop: 12 }}
+        />
+      ) : null}
+
+      {contract?.special_term_effects.length ? (
+        // FR-050: 특약 결과별 안내 (거절당함 → 위험 안내·맨 위 할 일·상담, 넣음 → 기록함 서류)
+        <View style={{ marginTop: 12, gap: 8 }}>
+          {contract.special_term_effects.map((e) => (
+            <TermEffectCard key={e.term_id} effect={e} />
+          ))}
+        </View>
+      ) : null}
+
       <View style={styles.list}>
         <View style={styles.rail} />
         {items.map((t) => (
@@ -73,6 +127,8 @@ export default function TodosScreen() {
           </Fragment>
         ))}
       </View>
+      {/* NFR-008: 알림은 보조 수단 고지 */}
+      <Disclaimer>알림·캘린더는 보조 수단이에요. 기한은 이 목록과 보증기관 안내를 함께 확인하세요.</Disclaimer>
     </Screen>
   );
 }
