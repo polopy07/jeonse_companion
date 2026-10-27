@@ -354,7 +354,8 @@ class ContractOut(BaseModel):
     email: str | None
     special_term_result: dict[str, SpecialTermResult]
     report_required: bool = Field(description="임대차 신고 대상인지 (FR-015). 비대상이면 T1 없이 T4에서 확정일자를 함께 받는다")
-    alert_level: str | None = Field(description="시작할 때의 경보 단계 (alert.yaml levels[].id), 정상이면 null")
+    alert_level: str | None = Field(
+        description="지금 경보 단계 (alert.yaml levels[].id), 정상이면 null. 계약을 시작할 때 정하고 경보 재계산(FR-037)으로 바뀐다")
     status: ContractStatus = Field(description="active / cancelled (계약 무산, FR-016)")
     payment_id: int | None = Field(description="이 계약에 쓴 테스트 결제. 결제 없이 만든 계약이면 null")
     special_term_effects: list[SpecialTermEffectOut] = Field(
@@ -544,3 +545,64 @@ class TodoPatch(BaseModel):
         description="done 완료(증빙을 올린 할 일만) / skipped 나중에 올리기(완료 처리, 기록함은 빈칸) / todo 되돌리기")
     done_date: date | None = Field(
         None, description="끝낸 날. 없으면 오늘(가상 날짜면 그날). 뒤 할 일의 기준일이 된다 (예: 전입신고 완료 다음 날 → 반환보증 시작)")
+
+
+AlertLevel = Literal["caution", "warning", "danger"]
+
+
+class AlertBasisOut(BaseModel):
+    """경보 계산 근거 (FR-038, UI-09)."""
+
+    as_of: date_ = Field(description="계산 기준일 (실거래 기간·공시가격 기준)")
+    official_price: int = Field(description="계산에 쓴 공시가격 (원)")
+    official_estimate: int = Field(description="공시가격 × 140% (원)")
+    multiplier: float = Field(description="공시가격에 곱한 비율 (alert.yaml estimated_price.official_price_multiplier)")
+    trade: TradeBasisOut | None = Field(description="같은 단지·비슷한 면적 매매 실거래. 단지를 모르거나 거래가 없으면 null")
+    trade_price_input: int | None = Field(
+        None, description="계약 전 확인 때 사용자가 직접 넣은 매매 실거래가 (원). 있으면 판정 때처럼 단지 실거래 대신 이 값을 쓴다")
+    nearby_jeonse: NearbyJeonseOut | None = Field(description="주변 전세 시세. 단지를 모르면 null")
+    senior_debt: int = Field(description="선순위 채권 (근저당 채권최고액 + 임차권·전세권 보증금, 마지막으로 올린 등기부)")
+    ratio_is_minimum: bool = Field(description="등기부를 올리지 않아 선순위 채권을 0원으로 둔 최소 추정치인지")
+    complex_known: bool = Field(description="실거래를 찾을 단지를 아는지 (모르면 공시가격으로만 계산)")
+    rules_version: str | None = Field(description="재계산에 쓴 alert.yaml 버전. 계약 시작 값은 null")
+
+
+class AlertPointOut(BaseModel):
+    as_of: date_ = Field(description="계산 기준일")
+    level: AlertLevel | None = Field(description="경보 단계 (alert.yaml levels[].id), 정상이면 null")
+    estimated_price: int = Field(description="추정 주택가격 (원)")
+    deposit_ratio: float = Field(description="내 보증금 비율 = (보증금 + 선순위 채권) ÷ 추정 주택가격")
+
+
+class AlertReportOut(AlertPointOut):
+    """최근 역전세 경보 (FR-036~038, UI-09). 재계산한 적이 없으면 계약을 시작할 때(계약 전 확인)의 값."""
+
+    contract_id: int
+    label: str | None = Field(description="단계 이름 (주의 / 경고 / 위험), 정상이면 null")
+    recalculated: bool = Field(description="계약 중 재계산한 값인지. false면 계약을 시작할 때의 값")
+    previous_level: AlertLevel | None = Field(description="바로 앞 계산의 단계. 앞 계산이 없으면 null")
+    previous_ratio: float | None = Field(description="바로 앞 계산의 내 보증금 비율. 앞 계산이 없으면 null")
+    basis: AlertBasisOut
+    history: list[AlertPointOut] = Field(description="계약 시작부터의 계산 이력 (기준일 순서, 마지막이 이 값)")
+    data_limits: list[str] = Field(description="데이터 한계 안내 (alert.yaml recalculation.data_limits), 화면에 그대로")
+
+
+class AlertRecalcInput(BaseModel):
+    date: date_ | None = Field(None, description="이 날을 기준일로 다시 계산한다 (가상 날짜). 없으면 X-Virtual-Today, 그것도 없으면 실제 오늘")
+    contract_ids: list[int] | None = Field(None, description="이 계약만 다시 계산. 없으면 진행 중 계약 모두")
+    official_prices: dict[int, Money] | None = Field(
+        None, description="공시가격 새 발표 적재: {계약 id: 새 공시가격(원)}. 계약의 공시가격을 바꾼 뒤 계산한다. 없는 계약 id는 무시")
+
+
+class AlertRecalcItem(BaseModel):
+    contract_id: int
+    level: AlertLevel | None
+    previous_level: AlertLevel | None = Field(description="앞 계산(없으면 계약 시작)의 단계")
+    raised: bool = Field(description="단계가 올라갔는지. 올라가면 앱 안 알림을 만든다")
+    estimated_price: int
+    deposit_ratio: float
+
+
+class AlertRecalcResult(BaseModel):
+    date: date_
+    results: list[AlertRecalcItem] = Field(description="다시 계산한 계약 (공시가격이 없는 계약·무산된 계약은 빠짐)")

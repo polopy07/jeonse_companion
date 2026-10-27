@@ -160,6 +160,9 @@ def test_move_returned_when_t9_skipped(client):
         s.commit()
     m = client.get(url, headers=_auth(c)).json()
     assert m["returned"] is True and m["move_in_warning"] is False
+    # #97 리뷰 2번: 나중에 올리기(skipped)한 할 일은 묶은 목록에서도 끝낸 것(done)으로, 기한 지남이 아님 (#95 todo_state)
+    t9 = next(t for t in m["todos"] if t["house"] == "current" and t["rule_id"] == "T9")
+    assert t9["state"] == "done"
 
 
 def test_move_validation_and_access(client):
