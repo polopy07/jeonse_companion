@@ -2,6 +2,7 @@
 import pytest
 from sqlalchemy import text
 
+from app import mailer
 from app.api import contracts
 from app.db import get_engine, init_db
 from tests.test_contracts import DATES, EOK, VILLA, _check, _detail
@@ -21,11 +22,14 @@ def _pay(client, check_id) -> dict:
     return r.json()
 
 
-def _contract(client, check_id, payment_id=None, headers=None) -> dict:
+def _contract(client, check_id, payment_id=None, released_from=None) -> dict:
+    """released_from: 풀린 결제를 다시 쓸 때 그 결제를 썼던 무산된 계약 (토큰을 released_contract_token으로)."""
     body = {"check_id": check_id, **DATES}
     if payment_id is not None:
         body["payment_id"] = payment_id
-    r = client.post("/api/contracts", json=body, headers=headers or {})
+    if released_from is not None:
+        body["released_contract_token"] = released_from["access_token"]
+    r = client.post("/api/contracts", json=body)
     assert r.status_code == 201, r.text
     return r.json()
 
@@ -155,11 +159,11 @@ def test_cancel_releases_payment_for_next_house(client):
 
     # 풀린 결제를 다음 집 판정의 계약에 다시 쓴다 (무산된 계약의 토큰과 함께, 한 번만)
     nxt = _check(client)
-    c2 = _contract(client, nxt["id"], pay["payment_id"], headers=_auth(c))
+    c2 = _contract(client, nxt["id"], pay["payment_id"], released_from=c)
     assert c2["payment_id"] == pay["payment_id"]
     third = _check(client)
-    r = client.post("/api/contracts", json={"check_id": third["id"], **DATES, "payment_id": pay["payment_id"]},
-                    headers=_auth(c))
+    r = client.post("/api/contracts", json={"check_id": third["id"], **DATES, "payment_id": pay["payment_id"],
+                                            "released_contract_token": c["access_token"]})
     assert r.status_code == 402
 
 
@@ -169,7 +173,7 @@ def test_released_payment_product_rules(client):
     pay = _pay(client, villa["id"])
     c = _contract(client, villa["id"], pay["payment_id"])
     client.post(f"/api/contracts/{c['id']}/cancel", headers=_auth(c))
-    reused = _contract(client, _check(client, HOUSE)["id"], pay["payment_id"], headers=_auth(c))
+    reused = _contract(client, _check(client, HOUSE)["id"], pay["payment_id"], released_from=c)
     assert reused["payment_id"] == pay["payment_id"]
 
     # 할 일 관리만 결제 → 패키지 집: 다시 결제 (402)
@@ -177,8 +181,8 @@ def test_released_payment_product_rules(client):
     small = _pay(client, house["id"])
     c = _contract(client, house["id"], small["payment_id"])
     client.post(f"/api/contracts/{c['id']}/cancel", headers=_auth(c))
-    r = client.post("/api/contracts", json={"check_id": _check(client)["id"], **DATES, "payment_id": small["payment_id"]},
-                    headers=_auth(c))
+    r = client.post("/api/contracts", json={"check_id": _check(client)["id"], **DATES, "payment_id": small["payment_id"],
+                                            "released_contract_token": c["access_token"]})
     assert r.status_code == 402
     assert "다시 결제" in _detail(r)["hint"]
 
@@ -193,34 +197,89 @@ def test_released_payment_needs_owner_token(client):
 
     nxt = _check(client)
     body = {"check_id": nxt["id"], **DATES, "payment_id": pay["payment_id"]}
-    for headers in ({}, {"X-Contract-Token": "wrong"}, _auth(other)):
-        r = client.post("/api/contracts", json=body, headers=headers)
-        assert r.status_code == 402 and _detail(r)["code"] == "PAYMENT_REQUIRED"
-    assert _contract(client, nxt["id"], pay["payment_id"], headers=_auth(c))["payment_id"] == pay["payment_id"]
+    r = client.post("/api/contracts", json=body)   # 토큰 없음: 접근 링크 다시 받기 안내
+    assert r.status_code == 402 and "접근 링크" in _detail(r)["hint"]
+    for token in ("wrong", other["access_token"]):   # 틀린 토큰·남의 토큰: 남의 결제인지 드러나지 않게 같은 문구
+        r = client.post("/api/contracts", json={**body, "released_contract_token": token})
+        assert r.status_code == 402 and _detail(r)["message"] == "이 판정에 쓸 수 있는 결제가 아닙니다"
+    # 헤더 X-Contract-Token은 지금 계약의 토큰이라 풀린 결제에 쓰지 않는다 (#95 리뷰)
+    r = client.post("/api/contracts", json=body, headers=_auth(c))
+    assert r.status_code == 402
+    assert _contract(client, nxt["id"], pay["payment_id"], released_from=c)["payment_id"] == pay["payment_id"]
 
 
-def test_released_payment_taken_once_under_race(client, monkeypatch):
-    # 같은 풀린 결제로 두 계약이 동시에 들어와 둘 다 확인을 통과해도, 먼저 커밋한 쪽만 쓴다 (#89 리뷰)
+def test_access_link_for_cancelled_with_released_payment(client, monkeypatch):
+    # #95 리뷰 1번: 토큰을 잃어도 풀린 결제가 남은 무산된 계약은 접근 링크를 다시 받아 결제를 다시 쓴다
+    monkeypatch.setenv("EMAIL_BACKEND", "memory")
+    monkeypatch.delenv("APP_LINK_BASE", raising=False)
+    check = _check(client)
+    pay = _pay(client, check["id"])
+    r = client.post("/api/contracts", json={"check_id": check["id"], **DATES, "payment_id": pay["payment_id"],
+                                            "email": "lost@example.com"})
+    c = r.json()
+    client.post(f"/api/contracts/{c['id']}/cancel", headers=_auth(c))
+    mailer.outbox.clear()
+    assert client.post("/api/contracts/access-link", json={"email": "lost@example.com"}).status_code == 202
+    mail = mailer.outbox[-1]
+    assert f"계약 {c['id']}" in mail.body and "무산된 계약" in mail.body
+    token = mail.body.split("접근 코드: ")[1].split()[0]
+    nxt = _check(client)
+    reused = _contract(client, nxt["id"], pay["payment_id"], released_from={"access_token": token})
+    assert reused["payment_id"] == pay["payment_id"]
+
+    # 풀린 결제를 다시 쓴 뒤의 무산된 계약에는 더 보내지 않는다
+    mailer.outbox.clear()
+    client.post("/api/contracts/access-link", json={"email": "lost@example.com"})
+    assert not mailer.outbox
+
+
+def _cancelled_with_payment(client):
     check = _check(client)
     pay = _pay(client, check["id"])
     c = _contract(client, check["id"], pay["payment_id"])
     client.post(f"/api/contracts/{c['id']}/cancel", headers=_auth(c))
+    return c, pay["payment_id"]
 
-    original = contracts._alert_level
 
-    def other_request_commits_first(check, rules):
-        # 이 요청이 결제를 확인한 뒤, 계약을 저장하기 전에 다른 요청이 같은 결제를 먼저 씀
+def _after_check(monkeypatch, sql: str, payment_id: int):
+    """이 요청이 결제를 확인한(_take_payment) 바로 뒤, 쓰기 전에 다른 요청이 결제를 바꿔 커밋한 것처럼 만든다."""
+    original = contracts._take_payment
+
+    def checked_then_changed(*args):
+        p = original(*args)
         with get_engine().begin() as conn:
-            conn.execute(text("UPDATE payments SET status = 'used', contract_id = 999 WHERE id = :id"),
-                         {"id": pay["payment_id"]})
-        return original(check, rules)
+            conn.execute(text(sql), {"id": payment_id})
+        return p
 
-    monkeypatch.setattr(contracts, "_alert_level", other_request_commits_first)
+    monkeypatch.setattr(contracts, "_take_payment", checked_then_changed)
+
+
+def _payment_row(payment_id: int):
+    with get_engine().connect() as conn:
+        return conn.execute(text("SELECT status, contract_id FROM payments WHERE id = :id"), {"id": payment_id}).one()
+
+
+def test_released_payment_taken_once_under_race(client, monkeypatch):
+    # 같은 풀린 결제로 두 계약이 동시에 들어와 둘 다 확인을 통과해도, 먼저 커밋한 쪽만 쓴다 (#89 리뷰)
+    c, payment_id = _cancelled_with_payment(client)
+    _after_check(monkeypatch, "UPDATE payments SET status = 'used', contract_id = 999 WHERE id = :id", payment_id)
     nxt = _check(client)
-    r = client.post("/api/contracts", json={"check_id": nxt["id"], **DATES, "payment_id": pay["payment_id"]},
-                    headers=_auth(c))
-    assert r.status_code == 402 and _detail(r)["code"] == "PAYMENT_REQUIRED"
+    r = client.post("/api/contracts", json={"check_id": nxt["id"], **DATES, "payment_id": payment_id,
+                                            "released_contract_token": c["access_token"]})
+    assert r.status_code == 402 and _detail(r)["message"] == "이미 다른 계약에 쓴 결제입니다"
     assert client.get(f"/api/checks/{nxt['id']}").json()["contract_id"] is None   # 늦은 쪽 계약은 남지 않는다
+    assert tuple(_payment_row(payment_id)) == ("used", 999)   # 먼저 쓴 쪽 그대로
+
+
+def test_released_payment_aba(client, monkeypatch):
+    # #106 리뷰 1번: 확인한 뒤 그사이 다른 계약(999)에 쓰였다가 다시 풀리면 상태는 같아도 가져가지 못한다
+    c, payment_id = _cancelled_with_payment(client)
+    _after_check(monkeypatch, "UPDATE payments SET status = 'released', contract_id = 999 WHERE id = :id", payment_id)
+    nxt = _check(client)
+    r = client.post("/api/contracts", json={"check_id": nxt["id"], **DATES, "payment_id": payment_id,
+                                            "released_contract_token": c["access_token"]})
+    assert r.status_code == 402 and _detail(r)["message"] == "이미 다른 계약에 쓴 결제입니다"
+    assert tuple(_payment_row(payment_id)) == ("released", 999)   # 999 주인의 풀린 결제는 그대로
 
 
 def test_cancel_needs_token(client):

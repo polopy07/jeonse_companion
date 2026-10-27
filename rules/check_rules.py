@@ -176,10 +176,13 @@ def main():
         for a in t.get(f"on_{result}", []) if a["action"] == "add_todo"
     }
     adds_by_todos = set()
+    alert_sources = {f"alert.{lv['id']}" for lv in data["alert"]["levels"]}
     for t in data["todos"]["extra_todos"]:
         for src in t.get("added_by", []):
             term, _, result = src.partition(".")
-            if term not in term_ids:
+            if term not in term_ids:   # 특약이 아니면 연동 규칙 id 또는 alert.<경보 단계>여야 한다 (특약 id 오타도 여기서)
+                if src not in linkage_ids and src not in alert_sources:
+                    errors.append(f"todos.yaml:{t['id']}: added_by '{src}'는 연동 규칙·경보 단계·특약 어디에도 없는 id")
                 continue
             if result not in ("inserted", "rejected"):
                 errors.append(f"todos.yaml:{t['id']}: added_by '{src}'는 '{term}.inserted' 또는 '{term}.rejected' 형식이어야 함")
