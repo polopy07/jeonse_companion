@@ -141,17 +141,6 @@ flowchart LR
 | 컴퓨터공학과 | 황웅재 | PO · 백엔드·규칙 엔진 (개발 A) |
 | 컴퓨터공학과 | 배승환 | PM · 앱·검증 (개발 B) |
 
-## 발표회 포스터
-
-2026 AI·SW 신기술 3EX 전공 프로젝트 발표회(01분반)에 제출한 포스터입니다. 원본은 [`docs/poster/`](docs/poster/)에 있습니다(공개 저장소라 증명사진·지도교수 이름은 뺐습니다).
-
-<details>
-<summary>포스터 보기</summary>
-
-<p align="center"><img src="docs/poster/images/poster.jpg" width="600" alt="전동기 발표회 포스터"></p>
-
-</details>
-
 ## 문서
 
 | 문서 | 최신 버전 | 위치 |
@@ -165,7 +154,6 @@ flowchart LR
 | 화면 목업 | UI-01~09 + 홈 (모바일 390px) | [`docs/design/`](docs/design/) (`index.html`을 브라우저로 열기) |
 | 프론트엔드 | Expo + Expo Router (웹·안드로이드·iOS). 목업 10개 화면, 계약 전 확인 입력, 현장 확인, 시연 데이터 | [`frontend/`](frontend/) (`npx expo start`) |
 | 휴대폰 접속 방법 | 안드로이드·아이폰(Expo Go)으로 앱을 열어 PC 백엔드에 연결 | [`docs/guide/휴대폰_접속_방법.md`](docs/guide/휴대폰_접속_방법.md) |
-| 발표회 포스터 | 2026 AI·SW 신기술 3EX 전공 프로젝트 발표회 제출본 (.pptx), README 그림 | [`docs/poster/`](docs/poster/) |
 | 작업일지 | 날짜별 | [`worklog/`](worklog/) (`YYYY-MM-DD.md`) |
 
 각 문서는 원본(.docx)과 읽기용 마크다운 변환본(.md)을 함께 둡니다. 기획안과 명세서가 다르면 기획안을 먼저 고치고 명세서에 반영합니다.
