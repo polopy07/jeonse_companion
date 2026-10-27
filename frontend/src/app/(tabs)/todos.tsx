@@ -7,15 +7,38 @@ import { Icon } from '@/components/Icon';
 import { Button, Disclaimer, Screen } from '@/components/layout';
 import { TermEffectCard } from '@/components/term';
 import { Colors, Radius } from '@/constants/theme';
-import { today, todos as demoTodos, type Todo } from '@/data/demo';
+import { today, todos as demoTodos } from '@/data/demo';
+import { ApiError, patchTodo, uploadEvidence, type ApiContract } from '@/lib/api';
 import { useLatestCheck } from '@/lib/check';
 import { useToday } from '@/lib/clock';
-import { clearContractNotice, todoViews, useContractNotice, useLatestContract } from '@/lib/contract';
+import {
+  clearContractNotice,
+  contractToken,
+  setLatestContract,
+  todoViews,
+  useContractNotice,
+  useLatestContract,
+  type TodoView,
+} from '@/lib/contract';
+import { pickEvidence, type EvidenceSource } from '@/lib/evidence';
 import { exportIcs, icsEventCount } from '@/lib/ics';
+
+/** 할 일 하나에 대한 동작 (계약이 있을 때만) */
+type TodoActions = {
+  /** 증빙 사진을 골라 올려 끝낸다. 증빙이 없는 할 일은 바로 끝낸다 */
+  complete: (source: EvidenceSource) => void;
+  /** 나중에 올리기: 완료로 치고 기록함만 빈칸 (FR-030) */
+  skip: () => void;
+  /** 끝낸 할 일 되돌리기 */
+  reopen: () => void;
+  busy: boolean;
+  error: string | null;
+};
 
 /**
  * UI-04 할 일 목록: 세로 타임라인에 오늘 선을 긋고, 완료는 증빙 사진 1장으로.
  * 패키지를 시작해 만든 계약(POST /api/contracts)이 있으면 그 할 일을, 없으면 시연 할 일을 보여 준다.
+ * 계약의 할 일은 서버에서 끝내고(PATCH /api/todos/{id}, 증빙은 POST /api/todos/{id}/evidence) 돌아온 계약으로 다시 그린다.
  */
 export default function TodosScreen() {
   const contract = useLatestContract();
@@ -23,13 +46,10 @@ export default function TodosScreen() {
   const now = useToday();
   const check = useLatestCheck();
   const [calendarMessage, setCalendarMessage] = useState<string | null>(null);
-  const [items, setItems] = useState<Todo[]>(contract ? todoViews(contract.todos, now) : demoTodos);
-  // 계약 날짜 입력에서 새 계약을 만들고 돌아오면 그 할 일로 바꾼다 (렌더 중 이전 값과 비교)
-  const [shownContract, setShownContract] = useState(contract);
-  if (shownContract !== contract) {
-    setShownContract(contract);
-    setItems(contract ? todoViews(contract.todos, now) : demoTodos);
-  }
+  const [demoItems, setDemoItems] = useState<TodoView[]>(demoTodos);
+  const items = contract ? todoViews(contract.todos, now) : demoItems;
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [failed, setFailed] = useState<{ todoId: number; message: string } | null>(null);
   const done = items.filter((t) => t.status === 'done').length;
   const todayLabel = contract ? `${now.getMonth() + 1}.${String(now.getDate()).padStart(2, '0')}` : today.label;
 
@@ -51,11 +71,45 @@ export default function TodosScreen() {
     }
   };
 
-  // 실제 앱에서는 카메라로 증빙 1장을 찍은 뒤 완료 처리한다. 지금은 완료 상태만 바꾼다.
-  const complete = (id: string) =>
-    setItems((list) =>
+  // 시연 할 일(계약 없음)은 앱 안에서 완료 상태만 바꾼다
+  const completeDemo = (id: string) =>
+    setDemoItems((list) =>
       list.map((t) => (t.id === id ? { ...t, status: 'done', when: `${todayLabel} 완료 · 증빙 1장`, badge: undefined } : t)),
     );
+
+  // 서버에서 바꾸고 돌아온 계약(뒤 기한 재계산 포함)으로 다시 그린다. 실패하면 그 할 일 아래에 이유를 보여 준다
+  const run = async (todoId: number, call: (token: string | null) => Promise<ApiContract | null>) => {
+    if (!contract || busyId !== null) return;
+    setBusyId(todoId);
+    setFailed(null);
+    try {
+      const updated = await call(contractToken(contract.id));
+      if (updated) setLatestContract(updated);
+    } catch (e) {
+      const message =
+        e instanceof ApiError ? [e.message, e.hint].filter(Boolean).join('. ') : e instanceof Error ? e.message : '';
+      setFailed({ todoId, message: message || '할 일을 바꾸지 못했어요' });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const actionsFor = (t: TodoView): TodoActions | undefined => {
+    const id = t.todoId;
+    if (!contract || contract.status === 'cancelled' || id === undefined) return undefined;
+    return {
+      complete: (source) =>
+        run(id, async (token) => {
+          if (!t.evidence) return patchTodo(id, token, 'done');
+          const file = await pickEvidence(source);
+          return file ? uploadEvidence(id, token, file) : null;
+        }),
+      skip: () => run(id, (token) => patchTodo(id, token, 'skipped')),
+      reopen: () => run(id, (token) => patchTodo(id, token, 'todo')),
+      busy: busyId === id,
+      error: failed?.todoId === id ? failed.message : null,
+    };
+  };
 
   return (
     <Screen inTabs>
@@ -123,7 +177,7 @@ export default function TodosScreen() {
         {items.map((t) => (
           <Fragment key={t.id}>
             {t.todayBefore ? <TodayLine label={todayLabel} /> : null}
-            <TodoItem todo={t} onComplete={() => complete(t.id)} />
+            <TodoItem todo={t} actions={actionsFor(t)} onCompleteDemo={() => completeDemo(t.id)} />
           </Fragment>
         ))}
       </View>
@@ -145,11 +199,20 @@ function TodayLine({ label }: { label: string }) {
   );
 }
 
-function TodoItem({ todo, onComplete }: { todo: Todo; onComplete: () => void }) {
+function TodoItem({
+  todo,
+  actions,
+  onCompleteDemo,
+}: {
+  todo: TodoView;
+  actions?: TodoActions;
+  onCompleteDemo: () => void;
+}) {
   const { status } = todo;
   const isDone = status === 'done';
   const isCurrent = status === 'current';
   const isLater = status === 'later';
+  const needsPhoto = !actions || !!todo.evidence;
 
   const body = (
     <View
@@ -195,13 +258,40 @@ function TodoItem({ todo, onComplete }: { todo: Todo; onComplete: () => void }) 
         </View>
       ) : null}
       {isCurrent ? (
-        <Button
-          label="증빙 1장 남기고 완료"
-          height={46}
-          icon={<Icon name="camera" size={18} color="#FFFFFF" />}
-          onPress={onComplete}
-          style={{ marginTop: 12 }}
-        />
+        <>
+          <Button
+            label={actions?.busy ? '올리는 중…' : needsPhoto ? '증빙 1장 남기고 완료' : '완료'}
+            height={46}
+            icon={needsPhoto ? <Icon name="camera" size={18} color="#FFFFFF" /> : undefined}
+            onPress={actions ? () => actions.complete('camera') : onCompleteDemo}
+            style={{ marginTop: 12, opacity: actions?.busy ? 0.6 : 1 }}
+          />
+          {actions && todo.evidence ? (
+            // FR-029·030: 찍기 어려우면 앨범에서, 지금 증빙이 없으면 나중에 올리기
+            <View style={styles.subActions}>
+              <TextAction label="앨범에서 고르기" onPress={() => actions.complete('library')} />
+              <TextAction label="나중에 올리기" onPress={actions.skip} />
+            </View>
+          ) : null}
+          {actions && todo.evidence ? (
+            <AppText size={12} color={Colors.textSub} style={{ marginTop: 4 }}>
+              증빙: {todo.evidence}
+            </AppText>
+          ) : null}
+        </>
+      ) : null}
+      {isDone && actions ? (
+        <View style={styles.subActions}>
+          {todo.skipped && todo.evidence ? (
+            <TextAction label="증빙 올리기" onPress={() => actions.complete('library')} />
+          ) : null}
+          <TextAction label="되돌리기" muted onPress={actions.reopen} />
+        </View>
+      ) : null}
+      {actions?.error ? (
+        <AppText size={12} color={Colors.caution} leading={1.5} style={{ marginTop: 6 }}>
+          {actions.error}
+        </AppText>
       ) : null}
     </View>
   );
@@ -215,6 +305,16 @@ function TodoItem({ todo, onComplete }: { todo: Todo; onComplete: () => void }) 
     );
   }
   return body;
+}
+
+function TextAction({ label, muted, onPress }: { label: string; muted?: boolean; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} hitSlop={8} style={styles.textAction}>
+      <AppText size={13} weight="semibold" color={muted ? Colors.textSub : Colors.primary}>
+        {label}
+      </AppText>
+    </Pressable>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -264,6 +364,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#9C968A',
   },
+  subActions: { flexDirection: 'row', gap: 16, marginTop: 8 },
+  textAction: { minHeight: 32, justifyContent: 'center' },
   badge: {
     alignSelf: 'flex-start',
     marginTop: 6,
