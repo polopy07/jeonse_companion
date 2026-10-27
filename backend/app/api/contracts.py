@@ -171,16 +171,22 @@ def _sync_todos(row: Contract, check: Verdict, rules: dict) -> None:
         t.start_date, t.due_date, t.remind_date = p.start_date, p.due_date, p.remind_date
         t.prerequisites, t.required_checks = p.prerequisites, p.required_checks
         t.sort_order, t.pinned, t.moved_to_top = p.sort_order, p.pinned, p.moved_to_top
-        t.rules_version = version
+        t.rules_version, t.archived = version, False
         todos.append(t)
     db = object_session(row)
     for t in sorted(existing.values(), key=lambda t: t.sort_order):
         if t.status in FINISHED:
-            t.sort_order = len(todos) + 1
+            t.sort_order, t.archived = len(todos) + 1, True
             todos.append(t)
         elif db is not None:   # 다시 연 뒤 지워지는 할 일의 증빙 파일도 (볼 수도 지울 수도 없게 남지 않게)
             evidence.remove_after_commit(db, t.evidence_path)
     row.todos = todos   # 남기지 않은 할 일은 delete-orphan으로 지워진다
+
+
+def done_floor(row: Contract, t: Todo) -> date:
+    """끝낸 날로 넣을 수 있는 가장 이른 날. 끝낸 날은 뒤 할 일의 기준일이라 계약일보다 앞서면 뒤 기한이 모두 당겨진다.
+    계약 전날 하는 할 일(X-FIXED-DATE-STATUS 시작 = 계약일 −1일)은 그 시작일까지."""
+    return min(row.contract_date, t.start_date) if t.start_date else row.contract_date
 
 
 def _todo_out(t: Todo, today: date) -> TodoOut:
@@ -345,6 +351,16 @@ def update_contract(contract_id: int, inp: ContractPatch, db: Session = Depends(
     if terms:
         row.special_term_result = {**row.special_term_result, **terms}
     _sync_todos(row, check, rules)
+    # 계약일을 뒤로 바꿔 끝낸 날이 계약일보다 앞서게 되면 뒤 할 일의 기준일이 당겨진다 (PATCH /api/todos의 422와 같은 기준)
+    early = [t for t in row.todos if not t.archived and t.status in FINISHED and t.done_date
+             and t.done_date < done_floor(row, t)]
+    if early:
+        new_date = row.contract_date.isoformat()
+        db.rollback()
+        raise RequestValidationError([{
+            "type": "value_error", "loc": ("body", "contract_date"), "input": new_date,
+            "msg": f"Value error, 끝낸 날이 새 계약일({new_date})보다 앞서는 할 일이 있습니다: "
+                   f"{', '.join(t.title for t in early)}. 그 할 일을 되돌리거나 끝낸 날을 고친 뒤 바꾸세요"}])
     db.commit()
     return _to_out(row, db, rules, today)
 
