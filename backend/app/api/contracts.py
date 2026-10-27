@@ -15,9 +15,9 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
-from app import mailer
+from app import evidence, mailer
 from app.clock import today as today_dep
 from app.config import app_link_base, require_contract_auth
 from app.db import get_db
@@ -173,10 +173,13 @@ def _sync_todos(row: Contract, check: Verdict, rules: dict) -> None:
         t.sort_order, t.pinned, t.moved_to_top = p.sort_order, p.pinned, p.moved_to_top
         t.rules_version = version
         todos.append(t)
+    db = object_session(row)
     for t in sorted(existing.values(), key=lambda t: t.sort_order):
         if t.status in FINISHED:
             t.sort_order = len(todos) + 1
             todos.append(t)
+        elif db is not None:   # 다시 연 뒤 지워지는 할 일의 증빙 파일도 (볼 수도 지울 수도 없게 남지 않게)
+            evidence.remove_after_commit(db, t.evidence_path)
     row.todos = todos   # 남기지 않은 할 일은 delete-orphan으로 지워진다
 
 

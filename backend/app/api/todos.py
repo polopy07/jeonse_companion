@@ -86,41 +86,50 @@ def update_todo(todo_id: int, inp: TodoPatch, db: Session = Depends(get_db), rul
             raise api_error(409, "EVIDENCE_REQUIRED", f"증빙({todo.evidence})을 올려야 끝낼 수 있습니다",
                             "증빙 사진을 올리거나 \"나중에 올리기\"를 고르세요")
         todo.status, todo.done_date = inp.status, done_date
+        if inp.status == "skipped":
+            todo.skipped_date = today   # 증빙 재알림은 이날부터 센다 (FR-030)
     return _save(row, db, rules, today)
 
 
 @router.post("/{todo_id}/evidence", response_model=ContractOut, responses=responses(404, 409, 413, 422))
-async def upload_evidence(todo_id: int, file: UploadFile, done_date: date | None = Form(None),
-                          db: Session = Depends(get_db), rules: dict = Depends(get_rules),
-                          today: date = Depends(today_dep),
-                          x_contract_token: str | None = Header(None, description=TOKEN_HEADER_DESC)):
+def upload_evidence(todo_id: int, file: UploadFile, done_date: date | None = Form(None),
+                    db: Session = Depends(get_db), rules: dict = Depends(get_rules),
+                    today: date = Depends(today_dep),
+                    x_contract_token: str | None = Header(None, description=TOKEN_HEADER_DESC)):
     """증빙 사진 1장을 올려 할 일을 끝낸다 (FR-029, 기록함에 남음 FR-031). 형식·화질은 제한하지 않고 20MB까지.
 
     아직 끝내지 않은 할 일은 완료(done)로, 나중에 올리기(skipped)였던 할 일은 기록함을 채워 완료로 바꾼다
     (끝낸 날은 그대로, 보낸 done_date가 있으면 그날). 다시 올리면 앞의 사진을 바꾼다.
-    끝낼 수 있는 조건은 PATCH와 같다 (선행 조건, 잔금일 전, 미래 날짜). 무산된 계약이면 409.
+    아직 끝내지 않은 할 일과 done_date를 보낸 경우는 끝낼 수 있는 조건이 PATCH와 같다 (선행 조건, 잔금일 전,
+    미래 날짜). 이미 끝낸 할 일에 사진만 올리면 저장된 끝낸 날·앞 할 일은 다시 보지 않는다. 무산된 계약이면 409.
     """
     todo, row = _todo_and_contract(todo_id, x_contract_token, db)
     _active(row)
-    data = await file.read(evidence.MAX_EVIDENCE_BYTES + 1)
+    data = file.file.read(evidence.MAX_EVIDENCE_BYTES + 1)
     if len(data) > evidence.MAX_EVIDENCE_BYTES:
-        raise api_error(413, "FILE_TOO_LARGE", "증빙 파일은 20MB까지 올릴 수 있습니다", "사진 크기를 줄여 다시 올리세요")
+        raise api_error(413, "FILE_TOO_LARGE", f"증빙 파일은 {evidence.max_size_label()}까지 올릴 수 있습니다",
+                        "사진 크기를 줄여 다시 올리세요")
     if not data:
         raise RequestValidationError([{"type": "value_error", "loc": ("body", "file"), "input": None,
                                        "msg": "Value error, 빈 파일입니다"}])
-    keep = todo.done_date if todo.status in FINISHED and done_date is None else done_date
-    finished_on = _finish_date(todo, row, keep, today, rules)
+    if todo.status in FINISHED and done_date is None:
+        finished_on = todo.done_date
+    else:
+        finished_on = _finish_date(todo, row, done_date, today, rules)
 
     old = todo.evidence_path
-    todo.evidence_path = evidence.save(row.id, todo.id, data, file.filename)
+    new = evidence.save(row.id, todo.id, data, file.filename)
+    todo.evidence_path = new
     todo.status, todo.done_date = "done", finished_on
+    evidence.remove_after_commit(db, old)
     try:
-        out = _save(row, db, rules, today)
+        _sync_todos(row, db.get(Verdict, row.check_id), rules)
+        db.commit()
     except Exception:
-        evidence.remove(todo.evidence_path)   # DB에 남지 않은 새 파일은 지운다
+        db.rollback()
+        evidence.remove(new)   # DB에 남지 않은 새 파일만 지운다 (커밋한 뒤의 오류는 파일을 그대로 둠)
         raise
-    evidence.remove(old)
-    return out
+    return _to_out(row, db, rules, today)
 
 
 @router.get("/{todo_id}/evidence", response_class=FileResponse, responses=responses(404))
@@ -128,11 +137,11 @@ def get_evidence(todo_id: int, db: Session = Depends(get_db),
                  x_contract_token: str | None = Header(None, description=TOKEN_HEADER_DESC)):
     """올린 증빙 파일 (기록함 보기, UI-05). 사진·PDF는 화면에 바로, 다른 형식은 내려받기로 준다. 무산된 계약도 볼 수 있다."""
     todo, _ = _todo_and_contract(todo_id, x_contract_token, db)
-    if not todo.evidence_path or not evidence.path_of(todo.evidence_path).is_file():
+    path = evidence.path_of(todo.evidence_path) if todo.evidence_path else None
+    if path is None or not path.is_file():
         raise api_error(404, "NOT_FOUND", "올린 증빙이 없습니다")
     media_type = evidence.media_type(todo.evidence_path)
-    disposition = "inline" if media_type != "application/octet-stream" else "attachment"
-    path = evidence.path_of(todo.evidence_path)
+    disposition = "inline" if media_type != evidence.DOWNLOAD else "attachment"
     return FileResponse(path, media_type=media_type, filename=f"evidence-{todo.rule_id}{path.suffix}",
                         content_disposition_type=disposition, headers={"X-Content-Type-Options": "nosniff"})
 
@@ -146,14 +155,11 @@ def delete_evidence(todo_id: int, db: Session = Depends(get_db), rules: dict = D
     todo, row = _todo_and_contract(todo_id, x_contract_token, db)
     if not todo.evidence_path:
         raise api_error(404, "NOT_FOUND", "올린 증빙이 없습니다")
-    old = todo.evidence_path
+    evidence.remove_after_commit(db, todo.evidence_path)
     todo.evidence_path = None
     if todo.status == "done":
-        todo.status = "skipped"
+        todo.status, todo.skipped_date = "skipped", today
     if row.status == "cancelled":   # 무산된 계약은 할 일을 다시 계산하지 않는다 (기록만 남음)
         db.commit()
-        out = _to_out(row, db, rules, today)
-    else:
-        out = _save(row, db, rules, today)
-    evidence.remove(old)
-    return out
+        return _to_out(row, db, rules, today)
+    return _save(row, db, rules, today)

@@ -62,7 +62,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -124,7 +124,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -186,7 +186,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -249,7 +249,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -341,7 +341,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -376,7 +376,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity",
+            "description": "Unprocessable Content",
             "content": {
               "application/json": {
                 "schema": {
@@ -473,7 +473,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       },
@@ -581,7 +581,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -681,7 +681,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -791,7 +791,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -802,7 +802,7 @@
           "할 일"
         ],
         "summary": "Upload Evidence",
-        "description": "증빙 사진 1장을 올려 할 일을 끝낸다 (FR-029, 기록함에 남음 FR-031). 형식·화질은 제한하지 않고 20MB까지.\n\n아직 끝내지 않은 할 일은 완료(done)로, 나중에 올리기(skipped)였던 할 일은 기록함을 채워 완료로 바꾼다\n(끝낸 날은 그대로, 보낸 done_date가 있으면 그날). 다시 올리면 앞의 사진을 바꾼다.\n끝낼 수 있는 조건은 PATCH와 같다 (선행 조건, 잔금일 전, 미래 날짜). 무산된 계약이면 409.",
+        "description": "증빙 사진 1장을 올려 할 일을 끝낸다 (FR-029, 기록함에 남음 FR-031). 형식·화질은 제한하지 않고 20MB까지.\n\n아직 끝내지 않은 할 일은 완료(done)로, 나중에 올리기(skipped)였던 할 일은 기록함을 채워 완료로 바꾼다\n(끝낸 날은 그대로, 보낸 done_date가 있으면 그날). 다시 올리면 앞의 사진을 바꾼다.\n아직 끝내지 않은 할 일과 done_date를 보낸 경우는 끝낼 수 있는 조건이 PATCH와 같다 (선행 조건, 잔금일 전,\n미래 날짜). 이미 끝낸 할 일에 사진만 올리면 저장된 끝낸 날·앞 할 일은 다시 보지 않는다. 무산된 계약이면 409.",
         "operationId": "upload_evidence_api_todos__todo_id__evidence_post",
         "parameters": [
           {
@@ -901,7 +901,7 @@
                 }
               }
             },
-            "description": "Request Entity Too Large"
+            "description": "Content Too Large"
           },
           "422": {
             "content": {
@@ -911,7 +911,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       },
@@ -1095,7 +1095,7 @@
             }
           },
           "413": {
-            "description": "Request Entity Too Large",
+            "description": "Content Too Large",
             "content": {
               "application/json": {
                 "schema": {
@@ -1105,7 +1105,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity",
+            "description": "Unprocessable Content",
             "content": {
               "application/json": {
                 "schema": {
@@ -1224,7 +1224,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           },
           "502": {
             "content": {
@@ -1352,7 +1352,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }

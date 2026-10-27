@@ -58,10 +58,12 @@ def run(db: Session, day: date, rules: dict) -> list[Notification]:
 
     for c in contracts:   # 무산된 계약은 알림을 보내지 않는다 (FR-016)
         for t in c.todos:
-            # 나중에 올리기(FR-030): 끝낸 날로부터 며칠 뒤 증빙을 올리라고 다시 알린다 (앱 안 알림만)
+            # 나중에 올리기(FR-030): 나중에 올리기로 바꾼 날(증빙을 지운 날)로부터 며칠 뒤 증빙을 올리라고 다시 알린다
+            # (앱 안 알림만). 끝낸 날 기준이면 예전 날짜로 끝내거나 오래된 증빙을 지웠을 때 따라잡기 창을 넘겨 안 간다
+            skipped_on = t.skipped_date or t.done_date
             if (evidence_after is not None and t.status == "skipped" and t.evidence and not t.evidence_path
-                    and t.done_date is not None):
-                n = Notice("evidence", t.done_date + timedelta(days=evidence_after))
+                    and skipped_on is not None):
+                n = Notice("evidence", skipped_on + timedelta(days=evidence_after))
                 if due_on(n, day, catch_up):
                     add(c, t, n, ["app"])
             if t.status in DONE:
