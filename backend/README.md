@@ -180,11 +180,11 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 
 ### 증빙 사진 올리기·보기·삭제 (FR-029·031·033, #44·#45)
 
-- `POST /api/todos/{id}/evidence` (multipart `file`, 선택 `done_date`): 사진 1장으로 할 일 완료(`done`). 형식·화질 제한 없이 20MB까지. 나중에 올리기였던 할 일은 끝낸 날 그대로 `done`, 다시 올리면 앞 사진을 바꿈. 끝낼 수 있는 조건은 `PATCH /api/todos/{id}`와 같음
-- `GET /api/todos/{id}/evidence`: 파일. 사진·PDF는 `inline`, 다른 형식은 내려받기(`X-Content-Type-Options: nosniff`)
+- `POST /api/todos/{id}/evidence` (multipart `file`, 선택 `done_date`): 사진 1장으로 할 일 완료(`done`). 형식·화질 제한 없이 20MB까지. 나중에 올리기였던 할 일은 끝낸 날 그대로 `done`, 다시 올리면 앞 사진을 바꿈. 끝낼 수 있는 조건은 `PATCH /api/todos/{id}`와 같음(이미 끝낸 할 일에 사진만 올리면 끝낸 날·앞 할 일은 다시 보지 않음). 20MB 검사는 업로드를 다 받은 뒤라, 배포 때는 프록시에서 요청 크기도 막음(출시 준비)
+- `GET /api/todos/{id}/evidence`: 파일. 사진(jpg·jpeg·png·gif·webp·heic·heif)·PDF는 `inline`, 다른 형식(SVG·HTML 포함)은 내려받기(`X-Content-Type-Options: nosniff`)
 - `DELETE /api/todos/{id}/evidence`: 언제든(무산된 계약도) 지움. 완료했던 할 일은 `skipped`(완료 그대로, 기록함만 빈칸)
-- 파일은 `EVIDENCE_DIR`(기본 `backend/data/evidence/<계약 id>/`, git 제외)에 저장, DB에는 상대 경로만. `reset_demo_db.py`가 같이 지움. 암호화 저장은 출시 준비
-- 나중에 올리기 한 할 일은 끝낸 날 7일 뒤 "증빙을 아직 안 올렸어요" 앱 안 알림 (`todos.yaml` `notifications.evidence_after_days`, FR-030)
+- 파일은 `EVIDENCE_DIR`(기본 `backend/data/evidence/<계약 id>/`, git 제외)에 저장, DB에는 상대 경로만. `reset_demo_db.py`가 계약별 폴더(숫자 이름)만 같이 지움. 다시 열린 뒤 조건이 바뀌어 지워지는 할 일의 파일도 지움. 암호화 저장은 출시 준비
+- 나중에 올리기 한 할 일은 나중에 올리기로 바꾼 날(증빙을 지운 날) 7일 뒤 "증빙을 아직 안 올렸어요" 앱 안 알림 (`todos.yaml` `notifications.evidence_after_days`, FR-030)
 
 ### `POST /api/contracts/access-link` 접근 링크 이메일로 다시 받기 (#39)
 

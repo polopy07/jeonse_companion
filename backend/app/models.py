@@ -109,6 +109,7 @@ class Todo(Base):
     rules_version: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="todo")   # todo / done / skipped
     done_date: Mapped[date | None] = mapped_column(Date)
+    skipped_date: Mapped[date | None] = mapped_column(Date)          # 나중에 올리기로 바꾼 날 (증빙 재알림 기준, FR-030)
     evidence_path: Mapped[str | None] = mapped_column(String(500))     # 기록함 증빙 사진
 
     contract: Mapped[Contract] = relationship(back_populates="todos")

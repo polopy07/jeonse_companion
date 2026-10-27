@@ -2,6 +2,9 @@
 import pytest
 
 from app import evidence
+from app.api import todos as todos_api
+from app.db import get_sessionmaker
+from app.models import Contract, Todo
 from tests.test_contract_patch import _contract
 from tests.test_todo_complete import _set, _todo
 
@@ -79,13 +82,27 @@ def test_upload_size_limit(client, monkeypatch):
     assert r.status_code == 413 and r.json()["detail"]["code"] == "FILE_TOO_LARGE"
 
 
-def test_other_types_are_downloaded(client):
+@pytest.mark.parametrize("name, data", [
+    ("note.html", b"<script>alert(1)</script>"),
+    ("x.svg", b'<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>'),   # image/*여도 스크립트가 돎
+    ("noext", b"plain"),
+])
+def test_other_types_are_downloaded(client, name, data):
     c = _contract(client)
-    r = _upload(client, c, "T4", data=b"<script>alert(1)</script>", name="note.html")
+    r = _upload(client, c, "T4", data=data, name=name)
     t4 = _todo(r.json(), "T4")
     r = client.get(f"/api/todos/{t4['id']}/evidence", headers=_headers(c))
     assert r.headers["content-type"] == "application/octet-stream"
     assert r.headers["content-disposition"].startswith("attachment")
+
+
+def test_iphone_photo_is_shown_inline(client):
+    # mimetypes에 .heic가 없는 서버에서도 아이폰 사진은 바로 보인다
+    c = _contract(client)
+    t4 = _todo(_upload(client, c, "T4", name="IMG_0001.HEIC").json(), "T4")
+    r = client.get(f"/api/todos/{t4['id']}/evidence", headers=_headers(c))
+    assert r.headers["content-type"] == "image/heic"
+    assert r.headers["content-disposition"].startswith("inline")
 
 
 def test_delete_keeps_done_as_skipped(client, evidence_tmp):
@@ -133,3 +150,89 @@ def test_skipped_todo_gets_evidence_reminder(client):
     _set(client, c2, "T4", {"status": "skipped", "done_date": "2026-12-01"}, day="2026-12-01")
     _upload(client, c2, "T4", day="2026-12-03")
     assert [n for n in run("2026-12-08") if n["contract_id"] == c2["id"]] == []
+
+
+def test_upload_to_finished_todo_only_replaces_photo(client):
+    # 가상 날짜를 되돌린 뒤 이미 끝낸 할 일에 사진만 올리면, 저장된 끝낸 날로 422가 나지 않는다
+    c = _contract(client)
+    _set(client, c, "T4", {"status": "skipped", "done_date": "2026-12-20"}, day="2026-12-20")
+    r = _upload(client, c, "T4", day="2026-12-05")
+    assert r.status_code == 200, r.text
+    assert (_todo(r.json(), "T4")["status"], _todo(r.json(), "T4")["done_date"]) == ("done", "2026-12-20")
+    # done_date를 새로 보내면 그 날짜는 검사한다
+    r = _upload(client, c, "T4", day="2026-12-05", done_date="2026-12-09")
+    assert r.status_code == 422
+
+
+def test_failed_save_removes_only_new_file(client, evidence_tmp, monkeypatch):
+    c = _contract(client)
+    _upload(client, c, "T4", data=b"first")
+
+    def boom(*args):
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(todos_api, "_sync_todos", boom)   # 커밋 전 실패 → 새 파일만 지우고 앞 사진은 남김
+    with pytest.raises(RuntimeError):
+        _upload(client, c, "T4", data=b"second")
+    assert [f.read_bytes() for f in evidence_tmp.rglob("*.*")] == [b"first"]
+
+
+def test_error_after_commit_keeps_new_file(client, evidence_tmp, monkeypatch):
+    c = _contract(client)
+    to_out = todos_api._to_out
+    monkeypatch.setattr(todos_api, "_to_out", lambda *args: (_ for _ in ()).throw(RuntimeError("after commit")))
+    with pytest.raises(RuntimeError):
+        _upload(client, c, "T4", data=b"kept")
+    monkeypatch.setattr(todos_api, "_to_out", to_out)
+    assert [f.read_bytes() for f in evidence_tmp.rglob("*.*")] == [b"kept"]
+    r = client.get(f"/api/todos/{_todo(c, 'T4')['id']}/evidence", headers=_headers(c))
+    assert r.status_code == 200 and r.content == b"kept"
+
+
+def test_dropped_todo_removes_its_file(client, evidence_tmp):
+    # 다시 열린(끝내지 않은) 할 일이 재계산으로 빠지면 증빙 파일도 같이 지운다 (FR-033)
+    c = _contract(client)
+    with get_sessionmaker()() as db:
+        row = db.get(Contract, c["id"])
+        rel = evidence.save(row.id, 0, b"orphan", "gone.jpg")
+        row.todos.append(Todo(rule_id="X-GONE", title="빠질 할 일", rules_version="test", status="todo",
+                              evidence_path=rel))
+        db.commit()
+    assert len(list(evidence_tmp.rglob("*.jpg"))) == 1
+    r = client.patch(f"/api/contracts/{c['id']}", json={"email": "tenant@example.com"},
+                     headers={"X-Contract-Token": c["access_token"]})
+    assert r.status_code == 200, r.text
+    assert "X-GONE" not in [t["rule_id"] for t in r.json()["todos"]]
+    assert not list(evidence_tmp.rglob("*.jpg"))
+
+
+def _evidence_reminders(client, day: str, contract_id: int) -> list:
+    r = client.post("/api/admin/notifications/run", json={"date": day}, headers={"X-Admin-Token": ADMIN})
+    assert r.status_code == 200, r.text
+    return [n["notify_date"] for n in r.json()["created"] if n["kind"] == "evidence" and n["contract_id"] == contract_id]
+
+
+def test_evidence_reminder_counts_from_skip_day(client):
+    # 예전 날짜로 끝내고 나중에 올리기 → 끝낸 날이 아니라 나중에 올리기로 바꾼 날 7일 뒤 (FR-030)
+    c = _contract(client)
+    _set(client, c, "T4", {"status": "skipped", "done_date": "2026-12-02"}, day="2026-12-20")
+    assert _evidence_reminders(client, "2026-12-20", c["id"]) == []
+    assert _evidence_reminders(client, "2026-12-27", c["id"]) == ["2026-12-27"]
+
+
+def test_evidence_reminder_after_deleting_old_photo(client):
+    c = _contract(client)
+    t4 = _todo(_upload(client, c, "T4", done_date="2026-12-03").json(), "T4")
+    client.delete(f"/api/todos/{t4['id']}/evidence", headers=_headers(c, "2027-01-10"))
+    assert _evidence_reminders(client, "2027-01-17", c["id"]) == ["2027-01-17"]
+
+
+def test_remove_all_only_contract_folders(tmp_path, monkeypatch):
+    # 시연 초기화가 EVIDENCE_DIR을 통째로 지우지 않는다 (잘못 잡은 폴더 보호)
+    monkeypatch.setenv("EVIDENCE_DIR", str(tmp_path))
+    (tmp_path / "12").mkdir()
+    (tmp_path / "12" / "1-a.jpg").write_bytes(b"x")
+    (tmp_path / "app").mkdir()
+    (tmp_path / "main.py").write_text("keep")
+    evidence.remove_all()
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["app", "main.py"]
