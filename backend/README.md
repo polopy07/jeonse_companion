@@ -128,7 +128,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 }
 ```
 
-- `payment_id`: 이 판정의 결제(`paid`)이거나 무산된 계약에서 풀린 결제(`released`)여야 한다. 아니면 402 `PAYMENT_REQUIRED`. 풀린 결제는 무산된 계약의 접근 토큰을 헤더 `X-Contract-Token`으로 함께 보내야 다시 쓴다(아니면 402). 풀린 결제가 할 일 관리만(4,900원)인데 이 집이 패키지면 402(다시 결제), 반대는 그대로 쓴다. 서버 설정 `REQUIRE_CONTRACT_AUTH`가 false(기본, 앱 연결 전)면 `payment_id` 없이도 만든다
+- `payment_id`: 이 판정의 결제(`paid`)이거나 무산된 계약에서 풀린 결제(`released`)여야 한다. 아니면 402 `PAYMENT_REQUIRED`. 풀린 결제는 무산된 계약의 접근 토큰을 본문 `released_contract_token`으로 함께 보내야 다시 쓴다(없으면 402와 "접근 링크 다시 받기" 안내, 틀리면 402). 지금 만드는 계약의 토큰이 아니라서 `X-Contract-Token` 헤더로 받지 않는다. 풀린 결제가 할 일 관리만(4,900원)인데 이 집이 패키지면 402(다시 결제), 반대는 그대로 쓴다. 서버 설정 `REQUIRE_CONTRACT_AUTH`가 false(기본, 앱 연결 전)면 `payment_id` 없이도 만든다
 - 응답의 `access_token`(계약 접근 토큰)은 **이 응답에서 한 번만** 준다. 서버에는 SHA-256 해시만 남는다. 앱은 계약 id와 함께 저장해 두고 계약 아래 요청에 `X-Contract-Token` 헤더로 보낸다
 - 주택 유형·보증금·공시가격·전용면적은 `check_id` 판정의 입력을 그대로 쓴다. 보증금이 바뀌었으면 계약 전 확인을 다시 한다
 - 선택 입력과 기본값: `monthly_rent` 0, `loan` false, `guarantor` `none`(HUG / HF / SGI / none), `brokered` true(직거래면 false), `renewal_right_used` false, `co_tenant` false, `email`, `special_term_result`(키는 `special_terms.yaml`의 id, 값은 `inserted` / `rejected`)
@@ -183,7 +183,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 {"email": "tenant@example.com"}
 ```
 
-- 그 이메일로 만든 진행 중 계약마다 새 접근 토큰을 만들어 계약 이메일로 보낸다. 처음 토큰은 그대로 둬서, 남이 이 요청을 보내도 원래 휴대폰은 계속 쓸 수 있다 (새 토큰은 `contract_tokens`에 해시로)
+- 그 이메일로 만든 진행 중 계약마다 새 접근 토큰을 만들어 계약 이메일로 보낸다. 무산된 계약도 풀린 결제가 남아 있으면 보낸다(앱을 다시 설치해도 그 결제를 다음 집 계약에 쓸 수 있게). 처음 토큰은 그대로 둬서, 남이 이 요청을 보내도 원래 휴대폰은 계속 쓸 수 있다 (새 토큰은 `contract_tokens`에 해시로)
 - 이메일이 없어도 같은 202 `{"message": ...}`. 계약마다 한 시간에 3번까지, 메일을 보내지 못하면 토큰을 남기지 않는다
 - 메일 본문: `APP_LINK_BASE`가 있으면 `{APP_LINK_BASE}?contract={id}&token=...` 링크, 없으면 계약 번호와 접근 코드. 앱은 이 둘을 받아 저장하고 `X-Contract-Token`으로 쓴다
 

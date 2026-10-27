@@ -259,6 +259,10 @@ class ContractInput(BaseModel):
     payment_id: int | None = Field(
         None, description="POST /api/checks/{id}/payment의 payment_id. 이 판정의 결제이거나 무산된 계약에서 풀린 결제. "
                           "서버 설정 REQUIRE_CONTRACT_AUTH가 true면 꼭 있어야 한다 (API 명세 1.8)")
+    released_contract_token: str | None = Field(
+        None, max_length=200,
+        description="풀린 결제(released)를 payment_id로 다시 쓸 때만: 그 결제를 썼던 무산된 계약의 access_token "
+                    "(API 명세 1.8). 지금 만드는 계약의 토큰이 아니라서 X-Contract-Token 헤더가 아니라 여기로 보낸다")
 
     @model_validator(mode="after")
     def dates_in_order(self):

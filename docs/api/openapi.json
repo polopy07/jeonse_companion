@@ -20,8 +20,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string",
-                  "format": "date"
+                  "type": "string"
                 },
                 {
                   "type": "null"
@@ -62,7 +61,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -124,7 +123,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -186,7 +185,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -249,7 +248,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -263,32 +262,13 @@
         "operationId": "create_contract_api_contracts_post",
         "parameters": [
           {
-            "name": "x-contract-token",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "풀린 결제(released)를 다시 쓸 때만: 그 결제를 썼던 무산된 계약의 접근 토큰 (API 명세 1.8)",
-              "title": "X-Contract-Token"
-            },
-            "description": "풀린 결제(released)를 다시 쓸 때만: 그 결제를 썼던 무산된 계약의 접근 토큰 (API 명세 1.8)"
-          },
-          {
             "name": "x-virtual-today",
             "in": "header",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "string",
-                  "format": "date"
+                  "type": "string"
                 },
                 {
                   "type": "null"
@@ -359,7 +339,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -370,7 +350,7 @@
           "계약"
         ],
         "summary": "Send Access Link",
-        "description": "접근 링크 이메일로 다시 받기 (#39, 휴대폰을 바꾸거나 앱을 지웠을 때).\n\n그 이메일로 만든 진행 중 계약마다 새 접근 토큰을 만들어 계약 이메일로 보낸다. 처음 토큰은 그대로 둔다\n(남이 다시 받기를 눌러도 원래 휴대폰이 쫓겨나지 않게). 이메일이 없어도 같은 202를 돌려준다.",
+        "description": "접근 링크 이메일로 다시 받기 (#39, 휴대폰을 바꾸거나 앱을 지웠을 때).\n\n그 이메일로 만든 진행 중 계약마다 새 접근 토큰을 만들어 계약 이메일로 보낸다. 처음 토큰은 그대로 둔다\n(남이 다시 받기를 눌러도 원래 휴대폰이 쫓겨나지 않게). 이메일이 없어도 같은 202를 돌려준다.\n무산된 계약도 풀린 결제(released)가 남아 있으면 보낸다: 그 토큰이 있어야 다음 집 계약에 결제를 다시 쓴다(FR-016).",
         "operationId": "send_access_link_api_contracts_access_link_post",
         "requestBody": {
           "content": {
@@ -394,7 +374,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity",
+            "description": "Unprocessable Content",
             "content": {
               "application/json": {
                 "schema": {
@@ -449,8 +429,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string",
-                  "format": "date"
+                  "type": "string"
                 },
                 {
                   "type": "null"
@@ -491,7 +470,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       },
@@ -537,8 +516,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string",
-                  "format": "date"
+                  "type": "string"
                 },
                 {
                   "type": "null"
@@ -599,7 +577,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -647,8 +625,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string",
-                  "format": "date"
+                  "type": "string"
                 },
                 {
                   "type": "null"
@@ -699,7 +676,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -747,17 +724,16 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string",
-                  "format": "date"
+                  "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없으면 실제 오늘",
+              "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘",
               "title": "X-Virtual-Today"
             },
-            "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없으면 실제 오늘"
+            "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘"
           }
         ],
         "requestBody": {
@@ -809,7 +785,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -843,7 +819,7 @@
             }
           },
           "413": {
-            "description": "Request Entity Too Large",
+            "description": "Content Too Large",
             "content": {
               "application/json": {
                 "schema": {
@@ -853,7 +829,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity",
+            "description": "Unprocessable Content",
             "content": {
               "application/json": {
                 "schema": {
@@ -972,7 +948,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           },
           "502": {
             "content": {
@@ -1031,8 +1007,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string",
-                  "format": "date"
+                  "type": "string"
                 },
                 {
                   "type": "null"
@@ -1100,7 +1075,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -1829,6 +1804,19 @@
             ],
             "title": "Payment Id",
             "description": "POST /api/checks/{id}/payment의 payment_id. 이 판정의 결제이거나 무산된 계약에서 풀린 결제. 서버 설정 REQUIRE_CONTRACT_AUTH가 true면 꼭 있어야 한다 (API 명세 1.8)"
+          },
+          "released_contract_token": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Released Contract Token",
+            "description": "풀린 결제(released)를 payment_id로 다시 쓸 때만: 그 결제를 썼던 무산된 계약의 access_token (API 명세 1.8). 지금 만드는 계약의 토큰이 아니라서 X-Contract-Token 헤더가 아니라 여기로 보낸다"
           }
         },
         "type": "object",

@@ -23,7 +23,7 @@ from app.config import app_link_base, require_contract_auth
 from app.db import get_db
 from app.engine.alert import alert_level
 from app.engine.payment import PRODUCTS, covers, product_for
-from app.engine.schedule import days_left, todo_state
+from app.engine.schedule import FINISHED, days_left, todo_state   # FINISHED: 끝낸 할 일 (skipped = 나중에 올리기)
 from app.engine.special_terms import contract_day_guide, term_effects
 from app.engine.todos import build_todos, report_required
 from app.errors import api_error, responses
@@ -40,8 +40,7 @@ _PRODUCT_LABEL = {"package": "전동기 패키지", "todo_only": "할 일 관리
 ACCESS_LINK_MESSAGE = "이 이메일로 만든 계약이 있으면 접근 링크를 보냈습니다. 메일함을 확인하세요"
 ACCESS_LINK_PER_HOUR = 3   # 계약마다 한 시간에 다시 보내는 횟수 (메일 폭탄 막기)
 TOKEN_HEADER_DESC = "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
-RELEASED_TOKEN_DESC = "풀린 결제(released)를 다시 쓸 때만: 그 결제를 썼던 무산된 계약의 접근 토큰 (API 명세 1.8)"
-FINISHED = ("done", "skipped")   # 끝낸 할 일 (skipped = 나중에 올리기: 완료 처리, 증빙만 빈칸)
+PAYMENT_HINT = "결과 화면에서 패키지 시작을 눌러 결제를 확인하세요"
 
 # 판정 입력에서 그대로 가져오는 값 (fields.yaml 이름)
 _FROM_CHECK = ("housing_type", "deposit", "official_price", "exclusive_area")
@@ -104,18 +103,17 @@ def _active(row: Contract) -> None:
                         "기록은 계속 볼 수 있습니다. 다음 집은 계약 전 확인부터 다시 하세요")
 
 
-def _released_by_owner(p: Payment, token: str | None, db: Session) -> bool:
-    """풀린 결제는 무산된 계약의 접근 토큰을 함께 보내야 다시 쓴다. 결제 번호만 바꿔 남의 풀린 결제를 가져가지 못하게.
+def _released_by_owner(p: Payment, token: str, db: Session) -> bool:
+    """풀린 결제는 그 결제를 썼던 무산된 계약의 접근 토큰을 함께 보내야 다시 쓴다. 결제 번호만 바꿔 남의 풀린 결제를
+    가져가지 못하게. 풀린 결제(released)는 계약 무산으로만 생기므로 계약 상태는 다시 보지 않는다.
 
     REQUIRE_CONTRACT_AUTH와 상관없이 언제나 확인한다 (풀린 결제를 다시 쓰는 앱 화면은 토큰 저장과 함께 만든다).
     """
-    if token is None or p.contract_id is None:
-        return False
-    cancelled = db.get(Contract, p.contract_id)
-    return cancelled is not None and cancelled.status == "cancelled" and _token_matches(cancelled, token, db)
+    cancelled = db.get(Contract, p.contract_id) if p.contract_id is not None else None
+    return cancelled is not None and _token_matches(cancelled, token, db)
 
 
-def _take_payment(payment_id: int | None, check: Verdict, db: Session, token: str | None) -> Payment | None:
+def _take_payment(payment_id: int | None, check: Verdict, db: Session, released_token: str | None) -> Payment | None:
     """계약 생성에 쓸 테스트 결제를 확인한다 (402 판단, 결정 자료 "세부 규칙").
 
     통과: 이 판정에 한 결제(paid), 또는 무산된 계약에서 풀린 결제(released)와 그 계약의 접근 토큰.
@@ -123,15 +121,19 @@ def _take_payment(payment_id: int | None, check: Verdict, db: Session, token: st
     """
     if payment_id is None:
         if require_contract_auth():
-            raise api_error(402, "PAYMENT_REQUIRED", "테스트 결제를 먼저 해야 합니다",
-                            "결과 화면에서 패키지 시작을 눌러 결제를 확인하세요")
+            raise api_error(402, "PAYMENT_REQUIRED", "테스트 결제를 먼저 해야 합니다", PAYMENT_HINT)
         return None
     p = db.get(Payment, payment_id)
-    usable = p is not None and ((p.status == "paid" and p.check_id == check.id) or
-                                (p.status == "released" and _released_by_owner(p, token, db)))
-    if not usable:
-        raise api_error(402, "PAYMENT_REQUIRED", "이 판정에 쓸 수 있는 결제가 아닙니다",
-                        "결과 화면에서 패키지 시작을 눌러 결제를 확인하세요")
+    if p is not None and p.status == "released":
+        if released_token is None:
+            raise api_error(402, "PAYMENT_REQUIRED", "무산된 계약에서 풀린 결제는 그 계약의 접근 토큰과 함께 써야 합니다",
+                            "앱을 다시 설치했거나 휴대폰을 바꿨으면 접근 링크를 이메일로 다시 받으세요")
+        if not _released_by_owner(p, released_token, db):   # 틀린 토큰은 남의 결제인지 드러나지 않게 아래와 같은 문구
+            p = None
+    elif p is not None and not (p.status == "paid" and p.check_id == check.id):
+        p = None
+    if p is None:
+        raise api_error(402, "PAYMENT_REQUIRED", "이 판정에 쓸 수 있는 결제가 아닙니다", PAYMENT_HINT)
     needed = product_for(check.level)
     if not covers(p.product, needed):
         raise api_error(402, "PAYMENT_REQUIRED",
@@ -238,8 +240,7 @@ def _to_out(row: Contract, db: Session, rules: dict, today: date) -> ContractOut
 
 @router.post("", response_model=ContractCreatedOut, status_code=201, responses=responses(402, 404, 409, 422))
 def create_contract(inp: ContractInput, db: Session = Depends(get_db), rules: dict = Depends(get_rules),
-                    today: date = Depends(today_dep),
-                    x_contract_token: str | None = Header(None, description=RELEASED_TOKEN_DESC)):
+                    today: date = Depends(today_dep)):
     check = db.get(Verdict, inp.check_id)
     if check is None:
         raise api_error(404, "NOT_FOUND", "판정 결과가 없습니다", "계약 전 확인을 먼저 하세요")
@@ -253,12 +254,12 @@ def create_contract(inp: ContractInput, db: Session = Depends(get_db), rules: di
     if check.contract_id is not None:
         raise api_error(409, "CHECK_ALREADY_USED", "이미 계약을 만든 판정 결과입니다", ALREADY_USED_HINT)
     _check_special_terms(inp.special_term_result, check.linkages, rules)
-    payment = _take_payment(inp.payment_id, check, db, x_contract_token)
+    payment = _take_payment(inp.payment_id, check, db, inp.released_contract_token)
 
     token = secrets.token_urlsafe(32)
     row = Contract(
         **{name: check.inputs.get(name) for name in _FROM_CHECK},
-        **inp.model_dump(exclude={"payment_id"}),
+        **inp.model_dump(exclude={"payment_id", "released_contract_token"}),
         access_token_hash=_token_hash(token),
         status="active",
     )
@@ -287,11 +288,13 @@ def send_access_link(inp: AccessLinkInput, db: Session = Depends(get_db)):
 
     그 이메일로 만든 진행 중 계약마다 새 접근 토큰을 만들어 계약 이메일로 보낸다. 처음 토큰은 그대로 둔다
     (남이 다시 받기를 눌러도 원래 휴대폰이 쫓겨나지 않게). 이메일이 없어도 같은 202를 돌려준다.
+    무산된 계약도 풀린 결제(released)가 남아 있으면 보낸다: 그 토큰이 있어야 다음 집 계약에 결제를 다시 쓴다(FR-016).
     """
     now = datetime.now(timezone.utc)
+    released = select(Payment.id).where(Payment.contract_id == Contract.id, Payment.status == "released").exists()
     rows = db.scalars(select(Contract).where(
         func.lower(Contract.email) == inp.email.strip().lower(),
-        or_(Contract.status == "active", Contract.status.is_(None)),
+        or_(Contract.status == "active", Contract.status.is_(None), (Contract.status == "cancelled") & released),
     ).order_by(Contract.id)).all()
     issued = []
     for row in rows:
@@ -317,7 +320,8 @@ def _access_link_body(issued: list[tuple[Contract, str]]) -> str:
     base = app_link_base()
     lines = ["안녕하세요, 전동기입니다.", "", "요청하신 계약 접근 링크예요. 앱에서 계약을 다시 불러올 때 쓰세요.", ""]
     for row, token in issued:
-        lines.append(f"- 계약 {row.id}: 보증금 {row.deposit:,}원, 잔금일 {row.balance_date.isoformat()}")
+        note = " (무산된 계약, 결제를 다음 집 계약에 다시 쓸 때)" if row.status == "cancelled" else ""
+        lines.append(f"- 계약 {row.id}: 보증금 {row.deposit:,}원, 잔금일 {row.balance_date.isoformat()}{note}")
         lines.append(f"  {base}?contract={row.id}&token={token}" if base else f"  접근 코드: {token}")
     lines += ["", "직접 요청하지 않았다면 이 메일은 지워도 됩니다. 원래 쓰던 휴대폰은 그대로 쓸 수 있어요.",
               "이 링크를 가진 사람은 계약을 볼 수 있으니 다른 사람에게 보내지 마세요."]
@@ -346,7 +350,7 @@ def update_contract(contract_id: int, inp: ContractPatch, db: Session = Depends(
 
     # 바꾼 뒤의 계약 조건 전체가 계약 생성 때와 같은 규칙(날짜 순서, 대출 없으면 실행일 없음)을 지켜야 한다
     current = {name: getattr(row, name) for name in ContractInput.model_fields
-               if name not in ("check_id", "special_term_result")}
+               if name not in ("check_id", "special_term_result", "released_contract_token")}
     try:
         ContractInput(check_id=row.check_id, **{**current, **changes})
     except ValidationError as e:
