@@ -268,10 +268,15 @@ export type ApiTodo = {
   prerequisites: string[];
   required_checks: string[];
   evidence: string | null;
+  /** 증빙 사진을 올렸는지 (보기는 GET /api/todos/{id}/evidence) */
+  evidence_uploaded: boolean;
   pinned: boolean;
   moved_to_top: boolean;
   sort_order: number;
+  /** todo / done 완료 / skipped 나중에 올리기 (완료로 치고 기록함만 빈칸) */
   status: 'todo' | 'done' | 'skipped';
+  /** 끝낸 날 (done·skipped). 뒤 할 일의 기준일 */
+  done_date: string | null;
   rules_version: string;
   /** 오늘(가상 날짜면 그날) 기준: done 끝냄 / upcoming 시작 전 / in_progress 할 때 / overdue 기한 지남 */
   state: 'done' | 'upcoming' | 'in_progress' | 'overdue';

@@ -21,9 +21,10 @@ export const house = {
   deposit: 140_000_000,
   mortgage: 14_400_000,
   officialPrice: 116_000_000,
-  contractDate: '2026.10.20',
-  balanceDate: '2026.11.20',
-  endDate: '2028.11.19',
+  /** 계약 당일 시연 장면 날짜 (demo_houses.yaml contract_day, 기한 정답표 S7) */
+  contractDate: '2026.10.14',
+  balanceDate: '2026.11.25',
+  endDate: '2028.11.24',
 };
 
 /** 시연 기준 가상 날짜 */
@@ -166,14 +167,14 @@ const villaInput: CheckInput = {
   guarantor_consult: 'not_yet',
 };
 
-/** 홈에서 "결과 다시 보기"로 여는 시연 집 결과 (계약 전 확인 2026.10.09) */
+/** 홈에서 "결과 다시 보기"로 여는 시연 집 결과 (계약 전 확인 = 정답표 기준일 2026.10.13) */
 export const checkResult: CheckView = {
-  ...runCheckLocal(villaInput, `${house.name} · ${house.type}`, '2026.10.09', villa.registry.owner),
+  ...runCheckLocal(villaInput, `${house.name} · ${house.type}`, '2026.10.13', villa.registry.owner),
   virtualMortgage: villa.registry.virtualMortgage,
   sourceLines: villa.registry.source,
   demoDates: villa.contractDay ?? undefined,
   summary: '근저당이 있는 집이에요. 아래 확인 항목과 특약 예시를 계약 당일에 챙기면 돼요.',
-  disclaimer: '조회 2026.10.09 · 공시가격 2026.01.01 기준. 정보 제공이며 보증하지 않습니다.',
+  disclaimer: '조회 2026.10.13 · 공시가격 2026.01.01 기준. 정보 제공이며 보증하지 않습니다.',
 };
 
 /** 시연 집 계약 당일 현장 확인 (소유자 본인 참석, 모두 확인) */
@@ -204,34 +205,42 @@ export type Todo = {
 };
 
 export const todos: Todo[] = [
-  { id: 'T1', title: '임대차 신고', when: '10.21 완료 · 증빙 1장', status: 'done' },
-  { id: 'T2', title: '보증 가입 여부 확정', when: '10.28 완료 · HUG', status: 'done' },
+  // 비율 90% 이상(L-RATIO90) → 보증기관 상담 기한이 계약일
+  { id: 'T2', title: '보증 가입 여부 확정', when: '10.14 완료 · 상담 기록', status: 'done' },
+  { id: 'T1', title: '임대차 신고', when: '10.20 완료 · 증빙 1장', status: 'done' },
   // 담보 설정 금지 특약 "거절당함" → 전입신고를 맨 위로 (special_terms.yaml S-NO-MORTGAGE on_rejected, AC-016)
   {
     id: 'T4',
     title: '전입신고',
-    when: '11.20(금) 잔금 직후',
-    dday: 'D-10',
+    when: '11.25(수) 잔금 직후',
+    dday: 'D-15',
     badge: '특약 거절됨 · 잔금일 당일 필수',
     status: 'current',
     todayBefore: true,
   },
-  { id: 'T3', title: '잔금일 아침 등기부 재비교', when: '11.20(금) 아침', dday: 'D-10', status: 'upcoming' },
+  {
+    id: 'T3',
+    title: '잔금일 아침 등기부 재비교',
+    when: '11.25(수) 아침',
+    dday: 'D-15',
+    badge: '근저당 금액 변동 비교 (필수)',
+    status: 'upcoming',
+  },
   { id: 'T5', title: '반환보증 가입', when: '보증기관 가입 마감 기준', status: 'upcoming' },
-  { id: 'T7', title: '갱신 또는 이사 의사 통보', when: '2028.09.19 · 만기 2개월 전', status: 'later' },
-  { id: 'T9', title: '보증금 반환 확인 → 갈아타기', when: '2028.11.19 · 만기일', status: 'later', href: '/switch' },
+  { id: 'T7', title: '갱신 또는 이사 의사 통보', when: '2028.09.10 · 통보 마감 2주 전', status: 'later' },
+  { id: 'T9', title: '보증금 반환 확인 → 갈아타기', when: '2028.11.24 · 만기일', status: 'later', href: '/switch' },
 ];
 
 export type RecordDoc = { name: string; meta: string; filled: boolean; needForClaim: boolean };
 
 export const recordDocs: RecordDoc[] = [
-  { name: '계약서', meta: '10.20', filled: true, needForClaim: true },
-  { name: '계약금 이체 내역', meta: '10.20', filled: true, needForClaim: true },
-  { name: '계약 당일 등기부', meta: '10.20', filled: true, needForClaim: false },
-  { name: '임대차 신고 확인', meta: '10.21', filled: true, needForClaim: true },
-  { name: '잔금일 등기부', meta: '11.20 예정', filled: false, needForClaim: false },
-  { name: '잔금 이체 내역', meta: '11.20 예정', filled: false, needForClaim: true },
-  { name: '전입신고 확인', meta: '11.20 예정', filled: false, needForClaim: true },
+  { name: '계약서', meta: '10.14', filled: true, needForClaim: true },
+  { name: '계약금 이체 내역', meta: '10.14', filled: true, needForClaim: true },
+  { name: '계약 당일 등기부', meta: '10.14', filled: true, needForClaim: false },
+  { name: '임대차 신고 확인', meta: '10.20', filled: true, needForClaim: true },
+  { name: '잔금일 등기부', meta: '11.25 예정', filled: false, needForClaim: false },
+  { name: '잔금 이체 내역', meta: '11.25 예정', filled: false, needForClaim: true },
+  { name: '전입신고 확인', meta: '11.25 예정', filled: false, needForClaim: true },
   { name: '반환보증 가입증서', meta: '가입 후', filled: false, needForClaim: false },
   { name: '반환 요청 기록', meta: '만기 때', filled: false, needForClaim: true },
 ];
@@ -247,43 +256,48 @@ export type TimelineEvent = {
   photo: boolean;
 };
 
+/** 시연 계약 (빌라, 담보 설정 금지 거절·보증 거절 시 해제 넣음)의 2년. 2027년 공시가격 하락은 시연용 가상 값 */
 export const timeline: TimelineEvent[] = [
-  { year: '2026', md: '10.09', kind: 'contract', title: '계약 전 확인', sub: '확인 필요 · 근저당 있음', photo: false },
-  { year: '2026', md: '10.20', kind: 'contract', title: '계약 당일 현장 확인', sub: '소유자·대리인·계좌 명의 확인', photo: true },
-  { year: '2026', md: '10.20', kind: 'alert', title: '특약 거절당함', sub: '잔금일 다음 날까지 담보 설정 금지', photo: false },
-  { year: '2026', md: '10.21', kind: 'todo', title: '임대차 신고', sub: '확정일자 함께 받음', photo: true },
-  { year: '2026', md: '10.28', kind: 'todo', title: '보증 가입 여부 확정', sub: 'HUG 반환보증 가입 예정', photo: false },
-  { year: '2026', md: '11.20', kind: 'todo', title: '잔금일 등기부 재비교', sub: '새 담보 없음', photo: true },
-  { year: '2026', md: '11.20', kind: 'todo', title: '전입신고', sub: '잔금 당일 완료', photo: true },
-  { year: '2027', md: '04.30', kind: 'alert', title: '경보 단계 변화', sub: '84% → 88% · 공시가격 하락', photo: false },
-  { year: '2028', md: '09.10', kind: 'todo', title: '이사 의사 통보', sub: '내용증명 사본 저장', photo: true },
+  { year: '2026', md: '10.13', kind: 'contract', title: '계약 전 확인', sub: '확인 필요 · 근저당 있음, 비율 95%', photo: false },
+  { year: '2026', md: '10.14', kind: 'contract', title: '계약 당일 현장 확인', sub: '소유자·계좌 명의 확인', photo: true },
+  { year: '2026', md: '10.14', kind: 'alert', title: '특약 거절당함', sub: '담보 설정 금지 → 전입신고 맨 위로', photo: false },
+  { year: '2026', md: '10.14', kind: 'contract', title: '특약 넣음', sub: '보증 거절 시 계약 해제', photo: false },
+  { year: '2026', md: '10.14', kind: 'todo', title: '보증 가입 여부 확정', sub: '보증기관 상담 기록', photo: true },
+  { year: '2026', md: '10.20', kind: 'todo', title: '임대차 신고', sub: '임대차 신고필증', photo: true },
+  { year: '2026', md: '11.25', kind: 'todo', title: '잔금일 등기부 재비교', sub: '근저당 금액 변동 없음', photo: true },
+  { year: '2026', md: '11.25', kind: 'todo', title: '전입신고', sub: '잔금 당일 완료', photo: true },
+  { year: '2027', md: '04.29', kind: 'alert', title: '경보 재계산', sub: '95% → 98% · 공시가격 하락', photo: false },
+  { year: '2028', md: '09.10', kind: 'todo', title: '이사 의사 통보', sub: '통보 기록 (문자 화면)', photo: true },
 ];
 
+/**
+ * 시연 빌라의 계약 중 재계산 (FR-036~038). 계약 시작 95%(경보계산_정답표: (1억 4,000만 + 1,440만) ÷ 1억 6,240만)에서
+ * 2027년 공시가격이 1억 1,300만으로 내렸다고 가정한 시연용 가상 값: 1억 5,440만 ÷ 1억 5,820만 = 97.6%
+ */
 export const alertReport = {
   stage: '경고 단계',
-  recalculatedAt: '2027.10.15 재계산',
-  ratio: 91,
-  previous: 88,
-  reason:
-    '같은 단지 실거래가가 추정 집값보다 낮게 신고돼 다시 계산했어요. 90%를 넘으면 반환보증 신규 가입이 어려운 구간이에요.',
+  recalculatedAt: '2027.04.29 재계산',
+  ratio: 98,
+  previous: 95,
+  reason: '2027년 공시가격이 내려 추정 집값을 다시 계산했어요.',
   history: [
-    { label: '26.10', ratio: 84 },
-    { label: '27.01', ratio: 84 },
-    { label: '27.04', ratio: 88 },
-    { label: '27.07', ratio: 88 },
-    { label: '27.10', ratio: 91 },
-    { label: '28.01', ratio: 91 },
+    { label: '26.10', ratio: 95 },
+    { label: '27.01', ratio: 95 },
+    { label: '27.04', ratio: 98 },
+    { label: '27.07', ratio: 98 },
+    { label: '27.10', ratio: 98 },
+    { label: '28.01', ratio: 98 },
   ],
   basis: [
-    { label: '보증금 + 근저당', note: undefined, value: '1억 7,600만', struck: false },
-    { label: '공시가격 × 140%', note: '2027.01.01 기준', value: '2억 20만', struck: true },
-    { label: '실거래가 · 전용 ±10%', note: '2027.09 신고 · 표본 3건', value: '1억 9,300만', struck: false },
+    { label: '보증금 + 근저당', note: '근저당 1,440만 (시연용 가상)', value: '1억 5,440만', struck: false },
+    { label: '공시가격 × 140%', note: '2027.01.01 기준 1억 1,300만', value: '1억 5,820만', struck: false },
+    { label: '실거래가 · 전용 ±10%', note: '2026.09.30 거래 · 30.09㎡ · 표본 14건', value: '2억 5,000만', struck: true },
   ],
-  estimated: '1억 9,300만',
+  estimated: '1억 5,820만',
 };
 
 export const returnSteps = [
-  { title: '반환 요청 기록', body: '11.19 문자 캡처 저장됨', state: 'done' as const },
+  { title: '반환 요청 기록', body: '11.24 문자 캡처 저장됨', state: 'done' as const },
   {
     title: '내용증명 보내기',
     body: '반환을 요청했다는 사실을 공식 기록으로 남기는 일반 절차예요. 우체국 방문이나 인터넷우체국으로 보낼 수 있어요.',
