@@ -23,7 +23,7 @@
 - API 명세: `docs/api/API_명세.md` (공통 규칙·API 목록·오류 코드), 입출력 형식은 `docs/api/openapi.json`(서버 코드에서 생성, `cd backend && python export_openapi.py`. `tests/test_openapi.py`가 설명 문구를 뺀 내용이 코드와 같은지 검사)
 - 백엔드: `backend/` (FastAPI + SQLAlchemy, PostgreSQL 기본·SQLite도 동작, `DATABASE_URL`로 전환). 테스트는 `cd backend && pytest`. 배포 서버는 교수님이 나중에 열어 주실 예정
 - 화면 목업: `docs/design/` (UI-01~09 + 홈, 모바일 390px). 프론트 작업 시 이 목업의 화면 구성·문구·색을 기준으로 한다. 디자인 규칙과 컴포넌트 단위는 `docs/design/README.md`, 브라우저로 볼 때는 `docs/design/index.html`
-- 프론트엔드: `frontend/` (Expo + Expo Router, TypeScript. 웹·안드로이드·iOS 한 코드). 실행 `cd frontend && npx expo start`, 검사 `npx tsc --noEmit`·`npx expo lint`, 패키지는 `npx expo install`. 목업 UI-01~09 + 홈을 옮겨 둠, 지금은 `src/data/demo.ts` 시연 데이터로 그림(백엔드 미연결)
+- 프론트엔드: `frontend/` (Expo + Expo Router, TypeScript. 안드로이드·iOS 앱 한 코드, 시연·제공은 휴대폰 앱(Expo Go)이고 웹은 개발 편의용). 실행 `cd frontend && npx expo start`, 검사 `npx tsc --noEmit`·`npx expo lint`, 패키지는 `npx expo install`. 목업 UI-01~09 + 홈을 옮겨 둠, 지금은 `src/data/demo.ts` 시연 데이터로 그림(백엔드 미연결)
 - 4주 개발 계획: `docs/plan/4주_개발계획.md` (기획서 그림에 빠져 있던 특약 반영 분기 → A 3주차, 계약 당일 체크 화면 UI-03 → B 2주차 반영)
 - PO는 황웅재, 개발 A(백엔드·규칙) 겸임. 배승환은 PM·개발 B (기획서 v4.35, 팀원 리뷰 중)
 - 작업일지: `worklog/YYYY-MM-DD-이름.md`에 한 명당 하루 1개. 양식은 "오늘 한 일 / 다음에 할 일". 노션 작업일지에도 같은 내용을 기록

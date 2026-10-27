@@ -29,7 +29,7 @@ uvicorn app.main:app --reload
 
 - 금액(원) 칸은 `BigInteger`로 둔다. PostgreSQL `integer`는 최대 2,147,483,647원(약 21.4억)이라 공시가격 15.3억이 넘으면 추정 주택가격(×1.4)부터 저장되지 않는다. SQLite는 정수 크기를 가리지 않아 테스트에서 드러나지 않으니 `tests/test_money_columns.py`가 칸 형식을 따로 검사한다.
 - 배포 서버에서는 `DATABASE_URL`만 그 서버의 PostgreSQL 주소로 바꾸면 된다.
-- 웹(`npx expo start --web`)은 개발 편의용이다. 브라우저가 API를 부를 수 있게 `CORS_ORIGINS`(기본 `http://localhost:8081,http://127.0.0.1:8081`, Expo 웹 개발 서버)를 허용한다. 쉼표로 더하고, 빈 값이면 끈다(배포 서버는 웹을 안 쓰면 비움). 휴대폰 앱(Expo Go)은 CORS와 상관없다. 쿠키는 쓰지 않고 계약 토큰은 헤더(`X-Contract-Token`)로 보낸다
+- 웹(`npx expo start --web`)은 개발 편의용이다. 브라우저가 API를 부르려면 `.env`에 `CORS_ORIGINS=http://localhost:8081,http://127.0.0.1:8081`(Expo 웹 개발 서버, 쉼표로 더함)을 넣는다. 기본은 빈 값이라 꺼져 있다(배포 서버는 비워 둠). 서버 오류(500)에도 허용한 주소면 CORS 헤더를 붙인다. 휴대폰 앱(Expo Go)은 CORS와 상관없다. 쿠키는 쓰지 않고 계약 토큰은 헤더(`X-Contract-Token`)로 보낸다
 - 환경 변수는 `.env.example`을 `backend/.env`로 복사해 채운다(`.env`는 git에 올리지 않음). 서버는 `.env`를 자동으로 읽지 않으므로 `uvicorn app.main:app --host 0.0.0.0 --env-file .env`로 띄운다. 실거래가 조회(2주차)에는 공공데이터포털 일반 인증키가 필요하다 (Encoding·Decoding 키 아무거나, 활용신청할 API 목록은 `.env.example`).
 - 테이블은 서버가 시작할 때 `create_all`로 만들기 때문에 **이미 있는 테이블에는 새 칸이 생기지 않는다**. 모델(`app/models.py`)이 바뀐 브랜치를 받으면 로컬 DB를 다시 만든다: `docker compose down -v && docker compose up -d` (SQLite는 파일을 지운다). 배포 전까지는 이렇게 하고, 배포 서버에 데이터가 쌓이기 시작하면 Alembic을 들인다
 

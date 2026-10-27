@@ -30,11 +30,12 @@ def require_contract_auth() -> bool:
 
 
 def cors_origins() -> list[str]:
-    """브라우저에서 API를 부를 수 있는 웹 주소 (CORS). 웹은 개발 편의용이라(시연·제공은 휴대폰 앱) 기본은 Expo 웹 개발 서버만.
+    """브라우저에서 API를 부를 수 있는 웹 주소 (CORS). 웹은 개발 편의용이라(시연·제공은 휴대폰 앱) 기본은 끔.
 
-    쉼표로 여러 개. 빈 값이면 CORS를 끈다(배포 서버). 휴대폰 앱(Expo Go)은 브라우저가 아니라 CORS와 상관없다.
+    웹으로 개발할 때만 Expo 웹 개발 서버 주소를 쉼표로 넣는다 (http://localhost:8081,http://127.0.0.1:8081).
+    휴대폰 앱(Expo Go)은 브라우저가 아니라 CORS와 상관없다.
     """
-    raw = os.environ.get("CORS_ORIGINS", "http://localhost:8081,http://127.0.0.1:8081")
+    raw = os.environ.get("CORS_ORIGINS", "")
     return [o.strip().rstrip("/") for o in raw.split(",") if o.strip()]
 
 

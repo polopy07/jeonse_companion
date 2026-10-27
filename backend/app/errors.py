@@ -147,13 +147,22 @@ async def _http_handler(request: Request, exc: StarletteHTTPException) -> JSONRe
     return JSONResponse(status_code=exc.status_code, content=content, headers=getattr(exc, "headers", None))
 
 
-async def _unhandled_handler(request: Request, exc: Exception) -> JSONResponse:
-    logger.exception("처리하지 못한 오류: %s %s", request.method, request.url.path)
-    return JSONResponse(status_code=500, content={"detail": _detail(
-        "INTERNAL_ERROR", "서버에 문제가 생겼습니다", "잠시 후 다시 시도하세요")})
+def _unhandled_handler(cors_origins: list[str]):
+    async def handle(request: Request, exc: Exception) -> JSONResponse:
+        logger.exception("처리하지 못한 오류: %s %s", request.method, request.url.path)
+        response = JSONResponse(status_code=500, content={"detail": _detail(
+            "INTERNAL_ERROR", "서버에 문제가 생겼습니다", "잠시 후 다시 시도하세요")})
+        # 이 처리기는 CORSMiddleware 바깥(ServerErrorMiddleware)에서 돌아 CORS 헤더가 붙지 않는다. 허용한 웹 주소면 직접 붙여
+        # 웹 개발 중 서버 오류가 CORS 오류(Failed to fetch)로 보이지 않고 {code, message}가 프론트에 가게 한다
+        origin = request.headers.get("origin")
+        if origin and origin.rstrip("/") in cors_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Vary"] = "Origin"
+        return response
+    return handle
 
 
-def install(app: FastAPI) -> None:
+def install(app: FastAPI, cors_origins: list[str] | None = None) -> None:
     app.add_exception_handler(RequestValidationError, _validation_handler)
     app.add_exception_handler(StarletteHTTPException, _http_handler)
-    app.add_exception_handler(Exception, _unhandled_handler)
+    app.add_exception_handler(Exception, _unhandled_handler(cors_origins or []))

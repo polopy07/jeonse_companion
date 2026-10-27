@@ -18,21 +18,24 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="전동기 API", version="0.1.0", lifespan=lifespan)
-errors.install(app)
-if cors_origins():
-    # 웹(expo start --web)으로 개발할 때 브라우저가 API를 부르게. 쿠키는 쓰지 않고 계약 토큰은 헤더로 보낸다
-    app.add_middleware(CORSMiddleware, allow_origins=cors_origins(), allow_credentials=False, allow_methods=["*"],
-                       allow_headers=["Content-Type", "X-Contract-Token", "X-Virtual-Today", "X-Admin-Token"])
-app.include_router(checks.router)
-app.include_router(contracts.router)
-app.include_router(todos.router)
-app.include_router(registry.router)
-app.include_router(demo.router)
-app.include_router(admin.router)
-
-
-@app.get("/health")
 def health():
     rules = get_rules()
     return {"status": "ok", "rules_version": rules["verdict"]["version"]}
+
+
+def create_app() -> FastAPI:
+    """앱을 만든다. CORS 허용 주소(CORS_ORIGINS)는 이때 한 번 읽는다 (테스트는 설정을 바꿔 다시 만든다)."""
+    app = FastAPI(title="전동기 API", version="0.1.0", lifespan=lifespan)
+    origins = cors_origins()
+    errors.install(app, cors_origins=origins)
+    if origins:
+        # 웹(expo start --web)으로 개발할 때 브라우저가 API를 부르게. 쿠키는 쓰지 않고 계약 토큰은 헤더로 보낸다
+        app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=False, allow_methods=["*"],
+                           allow_headers=["Content-Type", "X-Contract-Token", "X-Virtual-Today", "X-Admin-Token"])
+    for module in (checks, contracts, todos, registry, demo, admin):
+        app.include_router(module.router)
+    app.get("/health")(health)
+    return app
+
+
+app = create_app()

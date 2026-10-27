@@ -13,7 +13,7 @@ npx expo start --web    # 웹만
 
 - 검사: `npx tsc --noEmit` (타입), `npx expo lint` (린트). PR 올리기 전에 둘 다 통과시킨다.
 - 패키지 추가는 `npm install` 대신 `npx expo install <패키지>` (SDK에 맞는 버전으로 설치됨).
-- 웹은 개발 편의용이다 (화면을 PC 브라우저로 빨리 보기). 백엔드를 띄우고 `npx expo start --web`(http://localhost:8081)으로 열면 서버에 붙는다: 백엔드가 기본으로 Expo 웹 개발 서버 주소(`localhost:8081`)의 브라우저 요청을 허용한다(CORS, `backend` 환경 변수 `CORS_ORIGINS`). `.env.local`의 서버 주소는 휴대폰과 같이 PC IP(`http://192.168.0.10:8000`)여도 되고 `http://localhost:8000`이어도 된다. 웹 푸시·PWA 설치는 MVP에 없다
+- 웹은 개발 편의용이다 (화면을 PC 브라우저로 빨리 보기). 백엔드를 띄우고 `npx expo start --web`(http://localhost:8081)으로 열면 서버에 붙는다: 백엔드 `.env`에 `CORS_ORIGINS=http://localhost:8081`을 넣고 띄워야 브라우저 요청을 허용한다(CORS, 기본은 꺼짐). `.env.local`의 서버 주소는 휴대폰과 같이 PC IP(`http://192.168.0.10:8000`)여도 되고 `http://localhost:8000`이어도 된다. 웹 푸시·PWA 설치는 MVP에 없다
 - 시연은 앱(Expo Go 등)으로 한다. 서버 주소(`EXPO_PUBLIC_API_URL`)를 넣으면 계약 전 확인이 백엔드를 부르고, 비워 두면 `src/data/demo.ts` 시연 데이터와 앱 안 임시 계산으로 동작한다.
 
 ### 백엔드 연결 (휴대폰에서)
