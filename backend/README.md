@@ -70,6 +70,8 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/api/checks.py` | `POST /api/checks`, `GET /api/checks/{id}`, `GET /api/checks/{id}/special-terms` |
 | `app/api/contracts.py` | `POST /api/contracts`, `GET /api/contracts/{id}` |
 | `app/api/moves.py` | `POST`·`GET /api/contracts/{id}/move` 갈아타기 |
+| `app/api/recompare.py` | `POST`·`GET /api/contracts/{id}/registry-compare` 등기부 재비교 |
+| `app/engine/registry_compare.py` | 등기부 재비교: 항목별 변동·보류 안내 |
 | `app/api/todos.py` | `PATCH /api/todos/{id}` 할 일 끝내기·나중에 올리기·되돌리기, `POST`·`GET`·`DELETE /api/todos/{id}/evidence` 증빙 |
 | `app/evidence.py` | 증빙 파일 저장·삭제 (`EVIDENCE_DIR`, 기본 `backend/data/evidence`, git 제외) |
 | `app/api/alerts.py` | `GET /api/contracts/{id}/alerts/latest` 경보 리포트 |
@@ -217,6 +219,18 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - 전입 순서 `move_in_warning`: 다음 집 전입 예정일(없으면 잔금일)이 반환 예정일과 같거나 앞서면 true, 9번 할 일을 끝냈으면 false (FR-027). 앞서면 날짜를 다시 보라는 경고, 같은 날이면 "보증금 먼저 받고 전입신고" 순서 안내 (PO 결정 Q12)
 - `next_todos`: 다음 집 날짜로 계산한 할 일 9종 (연동 규칙·특약은 다음 집 계약 전 확인 뒤 계약을 만들 때). `todos`: 지금 집 + 다음 집 할 일을 날짜순으로 묶은 목록 (FR-025)
 - 정답표 S10·S10-b와의 대조는 `tests/test_move.py`
+
+### `POST /api/contracts/{id}/registry-compare` 등기부 재비교 (FR-023·048, #41)
+
+```json
+{"registry": {"mortgage": true, "mortgage_amount": 150000000, "seizure": false}, "stage": "balance_day"}
+```
+
+- 계약 당일(점검한 날과 계약일이 다를 때, FR-048)·잔금일 아침(3번 할 일, FR-023)에 등기부 요약을 다시 올려(`POST /api/registry/parse` → 확인) 계약 전 확인 판정과 비교한다. `stage`를 비우면 오늘(가상 날짜)이 잔금일 전이면 계약 당일
+- 항목별 `same` / `risk`(새로 생기거나 늘어남) / `eased`(없어지거나 줄어듦). `risk`가 있으면 `hold`와 "계약 보류 후 상담" / "잔금 보류 후 상담". 근저당 말소·감액은 변동으로만 보여 주고 보류는 안내하지 않는다 (잔금 때 말소하기로 한 근저당)
+- 계약 전에 근저당이 있었으면 `mortgage_check`(채권최고액 비교)를 필수 확인으로 (L-MORTGAGE)
+- 계약 전 확인과 같은 입력에 등기부만 바꿔 다시 판정해 계약의 판정 기록(`verdicts.stage`·`comparison`)으로 남긴다. 경보 재계산(`app/alerts.py`)의 선순위 채권도 마지막으로 올린 이 등기부. `GET`은 재비교 기록
+- 3번 할 일 완료는 지금처럼 증빙(잔금일 등기부 열람본)으로 한다 (재비교가 할 일 상태를 바꾸지 않음)
 
 ### `POST /api/admin/trades` 실거래가 수집 (FR-046)
 

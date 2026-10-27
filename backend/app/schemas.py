@@ -93,6 +93,48 @@ class RegistryParseResult(BaseModel):
     warnings: list[str]
 
 
+RegistryStage = Literal["contract_day", "balance_day"]
+
+
+class RegistryCompareInput(BaseModel):
+    """계약 당일·잔금일에 다시 올린 등기부 요약 (FR-023, FR-048, UC-006). POST /api/registry/parse 결과를 확인·수정한 fields."""
+
+    registry: RegistryInput
+    stage: RegistryStage | None = Field(
+        None, description="contract_day 계약 당일 / balance_day 잔금일. 비우면 오늘(가상 날짜)이 잔금일 전이면 계약 당일, 잔금일부터는 잔금일")
+
+
+class RegistryCompareItemOut(BaseModel):
+    field: str = Field(description="fields.yaml 이름 (registry.seizure 등)")
+    label: str
+    before: bool | int | None = Field(description="계약 전 확인 때 값. 그때 등기부를 올리지 않았으면 null")
+    after: bool | int = Field(description="다시 올린 등기부 값")
+    change: Literal["same", "risk", "eased"] = Field(description="same 그대로 / risk 새로 생기거나 늘어남 / eased 없어지거나 줄어듦")
+
+
+class RegistryCompareOut(BaseModel):
+    """등기부 재비교 결과 (FR-023, FR-048). 다시 판정한 결과는 계약의 판정 기록으로 남는다 (경보 재계산의 선순위 채권도 이 등기부)."""
+
+    id: int = Field(description="재비교로 다시 판정한 결과 id (verdicts.id)")
+    contract_id: int
+    stage: RegistryStage
+    compared_on: date = Field(description="비교한 날 (가상 날짜면 그날)")
+    baseline_check_id: int = Field(description="비교 기준인 계약 전 확인 판정 (계약의 check_id)")
+    items: list[RegistryCompareItemOut]
+    changed: bool = Field(description="바뀐 항목이 있는지 (줄어든 것 포함)")
+    hold: bool = Field(description="새로 생기거나 늘어난 항목이 있어 보류를 안내하는지")
+    advice: str | None = Field(description="hold일 때 \"계약 보류 후 상담\" / \"잔금 보류 후 상담\"")
+    hint: str | None = Field(description="hold일 때 할 일 안내, 화면에 그대로")
+    mortgage_check_required: bool = Field(description="계약 전에 근저당이 있었으면 true: 근저당 금액 비교가 필수 확인 (FR-023, L-MORTGAGE)")
+    mortgage_check: RegistryCompareItemOut | None = Field(description="mortgage_check_required면 채권최고액 비교 항목")
+    baseline_missing: bool = Field(description="계약 전 확인에서 등기부를 올리지 않아 다시 올린 등기부에 있는 것을 모두 위험으로 봄")
+    level_before: str = Field(description="계약 전 확인 판정 단계 (verdict.yaml levels[].id)")
+    level_after: str = Field(description="다시 올린 등기부로 다시 판정한 단계")
+    level_after_label: str
+    deposit_ratio_before: float | None
+    deposit_ratio_after: float | None
+
+
 class ComplexInput(BaseModel):
     """실거래를 찾을 단지 (공공데이터포털 실거래가의 이름 그대로). 시연 집은 미리 매칭해 둔다."""
 
