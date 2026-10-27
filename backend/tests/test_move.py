@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_engine
 from app.engine.move import MOVE_IN_BEFORE_RETURN, MOVE_IN_SAME_DAY, plan_move
-from app.models import Todo
+from app.models import Move, Todo
 from tests.test_contracts import EOK, _check, _detail
 from tests.test_todos import BY_ID, _assert_matches, _build, _values
 
@@ -22,7 +22,7 @@ def _next_input(s: dict) -> dict:
     """정답표 next_contract → MoveInput (계약금이 없으면 보증금의 10%)."""
     n = s["next_contract"]
     keys = ("contract_date", "balance_date", "end_date", "deposit", "monthly_rent", "loan", "loan_execution_date",
-            "guarantor", "brokered", "renewal_right_used", "down_payment_date", "move_in_date")
+            "guarantor", "brokered", "renewal_right_used", "move_in_date")
     body = {k: n[k] for k in keys if k in n}
     body["down_payment"] = n.get("deposit_down_payment", n["deposit"] // 10)
     return body
@@ -36,7 +36,7 @@ def test_switch_matches_answer_sheet(rules, sid):
     current = _values(S1["input"])
     return_date = D(S1["expected"]["T9"]["due"])          # 지금 집 반환 예정일 = S1의 9번 기한
     nxt = _next_input(s)
-    for k in ("contract_date", "balance_date", "end_date", "loan_execution_date", "down_payment_date", "move_in_date"):
+    for k in ("contract_date", "balance_date", "end_date", "loan_execution_date", "move_in_date"):
         if nxt.get(k):
             nxt[k] = D(nxt[k])
     plan = plan_move({"deposit": current["deposit"], "loan": current["loan"]}, nxt, return_date)
@@ -177,3 +177,69 @@ def test_move_validation_and_access(client):
     client.post(f"/api/contracts/{c['id']}/cancel", headers=_auth(c))
     r = client.post(url, json=body, headers=_auth(c))
     assert r.status_code == 409 and _detail(r)["code"] == "CONTRACT_CANCELLED"
+
+
+def test_move_after_return_has_no_gap_warnings(client):
+    # #97 리뷰 1번: 반환 확인을 끝내면 끝낸 날이 반환일이고, 이미 돌려받았으니 자금 틈·대출 순서 경고는 내지 않는다
+    c = _current(client)
+    url = f"/api/contracts/{c['id']}/move"
+    client.post(url, json=_next_input(BY_ID["S10"]), headers=_auth(c))
+    with Session(get_engine()) as s:
+        s.execute(update(Todo).where(Todo.contract_id == c["id"], Todo.rule_id == "T9")
+                  .values(status="done", done_date=date(2028, 11, 25)))
+        s.commit()
+    m = client.get(url, headers=_auth(c)).json()
+    assert m["returned"] is True and m["return_date"] == "2028-11-25"
+    assert (m["gap_days"], m["gap_amount"], m["move_in_warning"], m["warnings"]) == (0, 0, False, [])
+
+
+def test_move_dates_checked_against_current_contract(client):
+    # #97 리뷰 5번: 다음 집 날짜가 지금 계약일보다 앞서거나, 대출 실행일이 다음 집 계약일~잔금일 밖이면 422
+    c = _current(client)
+    url = f"/api/contracts/{c['id']}/move"
+    body = _next_input(BY_ID["S10"])
+    before = {"contract_date": "2026-01-01", "balance_date": "2026-02-01", "loan_execution_date": "2026-02-01"}
+    r = client.post(url, json={**body, **before}, headers=_auth(c))
+    assert r.status_code == 422 and "지금 계약일" in r.json()["detail"]["fields"][0]["message"]
+    for day in ("2020-01-01", "2029-03-01"):
+        r = client.post(url, json={**body, "loan": True, "loan_execution_date": day}, headers=_auth(c))
+        assert r.status_code == 422, day
+    assert client.post(url, json={**body, "loan": True, "loan_execution_date": body["balance_date"]},
+                       headers=_auth(c)).status_code == 200
+
+
+def test_move_double_save_does_not_500(client, monkeypatch):
+    # #97 리뷰 4번: 두 번 눌러 동시에 저장해도(먼저 저장한 요청이 있음) 500이 아니라 그 행을 고친다
+    c = _current(client)
+    url = f"/api/contracts/{c['id']}/move"
+    original = Session.scalar
+    raced = []
+
+    def scalar_then_other_request_saves(self, *args, **kwargs):
+        got = original(self, *args, **kwargs)
+        if not raced:   # 이 요청이 "아직 없음"을 본 바로 뒤 다른 요청이 먼저 저장
+            raced.append(True)
+            with Session(get_engine()) as other:
+                other.add(Move(contract_id=c["id"], decided_on=date(2028, 6, 1), next_inputs=_next_input(BY_ID["S10-b"])))
+                other.commit()
+        return got
+
+    monkeypatch.setattr(Session, "scalar", scalar_then_other_request_saves)
+    r = client.post(url, json=_next_input(BY_ID["S10"]), headers=_auth(c))
+    monkeypatch.undo()
+    assert r.status_code == 200, r.text
+    m = r.json()
+    assert m["decided_on"] == "2028-06-01" and m["next"]["balance_date"] == _next_input(BY_ID["S10"])["balance_date"]
+
+
+def test_move_outdated_input_is_409(client):
+    # #97 리뷰 정리: 저장한 입력이 지금 검사 규칙과 맞지 않으면 GET이 500이 아니라 409로 다시 입력하게
+    c = _current(client)
+    url = f"/api/contracts/{c['id']}/move"
+    client.post(url, json=_next_input(BY_ID["S10"]), headers=_auth(c))
+    with Session(get_engine()) as s:
+        move = s.query(Move).filter_by(contract_id=c["id"]).one()
+        move.next_inputs = {**move.next_inputs, "end_date": "2020-01-01"}
+        s.commit()
+    r = client.get(url, headers=_auth(c))
+    assert r.status_code == 409 and _detail(r)["code"] == "MOVE_INPUT_OUTDATED"

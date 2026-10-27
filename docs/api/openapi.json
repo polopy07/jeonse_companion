@@ -62,7 +62,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -124,7 +124,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -186,7 +186,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -249,7 +249,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -341,7 +341,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -376,7 +376,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity",
+            "description": "Unprocessable Content",
             "content": {
               "application/json": {
                 "schema": {
@@ -473,7 +473,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       },
@@ -581,7 +581,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -681,7 +681,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -692,7 +692,7 @@
           "갈아타기"
         ],
         "summary": "Save Move",
-        "description": "갈아타기 저장 (FR-025~027). 다음 집 입력을 저장하고 자금 틈·대출 순서·전입 순서 경고·두 집 할 일을 돌려준다.\n\n다시 보내면 다음 집 입력을 바꾼다 (처음 저장한 날 decided_on은 그대로). 무산된 계약이면 409.",
+        "description": "갈아타기 저장 (FR-025~027). 다음 집 입력을 저장하고 자금 틈·대출 순서·전입 순서 경고·두 집 할 일을 돌려준다.\n\n다시 보내면 다음 집 입력을 바꾼다 (처음 저장한 날 decided_on은 그대로). 다음 집 계약일·잔금일이 지금 계약일보다\n앞서면 422. 무산된 계약이면 409.",
         "operationId": "save_move_api_contracts__contract_id__move_post",
         "parameters": [
           {
@@ -791,7 +791,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       },
@@ -870,6 +870,16 @@
               }
             },
             "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
           },
           "422": {
             "description": "Validation Error",
@@ -989,7 +999,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -1023,7 +1033,7 @@
             }
           },
           "413": {
-            "description": "Request Entity Too Large",
+            "description": "Content Too Large",
             "content": {
               "application/json": {
                 "schema": {
@@ -1033,7 +1043,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity",
+            "description": "Unprocessable Content",
             "content": {
               "application/json": {
                 "schema": {
@@ -1152,7 +1162,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           },
           "502": {
             "content": {
@@ -1280,7 +1290,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -2722,19 +2732,6 @@
             "minimum": 0.0,
             "title": "Down Payment",
             "description": "다음 집 계약금 (원). 잔금 = 보증금 − 계약금"
-          },
-          "down_payment_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Down Payment Date",
-            "description": "계약금 지급일. 없으면 계약일"
           },
           "monthly_rent": {
             "type": "integer",

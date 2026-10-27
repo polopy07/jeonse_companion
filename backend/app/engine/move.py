@@ -1,6 +1,7 @@
 """갈아타기: 지금 집 보증금 반환과 다음 집 잔금·대출·전입 순서 (FR-025~027, UC-008, 정답표 S10).
 
-지금 집 반환 예정일은 지금 계약의 9번 할 일(보증금 반환 확인) 기한, 없으면 만기일이다.
+지금 집 반환 예정일은 지금 계약의 9번 할 일(보증금 반환 확인) 기한, 없으면 만기일이다. 반환 확인을 끝냈으면
+그 끝낸 날이 반환일이고, 이미 돌려받았으니 자금 틈·대출 순서·전입 순서 경고는 내지 않는다.
 - 자금 틈: 반환 예정일이 다음 집 잔금일보다 늦으면 그 일수와, 그동안 비는 금액
   min(지금 집 보증금, 다음 집 잔금 = 보증금 − 계약금) (PO 결정 Q5)
 - 대출 순서: 두 집 모두 전세대출이면 새 대출 실행일(모르면 잔금일)과 기존 대출 상환일(= 반환 예정일)을 비교
@@ -43,7 +44,7 @@ def plan_move(current: dict, nxt: dict, return_date: date, returned: bool = Fals
     next_balance = nxt["deposit"] - nxt["down_payment"]
     warnings = []
 
-    gap_days = max(0, (return_date - balance_date).days)
+    gap_days = 0 if returned else max(0, (return_date - balance_date).days)
     gap_amount = min(current["deposit"], next_balance) if gap_days else 0
     if gap_days:
         warnings.append(GAP_WARNING.format(ret=_d(return_date), bal=_d(balance_date), days=gap_days, amount=gap_amount))
@@ -53,10 +54,12 @@ def plan_move(current: dict, nxt: dict, return_date: date, returned: bool = Fals
         new = nxt["loan_execution_date"] or balance_date
         if new < return_date:
             loan_order, loan_gap_days = "new_loan_first", (return_date - new).days
-            warnings.append(LOAN_NEW_FIRST.format(new=_d(new), old=_d(return_date), days=loan_gap_days))
+            if not returned:
+                warnings.append(LOAN_NEW_FIRST.format(new=_d(new), old=_d(return_date), days=loan_gap_days))
         else:
             loan_order = "old_repayment_first"
-            warnings.append(LOAN_OLD_FIRST.format(new=_d(new), old=_d(return_date)))
+            if not returned:
+                warnings.append(LOAN_OLD_FIRST.format(new=_d(new), old=_d(return_date)))
 
     move_in = nxt["move_in_date"] or balance_date
     move_in_warning = not returned and move_in <= return_date

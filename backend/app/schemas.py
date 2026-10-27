@@ -468,7 +468,6 @@ class MoveInput(BaseModel):
     end_date: date = Field(description="다음 집 만기일")
     deposit: Money = Field(description="다음 집 보증금 (원)")
     down_payment: MoneyOrZero = Field(description="다음 집 계약금 (원). 잔금 = 보증금 − 계약금")
-    down_payment_date: date | None = Field(None, description="계약금 지급일. 없으면 계약일")
     monthly_rent: MoneyOrZero = Field(0, description="월세 (원, 전세면 0)")
     loan: bool = Field(False, description="다음 집 전세대출 유무")
     loan_execution_date: date | None = Field(None, description="다음 집 대출 실행일, 모르면 비워 둠 (잔금일로 본다)")
@@ -485,12 +484,13 @@ class MoveInput(BaseModel):
             raise ValueError("만기일은 잔금일보다 뒤여야 합니다")
         if self.down_payment >= self.deposit:
             raise ValueError("계약금은 보증금보다 적어야 합니다")
-        if self.down_payment_date is not None and self.down_payment_date > self.balance_date:
-            raise ValueError("계약금 지급일은 잔금일과 같거나 앞이어야 합니다")
         if self.move_in_date is not None and self.move_in_date < self.balance_date:
             raise ValueError("전입 예정일은 잔금일과 같거나 뒤여야 합니다")
         if self.loan_execution_date is not None and not self.loan:
             raise ValueError("전세대출이 없으면 대출 실행일을 비워 두세요")
+        # 새 대출은 다음 집 잔금을 치르는 돈이라 계약일과 잔금일 사이 (틀린 날짜로 대출 순서 차이가 수백 일이 되지 않게)
+        if self.loan_execution_date is not None and not self.contract_date <= self.loan_execution_date <= self.balance_date:
+            raise ValueError("대출 실행일은 다음 집 계약일과 잔금일 사이여야 합니다")
         return self
 
 
