@@ -173,6 +173,23 @@ class ContractToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class Move(Base):
+    """갈아타기 계획 (FR-025~027, UC-008). 지금 계약마다 1개, 다시 저장하면 바꾼다.
+
+    다음 집 입력만 저장하고 자금 틈·경고·다음 집 할 일은 읽을 때마다 지금 계약 상태로 다시 계산한다
+    (지금 계약의 날짜를 PATCH로 바꾸거나 반환 확인을 끝내도 맞게).
+    """
+
+    __tablename__ = "moves"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    contract_id: Mapped[int] = mapped_column(ForeignKey("contracts.id"), unique=True)
+    decided_on: Mapped[date] = mapped_column(Date)            # "이사할게요"를 고른 날 (가상 날짜면 그날)
+    next_inputs: Mapped[dict] = mapped_column(JSONType)       # 다음 집 입력 (MoveInput, 날짜는 YYYY-MM-DD)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
 class Alert(Base):
     """역전세 경보 계산 이력 (FR-036, FR-037)."""
 

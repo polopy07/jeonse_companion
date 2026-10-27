@@ -60,6 +60,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/engine/check.py` | 계약 전 확인: 입력 → 비율 → 판정 |
 | `app/engine/todos.py` | 할 일 9종 생성: 기한·선행 조건·순서 (todos.yaml, guarantors.yaml, linkage.yaml) |
 | `app/engine/alert.py` | 경보 단계 (alert.yaml) |
+| `app/engine/move.py` | 갈아타기: 자금 틈·대출 순서·전입 순서 경고 (정답표 S10) |
 | `app/engine/market.py` | 같은 단지·비슷한 면적의 최근 매매가, 주변 전세 시세 중앙값 (alert.yaml) |
 | `app/trades/client.py` | 공공데이터포털 실거래가 API 4종 호출·응답 해석 |
 | `app/trades/collect.py` | 실거래 수집·저장 (같은 거래는 한 번만) |
@@ -67,6 +68,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/engine/special_terms.py` | 판정에 맞는 특약 예시와 넣음/거절당함 결과 (special_terms.yaml, linkage.yaml) |
 | `app/api/checks.py` | `POST /api/checks`, `GET /api/checks/{id}`, `GET /api/checks/{id}/special-terms` |
 | `app/api/contracts.py` | `POST /api/contracts`, `GET /api/contracts/{id}` |
+| `app/api/moves.py` | `POST`·`GET /api/contracts/{id}/move` 갈아타기 |
 | `app/api/todos.py` | `PATCH /api/todos/{id}` 할 일 끝내기·나중에 올리기·되돌리기, `POST`·`GET`·`DELETE /api/todos/{id}/evidence` 증빙 |
 | `app/evidence.py` | 증빙 파일 저장·삭제 (`EVIDENCE_DIR`, 기본 `backend/data/evidence`, git 제외) |
 | `app/registry/pdf.py` | 등기부 PDF → 요약 페이지 글자 ("부동산정보요약" 또는 증명서의 "주요 등기사항 요약", pdfplumber) |
@@ -201,6 +203,17 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - `GET`·`PATCH /api/contracts/{id}`, `POST /api/contracts/{id}/cancel`은 헤더 `X-Contract-Token`이 계약을 만들 때 받은 `access_token`과 맞아야 한다. 틀리면 계약이 없을 때와 같은 404 `NOT_FOUND` (번호를 바꿔 가며 계약이 있는지 알아내지 못하게). `REQUIRE_CONTRACT_AUTH`가 false면 헤더를 보내지 않은 요청은 통과시킨다
 - `POST /api/contracts/{id}/cancel` (본문 없음): 계약 `status: "cancelled"`, 쓴 결제는 `released`. 할 일은 지우지 않고 기록으로 남긴다. 무산된 계약은 `GET`만 되고 `PATCH`·다시 무산은 409 `CONTRACT_CANCELLED`
 - `contracts`에 `access_token_hash`·`payment_id`·`status`·`cancelled_at` 칸, `payments` 테이블을 넣었다. 예전 DB는 서버를 켤 때 새 칸을 자동으로 더한다(`init_db`). 예전 계약은 토큰이 없어 `REQUIRE_CONTRACT_AUTH=true`면 열 수 없으니 시연 전에는 `python reset_demo_db.py`
+
+### `POST /api/contracts/{id}/move` 갈아타기 (FR-025~027)
+
+- 만기 6개월 전 할 일(7번)에서 "이사할게요"를 고르면 다음 집 계약일·잔금일·만기일·보증금·계약금(과 대출·보증기관·전입 예정일)을 보낸다. `X-Contract-Token` 확인, 무산된 계약은 409
+- 다음 집 입력만 `moves` 표에 저장하고(계약마다 1개, 다시 보내면 바꿈), 계산은 `GET`할 때마다 지금 계약 상태로 다시 한다 (지금 계약의 날짜를 바꾸거나 반환 확인을 끝내도 맞게)
+- 다음 집 계약일·잔금일이 지금 계약일보다 앞서면 422, 대출 실행일은 다음 집 계약일과 잔금일 사이(아니면 422). 두 번 눌러 동시에 저장해도 먼저 저장한 행을 고친다. 저장한 입력이 나중에 바뀐 입력 규칙과 맞지 않으면 `GET`이 409 `MOVE_INPUT_OUTDATED`
+- 반환 예정일 = 지금 계약 9번 할 일 기한(없으면 만기일). 9번을 끝냈으면(나중에 올리기 포함) 끝낸 날이 반환일이고, 이미 돌려받았으니 자금 틈은 0, 대출 순서·전입 순서 경고는 내지 않는다. 자금 틈 `gap_days` = 반환 예정일 − 다음 집 잔금일(늦지 않으면 0), `gap_amount` = min(지금 집 보증금, 다음 집 잔금 = 보증금 − 계약금) (PO 결정 Q5)
+- 대출 순서 `loan_order`: 두 집 모두 전세대출일 때 새 대출 실행일(모르면 잔금일)이 반환 예정일보다 앞서면 `new_loan_first`, 아니면 `old_repayment_first`. 은행 확인 안내를 같이
+- 전입 순서 `move_in_warning`: 다음 집 전입 예정일(없으면 잔금일)이 반환 예정일과 같거나 앞서면 true, 9번 할 일을 끝냈으면 false (FR-027). 앞서면 날짜를 다시 보라는 경고, 같은 날이면 "보증금 먼저 받고 전입신고" 순서 안내 (PO 결정 Q12)
+- `next_todos`: 다음 집 날짜로 계산한 할 일 9종 (연동 규칙·특약은 다음 집 계약 전 확인 뒤 계약을 만들 때). `todos`: 지금 집 + 다음 집 할 일을 날짜순으로 묶은 목록 (FR-025)
+- 정답표 S10·S10-b와의 대조는 `tests/test_move.py`
 
 ### `POST /api/admin/trades` 실거래가 수집 (FR-046)
 

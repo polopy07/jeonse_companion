@@ -681,6 +681,212 @@
         }
       }
     },
+    "/api/contracts/{contract_id}/move": {
+      "post": {
+        "tags": [
+          "갈아타기"
+        ],
+        "summary": "Save Move",
+        "description": "갈아타기 저장 (FR-025~027). 다음 집 입력을 저장하고 자금 틈·대출 순서·전입 순서 경고·두 집 할 일을 돌려준다.\n\n다시 보내면 다음 집 입력을 바꾼다 (처음 저장한 날 decided_on은 그대로). 다음 집 계약일·잔금일이 지금 계약일보다\n앞서면 422. 무산된 계약이면 409.",
+        "operationId": "save_move_api_contracts__contract_id__move_post",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
+          },
+          {
+            "name": "x-virtual-today",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘",
+              "title": "X-Virtual-Today"
+            },
+            "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoveOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "갈아타기"
+        ],
+        "summary": "Get Move",
+        "description": "저장한 갈아타기를 지금 계약 상태로 다시 계산해 돌려준다. 저장한 적이 없으면 404.",
+        "operationId": "get_move_api_contracts__contract_id__move_get",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
+          },
+          {
+            "name": "x-virtual-today",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘",
+              "title": "X-Virtual-Today"
+            },
+            "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoveOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/todos/{todo_id}": {
       "patch": {
         "tags": [
@@ -2790,6 +2996,349 @@
           "level"
         ],
         "title": "MatchedRuleOut"
+      },
+      "MoveInput": {
+        "properties": {
+          "contract_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Contract Date",
+            "description": "다음 집 계약일"
+          },
+          "balance_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Balance Date",
+            "description": "다음 집 잔금일"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date",
+            "description": "다음 집 만기일"
+          },
+          "deposit": {
+            "type": "integer",
+            "maximum": 1000000000000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Deposit",
+            "description": "다음 집 보증금 (원)"
+          },
+          "down_payment": {
+            "type": "integer",
+            "maximum": 1000000000000.0,
+            "minimum": 0.0,
+            "title": "Down Payment",
+            "description": "다음 집 계약금 (원). 잔금 = 보증금 − 계약금"
+          },
+          "monthly_rent": {
+            "type": "integer",
+            "maximum": 1000000000000.0,
+            "minimum": 0.0,
+            "title": "Monthly Rent",
+            "description": "월세 (원, 전세면 0)",
+            "default": 0
+          },
+          "loan": {
+            "type": "boolean",
+            "title": "Loan",
+            "description": "다음 집 전세대출 유무",
+            "default": false
+          },
+          "loan_execution_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loan Execution Date",
+            "description": "다음 집 대출 실행일, 모르면 비워 둠 (잔금일로 본다)"
+          },
+          "guarantor": {
+            "type": "string",
+            "enum": [
+              "HUG",
+              "HF",
+              "SGI",
+              "none"
+            ],
+            "title": "Guarantor",
+            "description": "다음 집 보증기관 (미가입은 none)",
+            "default": "none"
+          },
+          "brokered": {
+            "type": "boolean",
+            "title": "Brokered",
+            "description": "중개 거래 여부",
+            "default": true
+          },
+          "renewal_right_used": {
+            "type": "boolean",
+            "title": "Renewal Right Used",
+            "description": "계약갱신요구권을 써서 갱신한 계약인지",
+            "default": false
+          },
+          "move_in_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Move In Date",
+            "description": "다음 집 전입 예정일. 없으면 잔금일"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contract_date",
+          "balance_date",
+          "end_date",
+          "deposit",
+          "down_payment"
+        ],
+        "title": "MoveInput",
+        "description": "갈아타기: 다음 집 계약 조건 (FR-025, UI-07). 만기 6개월 전 할 일(7번)에서 \"이사할게요\"를 고르면 입력한다.\n\n다음 집 계약 전 확인(POST /api/checks)은 따로 한다 (FR-028). 여기서는 날짜·돈으로 자금 틈과 할 일만 계산한다."
+      },
+      "MoveOut": {
+        "properties": {
+          "contract_id": {
+            "type": "integer",
+            "title": "Contract Id",
+            "description": "지금 계약 id"
+          },
+          "today": {
+            "type": "string",
+            "format": "date",
+            "title": "Today",
+            "description": "계산한 오늘 (X-Virtual-Today를 보냈으면 그날)"
+          },
+          "decided_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Decided On",
+            "description": "갈아타기를 처음 저장한 날"
+          },
+          "next": {
+            "$ref": "#/components/schemas/MoveInput",
+            "description": "저장한 다음 집 입력"
+          },
+          "current_deposit": {
+            "type": "integer",
+            "title": "Current Deposit",
+            "description": "지금 집 보증금 (원)"
+          },
+          "return_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Return Date",
+            "description": "지금 집 보증금 반환 예정일 (9번 할 일 기한, 없으면 만기일)"
+          },
+          "returned": {
+            "type": "boolean",
+            "title": "Returned",
+            "description": "지금 집 반환 확인(9번 할 일)을 끝냈는지"
+          },
+          "next_balance": {
+            "type": "integer",
+            "title": "Next Balance",
+            "description": "다음 집 잔금 = 보증금 − 계약금 (원)"
+          },
+          "gap_days": {
+            "type": "integer",
+            "title": "Gap Days",
+            "description": "반환 예정일이 다음 집 잔금일보다 늦은 일수. 늦지 않으면 0"
+          },
+          "gap_amount": {
+            "type": "integer",
+            "title": "Gap Amount",
+            "description": "그동안 비는 금액 = min(지금 집 보증금, 다음 집 잔금). 틈이 없으면 0 (PO 결정 Q5)"
+          },
+          "loan_order": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "new_loan_first",
+                  "old_repayment_first"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loan Order",
+            "description": "두 집 모두 전세대출일 때: new_loan_first 새 대출 실행이 기존 대출 상환보다 먼저 / old_repayment_first 기존 대출 상환 뒤 새 대출. 아니면 null"
+          },
+          "loan_gap_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loan Gap Days",
+            "description": "새 대출 실행이 기존 대출 상환보다 먼저인 일수"
+          },
+          "move_in_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Move In Date",
+            "description": "다음 집 전입 예정일 (입력이 없으면 잔금일)"
+          },
+          "move_in_warning": {
+            "type": "boolean",
+            "title": "Move In Warning",
+            "description": "전입 예정일이 반환 예정일과 같거나 앞서면 true (반환 확인을 끝냈으면 false, FR-027)"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "description": "화면에 그대로 보여 줄 안내 (자금 틈·대출 순서·전입 순서)"
+          },
+          "next_todos": {
+            "items": {
+              "$ref": "#/components/schemas/MoveTodoOut"
+            },
+            "type": "array",
+            "title": "Next Todos",
+            "description": "다음 집 할 일 9종 (다음 집 날짜로 계산, 할 일 순서대로). 다음 집 계약 전 확인의 연동 규칙·특약은 계약을 만들 때 반영된다"
+          },
+          "todos": {
+            "items": {
+              "$ref": "#/components/schemas/MoveTodoOut"
+            },
+            "type": "array",
+            "title": "Todos",
+            "description": "지금 집 + 다음 집 할 일을 날짜순으로 묶은 목록 (FR-025)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contract_id",
+          "today",
+          "decided_on",
+          "next",
+          "current_deposit",
+          "return_date",
+          "returned",
+          "next_balance",
+          "gap_days",
+          "gap_amount",
+          "loan_order",
+          "loan_gap_days",
+          "move_in_date",
+          "move_in_warning",
+          "warnings",
+          "next_todos",
+          "todos"
+        ],
+        "title": "MoveOut"
+      },
+      "MoveTodoOut": {
+        "properties": {
+          "house": {
+            "type": "string",
+            "enum": [
+              "current",
+              "next"
+            ],
+            "title": "House",
+            "description": "current 지금 집 / next 다음 집"
+          },
+          "rule_id": {
+            "type": "string",
+            "title": "Rule Id",
+            "description": "todos.yaml id (T1~T9)"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "remind_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remind Date"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "done",
+              "upcoming",
+              "in_progress",
+              "overdue"
+            ],
+            "title": "State",
+            "description": "오늘 기준 상태 (TodoOut.state와 같음)"
+          },
+          "days_left": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days Left"
+          }
+        },
+        "type": "object",
+        "required": [
+          "house",
+          "rule_id",
+          "title",
+          "start_date",
+          "due_date",
+          "remind_date",
+          "state",
+          "days_left"
+        ],
+        "title": "MoveTodoOut",
+        "description": "지금 집과 다음 집 할 일을 하나로 묶은 목록의 한 줄 (FR-025)."
       },
       "NearbyJeonseOut": {
         "properties": {
