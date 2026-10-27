@@ -108,7 +108,10 @@ class Todo(Base):
     moved_to_top: Mapped[bool] = mapped_column(Boolean, default=False)   # 특약 거절·경보로 맨 위에 올림 (FR-019)
     rules_version: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="todo")   # todo / done / skipped
+    # 조건이 바뀌어 지금 계약에 없고 끝낸 기록으로만 남은 할 일 (_sync_todos가 정함, 되돌릴 수 없음)
+    archived: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     done_date: Mapped[date | None] = mapped_column(Date)
+    skipped_date: Mapped[date | None] = mapped_column(Date)          # 나중에 올리기로 바꾼 날 (증빙 재알림 기준, FR-030)
     evidence_path: Mapped[str | None] = mapped_column(String(500))     # 기록함 증빙 사진
 
     contract: Mapped[Contract] = relationship(back_populates="todos")
@@ -145,7 +148,7 @@ class Notification(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     contract_id: Mapped[int] = mapped_column(ForeignKey("contracts.id"), index=True)
     todo_rule_id: Mapped[str] = mapped_column(String(32))
-    kind: Mapped[str] = mapped_column(String(16))          # start / due_before / remind
+    kind: Mapped[str] = mapped_column(String(16))          # start / due_before / remind / evidence(나중에 올리기)
     notify_date: Mapped[date] = mapped_column(Date)
     channel: Mapped[str] = mapped_column(String(8))         # app / email
     status: Mapped[str] = mapped_column(String(16))

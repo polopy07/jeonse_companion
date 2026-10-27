@@ -67,7 +67,8 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/engine/special_terms.py` | 판정에 맞는 특약 예시와 넣음/거절당함 결과 (special_terms.yaml, linkage.yaml) |
 | `app/api/checks.py` | `POST /api/checks`, `GET /api/checks/{id}`, `GET /api/checks/{id}/special-terms` |
 | `app/api/contracts.py` | `POST /api/contracts`, `GET /api/contracts/{id}` |
-| `app/api/todos.py` | `PATCH /api/todos/{id}` 할 일 끝내기·나중에 올리기·되돌리기 |
+| `app/api/todos.py` | `PATCH /api/todos/{id}` 할 일 끝내기·나중에 올리기·되돌리기, `POST`·`GET`·`DELETE /api/todos/{id}/evidence` 증빙 |
+| `app/evidence.py` | 증빙 파일 저장·삭제 (`EVIDENCE_DIR`, 기본 `backend/data/evidence`, git 제외) |
 | `app/registry/pdf.py` | 등기부 PDF → 요약 페이지 글자 ("부동산정보요약" 또는 증명서의 "주요 등기사항 요약", pdfplumber) |
 | `app/registry/parser.py` | 요약 글자 → 소유자, 근저당 채권최고액, 압류 등, 신탁 (규칙 파서) |
 | `app/api/registry.py` | `POST /api/registry/parse` |
@@ -173,9 +174,17 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 ### `PATCH /api/todos/{id}` 할 일 끝내기·나중에 올리기·되돌리기 (FR-020·029·030, #43)
 
 - 본문 `{"status": "skipped"}`(나중에 올리기: 완료로 치고 기록함만 빈칸), `"done"`(증빙을 올린 할 일만), `"todo"`(되돌리기). `done_date`가 없으면 오늘(가상 날짜면 그날)
-- 막는 것(409): 먼저 끝낼 할 일이 남음 `PREREQUISITE_NOT_DONE`, 증빙 없이 완료 `EVIDENCE_REQUIRED`, 3·4번을 잔금일 전 날짜로 `TODO_NOT_STARTED`, 뒤 할 일이 끝났는데 되돌리기 `DEPENDENT_DONE`, 무산된 계약 `CONTRACT_CANCELLED`. 끝낸 날이 오늘보다 뒤면 422
+- 막는 것(409): 먼저 끝낼 할 일이 남음 `PREREQUISITE_NOT_DONE`, 증빙 없이 완료 `EVIDENCE_REQUIRED`, 3·4번을 잔금일 전 날짜로 `TODO_NOT_STARTED`, 뒤 할 일이 끝났는데 되돌리기 `DEPENDENT_DONE`, 목록에서 빠진 끝낸 할 일 되돌리기 `TODO_NOT_PLANNED`(재계산 때 `Todo.archived`로 표시, 이런 기록은 `DEPENDENT_DONE`에서 빼고 셈), 무산된 계약 `CONTRACT_CANCELLED`. 끝낸 날이 오늘보다 뒤거나 계약일(계약 전날 하는 할 일은 시작일)보다 앞서면 422. `PATCH /api/contracts/{id}`로 계약일을 뒤로 바꿔 끝낸 날이 앞서게 돼도 422
 - 끝낸 날은 뒤 할 일의 기준일이라(전입신고 완료 다음 날 → 반환보증 시작) 바꿀 때마다 계약의 할 일을 다시 계산해 계약 전체를 돌려준다. `skipped`도 끝낸 할 일로 친다
 - 할 일 `id`는 계약 응답 `todos[].id`. 헤더 `X-Contract-Token`은 그 할 일이 속한 계약의 토큰
+
+### 증빙 사진 올리기·보기·삭제 (FR-029·031·033, #44·#45)
+
+- `POST /api/todos/{id}/evidence` (multipart `file`, 선택 `done_date`): 사진 1장으로 할 일 완료(`done`). 형식·화질 제한 없이 20MB까지. 나중에 올리기였던 할 일은 끝낸 날 그대로 `done`, 다시 올리면 앞 사진을 바꿈. 끝낼 수 있는 조건은 `PATCH /api/todos/{id}`와 같음(이미 끝낸 할 일에 사진만 올리면 끝낸 날·앞 할 일은 다시 보지 않음). 20MB 검사는 업로드를 다 받은 뒤라, 배포 때는 프록시에서 요청 크기도 막음(출시 준비)
+- `GET /api/todos/{id}/evidence`: 파일. 사진(jpg·jpeg·png·gif·webp·heic·heif)·PDF는 `inline`, 다른 형식(SVG·HTML 포함)은 내려받기(`X-Content-Type-Options: nosniff`)
+- `DELETE /api/todos/{id}/evidence`: 언제든(무산된 계약도) 지움. 완료했던 할 일은 `skipped`(완료 그대로, 기록함만 빈칸)
+- 파일은 `EVIDENCE_DIR`(기본 `backend/data/evidence/<계약 id>/`, git 제외)에 저장, DB에는 상대 경로만. `reset_demo_db.py`가 계약별 폴더(숫자 이름)만 같이 지움. 다시 열린 뒤 조건이 바뀌어 지워지는 할 일의 파일도 지움. 암호화 저장은 출시 준비
+- 나중에 올리기 한 할 일은 나중에 올리기로 바꾼 날(증빙을 지운 날) 7일 뒤 "증빙을 아직 안 올렸어요" 앱 안 알림 (`todos.yaml` `notifications.evidence_after_days`, FR-030)
 
 ### `POST /api/contracts/access-link` 접근 링크 이메일로 다시 받기 (#39)
 

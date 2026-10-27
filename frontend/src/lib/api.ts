@@ -8,6 +8,7 @@
 import { Platform } from 'react-native';
 
 import type { CheckInput, RegistryLease } from '@/lib/check';
+import { virtualToday } from '@/lib/clock';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/+$/, '') || null;
 const TIMEOUT_MS = 15_000;
@@ -67,6 +68,9 @@ function sendXhr(url: string, method: string, form: FormData): Promise<RawRespon
 async function request<T>(path: string, init: RequestInit, { xhr = false }: { xhr?: boolean } = {}): Promise<T> {
   if (!API_URL) throw new ApiError('API_URL_MISSING', '서버 주소가 설정되지 않았어요');
   const url = `${API_URL}${path}`;
+  // 시연 가상 날짜 (FR-044): 서버가 그날을 오늘로 보고 계산한다 (등기부 업로드(xhr)는 날짜와 상관없음)
+  const day = virtualToday();
+  if (day && !xhr) init = { ...init, headers: { ...(init.headers as Record<string, string>), 'X-Virtual-Today': day } };
   let res: RawResponse;
   try {
     res = xhr ? await sendXhr(url, init.method ?? 'GET', init.body as FormData) : await sendFetch(url, init);
@@ -158,11 +162,13 @@ export type ApiCheckResult = {
   contract_id: number | null;
 };
 
-/** 계약 전 확인 → 판정 (서버에 저장). virtualToday는 시연 가상 날짜 (YYYY-MM-DD) */
-export function postCheck(input: CheckInput, virtualToday?: string) {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (virtualToday) headers['X-Virtual-Today'] = virtualToday;
-  return request<ApiCheckResult>('/api/checks', { method: 'POST', headers, body: JSON.stringify(input) });
+/** 계약 전 확인 → 판정 (서버에 저장). 가상 날짜가 있으면 그날 기준 실거래로 비교한다 */
+export function postCheck(input: CheckInput) {
+  return request<ApiCheckResult>('/api/checks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
 }
 
 /** 저장된 판정 (409 CHECK_ALREADY_USED 때 contract_id로 만든 계약을 찾는다) */
@@ -267,10 +273,24 @@ export type ApiTodo = {
   sort_order: number;
   status: 'todo' | 'done' | 'skipped';
   rules_version: string;
+  /** 오늘(가상 날짜면 그날) 기준: done 끝냄 / upcoming 시작 전 / in_progress 할 때 / overdue 기한 지남 */
+  state: 'done' | 'upcoming' | 'in_progress' | 'overdue';
+  /** 기한(재알림은 알림일)까지 남은 날. 지났으면 음수, 기한이 없으면 null */
+  days_left: number | null;
+};
+
+/** 계약에 기록한 특약 1개의 결과와 분기 (부속표 E, FR-050) */
+export type ApiTermEffect = ApiTermOutcome & {
+  /** special_terms.yaml id */
+  term_id: string;
+  label: string;
+  result: 'inserted' | 'rejected';
 };
 
 export type ApiContract = {
   id: number;
+  /** 할 일 상태를 계산한 오늘 (가상 날짜를 보냈으면 그날) */
+  today: string;
   check_id: number;
   level: string;
   deposit: number;
@@ -287,6 +307,8 @@ export type ApiContract = {
   status: 'active' | 'cancelled';
   /** 이 계약에 쓴 테스트 결제. 결제 없이 만든 계약이면 null */
   payment_id: number | null;
+  /** 기록한 특약 결과의 분기: 거절당함이면 위험 안내·맨 위로 올라간 할 일·상담 창구, 넣음이면 기록함 서류 */
+  special_term_effects: ApiTermEffect[];
   /** sort_order 순서 */
   todos: ApiTodo[];
 };
@@ -309,6 +331,21 @@ export function postContract(input: ApiContractInput) {
 /** 계약 정보와 할 일 목록 (앱을 다시 켰을 때 이어 보기). token은 계약을 만들 때 받은 access_token */
 export function getContract(contractId: number, token: string | null) {
   return request<ApiContract>(`/api/contracts/${contractId}`, { method: 'GET', headers: contractHeaders(token) });
+}
+
+/** PATCH로 바꿀 수 있는 칸. 보낸 칸만 바꾸고, 특약은 보낸 특약만 바꾼다 */
+export type ApiContractPatch = Partial<Omit<ApiContractInput, 'check_id' | 'payment_id'>>;
+
+/**
+ * 계약 조건·특약 결과를 바꾸고 할 일을 다시 계산한다 (FR-021, FR-049·050).
+ * 무산된 계약이면 409 CONTRACT_CANCELLED, 날짜 순서가 틀리면 422 (아무것도 안 바뀜)
+ */
+export function patchContract(contractId: number, token: string | null, patch: ApiContractPatch) {
+  return request<ApiContract>(`/api/contracts/${contractId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...contractHeaders(token) },
+    body: JSON.stringify(patch),
+  });
 }
 
 // ---- GET /api/demo-houses ----

@@ -9,16 +9,13 @@ import { Colors } from '@/constants/theme';
 import { checkResult, house } from '@/data/demo';
 import { ApiError, apiEnabled, getCheck, getContract, postContract, type Guarantor } from '@/lib/api';
 import { useLatestCheck } from '@/lib/check';
-import { parseManwon } from '@/lib/format';
+import { dateOrderError, isDateText as isDate, parseManwon } from '@/lib/format';
 import { contractToken, setLatestContract } from '@/lib/contract';
 import { paymentIdFor, setLatestPayment } from '@/lib/payment';
 import { useSpecialTermResults } from '@/lib/special-terms';
 
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** 시연 데이터의 "2026.10.20" → 입력칸 "2026-10-20" */
 const demoDate = (s: string) => s.replaceAll('.', '-');
-
-const isDate = (s: string) => DATE.test(s) && !Number.isNaN(new Date(s).getTime());
 
 /** UI-03 계약 당일 체크 5/5: 계약 날짜·조건 입력 → 계약 생성과 할 일 9종 (FR-014, POST /api/contracts) */
 export default function ContractDatesScreen() {
@@ -41,12 +38,7 @@ export default function ContractDatesScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const datesValid = isDate(contractDate) && isDate(balanceDate) && isDate(endDate) && (!loanDate || isDate(loanDate));
-  const orderError =
-    datesValid && balanceDate < contractDate
-      ? '잔금일은 계약일과 같거나 뒤여야 해요'
-      : datesValid && endDate <= balanceDate
-        ? '만기일은 잔금일보다 뒤여야 해요'
-        : null;
+  const orderError = datesValid ? dateOrderError(contractDate, balanceDate, endDate) : null;
   // 월세는 만 원 단위 (비우면 전세 0원)
   const monthlyRent = rentText.trim() ? parseManwon(rentText) : 0;
   const canSubmit = datesValid && !orderError && monthlyRent !== null && !submitting;

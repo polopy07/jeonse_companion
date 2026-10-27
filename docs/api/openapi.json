@@ -687,7 +687,7 @@
           "할 일"
         ],
         "summary": "Update Todo",
-        "description": "할 일을 끝내거나(done·skipped) 되돌린다(todo). 할 일과 계약은 계약 접근 토큰으로 확인한다.\n\n- done: 증빙이 필요한 할 일은 증빙을 올려야 끝낼 수 있다 (FR-029). 아직이면 409 EVIDENCE_REQUIRED → \"나중에 올리기\"\n- skipped: 나중에 올리기. 완료로 치고 기록함은 빈칸 (FR-030)\n- 먼저 끝낼 할 일(prerequisites)이 남았으면 409 PREREQUISITE_NOT_DONE (FR-020)\n- 잔금일에 하는 할 일(T3·T4, reopen_if_done_before_start)은 시작일 전 날짜로 끝낼 수 없다 (409 TODO_NOT_STARTED)\n- 되돌리기는 이 할 일을 먼저 끝내야 하는 뒤 할 일이 끝나 있으면 409 DEPENDENT_DONE\n무산된 계약은 409 CONTRACT_CANCELLED, 없는 할 일이나 토큰이 틀리면 404.",
+        "description": "할 일을 끝내거나(done·skipped) 되돌린다(todo). 할 일과 계약은 계약 접근 토큰으로 확인한다.\n\n- done: 증빙이 필요한 할 일은 증빙을 올려야 끝낼 수 있다 (FR-029). 아직이면 409 EVIDENCE_REQUIRED → \"나중에 올리기\"\n- skipped: 나중에 올리기. 완료로 치고 기록함은 빈칸 (FR-030)\n- 먼저 끝낼 할 일(prerequisites)이 남았으면 409 PREREQUISITE_NOT_DONE (FR-020)\n- 잔금일에 하는 할 일(T3·T4, reopen_if_done_before_start)은 시작일 전 날짜로 끝낼 수 없다 (409 TODO_NOT_STARTED)\n- 되돌리기는 이 할 일을 먼저 끝내야 하는 뒤 할 일이 끝나 있으면 409 DEPENDENT_DONE, 조건이 바뀌어 지금 계약에 없는\n  끝낸 할 일(기록으로만 남은 것)이면 409 TODO_NOT_PLANNED\n- 끝낸 날이 오늘보다 뒤이거나 계약일(계약 전날 하는 할 일은 시작일)보다 앞서면 422\n무산된 계약은 409 CONTRACT_CANCELLED, 없는 할 일이나 토큰이 틀리면 404.",
         "operationId": "update_todo_api_todos__todo_id__patch",
         "parameters": [
           {
@@ -786,6 +786,274 @@
               }
             },
             "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/todos/{todo_id}/evidence": {
+      "post": {
+        "tags": [
+          "할 일"
+        ],
+        "summary": "Upload Evidence",
+        "description": "증빙 사진 1장을 올려 할 일을 끝낸다 (FR-029, 기록함에 남음 FR-031). 형식·화질은 제한하지 않고 20MB까지.\n\n아직 끝내지 않은 할 일은 완료(done)로, 나중에 올리기(skipped)였던 할 일은 기록함을 채워 완료로 바꾼다\n(끝낸 날은 그대로, 보낸 done_date가 있으면 그날). 다시 올리면 앞의 사진을 바꾼다.\n아직 끝내지 않은 할 일과 done_date를 보낸 경우는 끝낼 수 있는 조건이 PATCH와 같다 (선행 조건, 잔금일 전,\n미래 날짜). 이미 끝낸 할 일에 사진만 올리면 저장된 끝낸 날·앞 할 일은 다시 보지 않는다. 무산된 계약이면 409.",
+        "operationId": "upload_evidence_api_todos__todo_id__evidence_post",
+        "parameters": [
+          {
+            "name": "todo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Todo Id"
+            }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
+          },
+          {
+            "name": "x-virtual-today",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘",
+              "title": "X-Virtual-Today"
+            },
+            "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_evidence_api_todos__todo_id__evidence_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "할 일"
+        ],
+        "summary": "Get Evidence",
+        "description": "올린 증빙 파일 (기록함 보기, UI-05). 사진·PDF는 화면에 바로, 다른 형식은 내려받기로 준다. 무산된 계약도 볼 수 있다.",
+        "operationId": "get_evidence_api_todos__todo_id__evidence_get",
+        "parameters": [
+          {
+            "name": "todo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Todo Id"
+            }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "할 일"
+        ],
+        "summary": "Delete Evidence",
+        "description": "증빙 삭제 (FR-033, 언제든 직접 지울 수 있음: 무산된 계약도). 파일을 지우고, 완료했던 할 일은\n\"나중에 올리기\"(skipped)로 바뀐다 (완료는 그대로, 기록함만 빈칸). 올린 증빙이 없으면 404.",
+        "operationId": "delete_evidence_api_todos__todo_id__evidence_delete",
+        "parameters": [
+          {
+            "name": "todo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Todo Id"
+            }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
+          },
+          {
+            "name": "x-virtual-today",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘",
+              "title": "X-Virtual-Today"
+            },
+            "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         }
       }
@@ -1142,6 +1410,32 @@
           "file"
         ],
         "title": "Body_parse_registry_api_registry_parse_post"
+      },
+      "Body_upload_evidence_api_todos__todo_id__evidence_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "done_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Done Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_evidence_api_todos__todo_id__evidence_post"
       },
       "CheckInput": {
         "properties": {
@@ -2419,6 +2713,19 @@
         "title": "ErrorResponse",
         "description": "모든 오류 응답의 형식."
       },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
       "LinkedRuleOut": {
         "properties": {
           "id": {
@@ -2545,10 +2852,11 @@
             "enum": [
               "start",
               "due_before",
-              "remind"
+              "remind",
+              "evidence"
             ],
             "title": "Kind",
-            "description": "start 시작일 / due_before 기한 며칠 전 / remind 재알림"
+            "description": "start 시작일 / due_before 기한 며칠 전 / remind 재알림 / evidence 나중에 올리기 한 증빙을 올리라는 알림"
           },
           "notify_date": {
             "type": "string",
@@ -3295,6 +3603,11 @@
             "title": "Evidence",
             "description": "완료 증빙으로 올릴 것"
           },
+          "evidence_uploaded": {
+            "type": "boolean",
+            "title": "Evidence Uploaded",
+            "description": "증빙 사진을 올렸는지. 보기는 GET /api/todos/{id}/evidence"
+          },
           "pinned": {
             "type": "boolean",
             "title": "Pinned",
@@ -3367,6 +3680,7 @@
           "prerequisites",
           "required_checks",
           "evidence",
+          "evidence_uploaded",
           "pinned",
           "moved_to_top",
           "sort_order",
@@ -3596,6 +3910,46 @@
           "label"
         ],
         "title": "UncheckedItemOut"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
       }
     }
   }
