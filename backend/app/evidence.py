@@ -97,11 +97,14 @@ def media_type(rel: str) -> str:
 
 
 def file_response(rel: str | None, name: str) -> FileResponse:
-    """올린 파일. 사진·PDF는 화면에 바로(inline), 다른 형식은 내려받기로. 없으면 404."""
+    """올린 파일. 사진·PDF는 화면에 바로(inline), 다른 형식은 내려받기로. 없으면 404.
+
+    개인 서류라 캐시하지 않는다 (같은 주소로 다시 올린 뒤 앞 사진이 휴대폰 캐시에서 보이지 않게, #122 리뷰).
+    """
     path = path_of(rel) if rel else None
     if path is None or not path.is_file():
         raise api_error(404, "NOT_FOUND", "올린 파일이 없습니다")
     kind = media_type(rel)
     disposition = "inline" if kind != DOWNLOAD else "attachment"
     return FileResponse(path, media_type=kind, filename=f"{name}{path.suffix}", content_disposition_type=disposition,
-                        headers={"X-Content-Type-Options": "nosniff"})
+                        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"})
