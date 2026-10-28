@@ -71,10 +71,11 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/engine/special_terms.py` | 판정에 맞는 특약 예시와 넣음/거절당함 결과 (special_terms.yaml, linkage.yaml) |
 | `app/api/checks.py` | `POST /api/checks`, `GET /api/checks/{id}`, `GET /api/checks/{id}/special-terms` |
 | `app/api/contracts.py` | `POST /api/contracts`, `GET /api/contracts/{id}` |
-| `app/api/moves.py` | `POST`·`GET /api/contracts/{id}/move` 갈아타기 |
+| `app/api/moves.py` | `POST`·`GET /api/contracts/{id}/move` 갈아타기, `POST .../move/next` 다음 집 계약 연결, 전입 경고(`check_move_in`) |
 | `app/api/recompare.py` | `POST`·`GET /api/contracts/{id}/registry-compare` 등기부 재비교 |
 | `app/engine/registry_compare.py` | 등기부 재비교: 항목별 변동·보류 안내 |
 | `app/api/todos.py` | `PATCH /api/todos/{id}` 할 일 끝내기·나중에 올리기·되돌리기, `POST`·`GET`·`DELETE /api/todos/{id}/evidence` 증빙 |
+| `app/api/documents.py` | `POST /api/contracts/{id}/documents`, `GET`·`DELETE /api/contracts/{id}/documents/{kind}` 첫 계약 서류 |
 | `app/evidence.py` | 증빙 파일 저장·삭제 (`EVIDENCE_DIR`, 기본 `backend/data/evidence`, git 제외) |
 | `app/api/alerts.py` | `GET /api/contracts/{id}/alerts/latest` 경보 리포트 |
 | `app/alerts.py` | 역전세 경보 재계산 (`POST /api/admin/alerts/recalculate`): 계약 중 비율·단계 다시 계산, 할 일·알림 |
@@ -181,7 +182,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - `POST /api/admin/notifications/run` (관리자, `X-Admin-Token`): 본문 `{"date": "2027-11-08"}`(없으면 `X-Virtual-Today`, 그것도 없으면 오늘)을 오늘로 보고 그날 보낼 알림을 만들어 `notifications` 표에 남긴다
   - 언제: 할 일 시작일(재알림 T6·T8은 알림일), 기한 7일 전·1일 전 (`rules/todos.yaml` `notifications`, 팀 제안 값)
   - 건너뛴 날: 알림일이 지났어도 7일 안이면 보낸다. 가상 날짜로 몇 달을 건너뛰어도 지난 알림이 쏟아지지 않는다
-  - 경로: 앱 안 알림은 `sent`. 이메일은 MVP 1종(반환보증 가입 T5·마감 30일 전 재알림 T6)만 보낸다. 못 보내면 `failed`로 남겨 다음 실행에서 3번까지 다시 보낸다(NFR-008). 알림 이메일이 없거나 그사이 무산·완료면 `skipped`
+  - 경로: 앱 안 알림은 `sent`. 이메일은 MVP 1종(반환보증 가입 T5·마감 30일 전 재알림 T6)만 보낸다. 공동 계약자 이메일(`co_tenant_email`, FR-043)이 있으면 `email_co` 경로로 따로 보낸다(주소마다 기록·재시도). 못 보내면 `failed`로 남겨 다음 실행에서 3번까지 다시 보낸다(NFR-008). 알림 이메일이 없거나 그사이 무산·완료면 `skipped`
   - 같은 할 일·종류·알림일·경로는 한 번만 만든다. 무산된 계약·끝낸 할 일은 알리지 않는다
 - 시연: 가상 날짜를 반환보증 가입 기한 7일 전으로 두고 알림 실행 → 반환보증 이메일이 나감 (AC-010)
 - 이메일 보내는 방법은 `EMAIL_BACKEND` (`app/mailer.py`): `console`(기본, 보내지 않고 서버 로그에만), `smtp`(실제 발송, `SMTP_HOST`·`SMTP_PORT`·`SMTP_USER`·`SMTP_PASSWORD`·`SMTP_FROM`, Gmail은 앱 비밀번호), `memory`(테스트). `.env.example` 참고
@@ -201,13 +202,20 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - 파일은 `EVIDENCE_DIR`(기본 `backend/data/evidence/<계약 id>/`, git 제외)에 저장, DB에는 상대 경로만. `reset_demo_db.py`가 계약별 폴더(숫자 이름)만 같이 지움. 다시 열린 뒤 조건이 바뀌어 지워지는 할 일의 파일도 지움. 암호화 저장은 출시 준비
 - 나중에 올리기 한 할 일은 나중에 올리기로 바꾼 날(증빙을 지운 날) 7일 뒤 "증빙을 아직 안 올렸어요" 앱 안 알림 (`todos.yaml` `notifications.evidence_after_days`, FR-030)
 
+### 첫 계약 서류 (FR-051, #46)
+
+- 계약 당일 계약서 사진(`contract`)·계약금 이체 내역(`down_payment`)을 기록함의 첫 서류로 저장한다 (`todos.yaml` `first_documents`). 할 일 증빙이 아니라 할 일은 바뀌지 않는다
+- `POST /api/contracts/{id}/documents` (multipart `kind`, `file`): 종류마다 1장, 다시 올리면 바꿈. 크기·빈 파일·보기 형식은 증빙 사진과 같음(`app/evidence.py` `read_upload`·`file_response`)
+- `GET`·`DELETE /api/contracts/{id}/documents/{kind}`: 보기·지우기 (무산된 계약도). 계약 응답 `documents`에 종류마다 올렸는지
+- 파일은 증빙과 같은 계약 폴더(`EVIDENCE_DIR/<계약 id>/`)라 `reset_demo_db.py`가 같이 지움
+
 ### `POST /api/contracts/access-link` 접근 링크 이메일로 다시 받기 (#39)
 
 ```json
 {"email": "tenant@example.com"}
 ```
 
-- 그 이메일로 만든 진행 중 계약마다 새 접근 토큰을 만들어 계약 이메일로 보낸다. 무산된 계약도 풀린 결제가 남아 있으면 보낸다(앱을 다시 설치해도 그 결제를 다음 집 계약에 쓸 수 있게). 처음 토큰은 그대로 둬서, 남이 이 요청을 보내도 원래 휴대폰은 계속 쓸 수 있다 (새 토큰은 `contract_tokens`에 해시로)
+- 그 이메일(계약 이메일 또는 공동 계약자 이메일)로 만든 진행 중 계약마다 새 접근 토큰을 만들어 그 주소로 보낸다. 부부가 각자 휴대폰에서 같은 계약을 볼 수 있다(FR-043). 무산된 계약도 풀린 결제가 남아 있으면 보낸다(앱을 다시 설치해도 그 결제를 다음 집 계약에 쓸 수 있게). 처음 토큰은 그대로 둬서, 남이 이 요청을 보내도 원래 휴대폰은 계속 쓸 수 있다 (새 토큰은 `contract_tokens`에 해시로)
 - 이메일이 없어도 같은 202 `{"message": ...}`. 계약마다 한 시간에 3번까지, 메일을 보내지 못하면 토큰을 남기지 않는다
 - 메일 본문: `APP_LINK_BASE`가 있으면 `{APP_LINK_BASE}?contract={id}&token=...` 링크, 없으면 계약 번호와 접근 코드. 앱은 이 둘을 받아 저장하고 `X-Contract-Token`으로 쓴다
 
@@ -227,6 +235,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - 전입 순서 `move_in_warning`: 다음 집 전입 예정일(없으면 잔금일)이 반환 예정일과 같거나 앞서면 true, 9번 할 일을 끝냈으면 false (FR-027). 앞서면 날짜를 다시 보라는 경고, 같은 날이면 "보증금 먼저 받고 전입신고" 순서 안내 (PO 결정 Q12)
 - `next_todos`: 다음 집 날짜로 계산한 할 일 9종 (연동 규칙·특약은 다음 집 계약 전 확인 뒤 계약을 만들 때). `todos`: 지금 집 + 다음 집 할 일을 날짜순으로 묶은 목록 (FR-025)
 - 정답표 S10·S10-b와의 대조는 `tests/test_move.py`
+- 다음 집 계약 연결 `POST /api/contracts/{id}/move/next` (`{"next_contract_id", "next_contract_token"}`): 다음 집 계약 전 확인(FR-028)으로 계약을 만든 뒤 연결한다. 그 뒤 다음 집의 전입신고(4번)를 지금 집 반환 확인(9번)이나 임차권등기(반환 대응 R3) 전에 끝내려 하면 `PATCH`·증빙 올리기가 409 `MOVE_IN_BEFORE_RETURN`(FR-027, UC-008 *a). 앱은 경고 창을 띄우고, 그래도 끝내면 `confirm_move_in: true`로 다시 보낸다. 지금 계약이 무산됐으면 경고하지 않는다. `tests/test_move_in_warning.py`
 
 ### `POST /api/contracts/{id}/registry-compare` 등기부 재비교 (FR-023·048, #41)
 
