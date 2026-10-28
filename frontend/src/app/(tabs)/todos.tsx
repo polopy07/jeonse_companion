@@ -163,6 +163,17 @@ export default function TodosScreen() {
         />
       ) : null}
 
+      {contract && contract.status !== 'cancelled' ? (
+        // FR-048·023: 계약 당일(점검한 날과 계약일이 다를 때)·잔금일 아침(3번 할 일) 등기부 재비교
+        <Button
+          variant="outline"
+          height={44}
+          label="등기부 다시 비교 (계약 당일·잔금일)"
+          onPress={() => router.push('/registry-compare')}
+          style={{ marginTop: 8 }}
+        />
+      ) : null}
+
       {contract?.special_term_effects.length ? (
         // FR-050: 특약 결과별 안내 (거절당함 → 위험 안내·맨 위 할 일·상담, 넣음 → 기록함 서류)
         <View style={{ marginTop: 12, gap: 8 }}>
