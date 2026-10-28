@@ -39,6 +39,7 @@ class Contract(Base):
     renewal_right_used: Mapped[bool] = mapped_column(Boolean, default=False)
     co_tenant: Mapped[bool] = mapped_column(Boolean, default=False)
     email: Mapped[str | None] = mapped_column(String(254))   # 알림 이메일 (FR-014, NFR-011 회원 식별도 이메일만)
+    co_tenant_email: Mapped[str | None] = mapped_column(String(254))   # 공동 계약자(부부) 알림 이메일 (FR-043)
 
     # 특약별 넣음/거절당함 {"S-NO-MORTGAGE": "rejected", ...} (FR-049)
     special_term_result: Mapped[dict] = mapped_column(JSONType, default=dict)
@@ -59,6 +60,8 @@ class Contract(Base):
     # 패키지를 시작한 판정(check_id)과 계약 당일·잔금일 재비교 판정 (FR-048, FR-023)
     verdicts: Mapped[list["Verdict"]] = relationship(back_populates="contract", order_by="Verdict.id")
     alerts: Mapped[list["Alert"]] = relationship(back_populates="contract", cascade="all, delete-orphan")
+    # 계약 당일 첫 계약 서류 (계약서·계약금 이체 내역, FR-051)
+    documents: Mapped[list["ContractDocument"]] = relationship(back_populates="contract", cascade="all, delete-orphan")
 
 
 class Verdict(Base):
@@ -120,6 +123,21 @@ class Todo(Base):
     contract: Mapped[Contract] = relationship(back_populates="todos")
 
 
+class ContractDocument(Base):
+    """계약 당일 첫 계약 서류 1장 (FR-051, todos.yaml first_documents). 종류마다 1장, 다시 올리면 바꾼다."""
+
+    __tablename__ = "contract_documents"
+    __table_args__ = (UniqueConstraint("contract_id", "kind", name="uq_contract_documents_kind"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    contract_id: Mapped[int] = mapped_column(ForeignKey("contracts.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(32))            # first_documents[].id (contract / down_payment)
+    path: Mapped[str] = mapped_column(String(500))           # 증빙 폴더 기준 상대 경로
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    contract: Mapped[Contract] = relationship(back_populates="documents")
+
+
 class Payment(Base):
     """테스트 결제 1건 (FR-013, #40). 실제 돈은 나가지 않는다. 판정에 결제하고 계약 생성에 쓴다.
 
@@ -141,7 +159,8 @@ class Payment(Base):
 class Notification(Base):
     """보낸 알림 기록 (FR-040, FR-041). 같은 할 일·종류·알림일은 한 번만 만든다 (알림 실행을 여러 번 불러도).
 
-    channel: app(앱 안 기한표) / email. status: sent / pending(이메일 발송 전) / failed / skipped(이메일 주소 없음)
+    channel: app(앱 안 기한표) / email(계약 이메일) / email_co(공동 계약자 이메일, FR-043).
+    status: sent / pending(이메일 발송 전) / failed / skipped(이메일 주소 없음)
     """
 
     __tablename__ = "notifications"
@@ -153,7 +172,7 @@ class Notification(Base):
     todo_rule_id: Mapped[str] = mapped_column(String(32))
     kind: Mapped[str] = mapped_column(String(16))          # start / due_before / remind / evidence(나중에 올리기)
     notify_date: Mapped[date] = mapped_column(Date)
-    channel: Mapped[str] = mapped_column(String(8))         # app / email
+    channel: Mapped[str] = mapped_column(String(8))         # app / email / email_co
     status: Mapped[str] = mapped_column(String(16))
     title: Mapped[str] = mapped_column(String(200))         # 보낸 문구 (할 일 제목 + 남은 날)
     attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")   # 이메일 보내기 시도 횟수 (NFR-008 재시도)
@@ -189,6 +208,9 @@ class Move(Base):
     contract_id: Mapped[int] = mapped_column(ForeignKey("contracts.id"), unique=True)
     decided_on: Mapped[date] = mapped_column(Date)            # "이사할게요"를 고른 날 (가상 날짜면 그날)
     next_inputs: Mapped[dict] = mapped_column(JSONType)       # 다음 집 입력 (MoveInput, 날짜는 YYYY-MM-DD)
+    # 다음 집으로 만든 계약 (POST /api/contracts/{id}/move/next). 그 계약의 전입신고(4번)를 지금 집 반환 확인 전에
+    # 끝내려 하면 경고한다 (FR-027)
+    next_contract_id: Mapped[int | None] = mapped_column(ForeignKey("contracts.id"), unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
