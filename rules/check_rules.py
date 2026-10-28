@@ -128,6 +128,13 @@ def main():
             if p not in todo_ids:
                 errors.append(f"todos.yaml:{tid['id']}: 없는 선행 할 일 '{p}'")
 
+    first_docs = [d["id"] for d in data["todos"]["first_documents"]]
+    if len(set(first_docs)) != len(first_docs):
+        errors.append("todos.yaml: first_documents id 중복")
+    for d in data["todos"]["first_documents"]:
+        if not re.fullmatch(r"[a-z_]+", d["id"]) or not d.get("label"):
+            errors.append(f"todos.yaml:first_documents.{d['id']}: id는 영문 소문자·밑줄(주소에 씀), label 필요")
+
     # 걸린 항목 설명·확인 못 한 항목 안내 (화면 문구)
     for lv in data["verdict"]["levels"]:
         for r in lv.get("rules", []):
