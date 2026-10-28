@@ -206,6 +206,9 @@ class Move(Base):
     contract_id: Mapped[int] = mapped_column(ForeignKey("contracts.id"), unique=True)
     decided_on: Mapped[date] = mapped_column(Date)            # "이사할게요"를 고른 날 (가상 날짜면 그날)
     next_inputs: Mapped[dict] = mapped_column(JSONType)       # 다음 집 입력 (MoveInput, 날짜는 YYYY-MM-DD)
+    # 다음 집으로 만든 계약 (POST /api/contracts/{id}/move/next). 그 계약의 전입신고(4번)를 지금 집 반환 확인 전에
+    # 끝내려 하면 경고한다 (FR-027)
+    next_contract_id: Mapped[int | None] = mapped_column(ForeignKey("contracts.id"), unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
