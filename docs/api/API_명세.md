@@ -161,6 +161,7 @@ A = 개발 A(백엔드·규칙), B = 개발 B(화면). 주차는 노션 "할 일
 | `POST /api/checks` | 계약 전 확인: 입력 → 추정 주택가격·내 보증금 비율 → 판정. 결과 저장. `complex`(시군구 코드·법정동·단지 이름·지번, 아파트·연립다세대만)를 주면 저장된 실거래에서 같은 단지·비슷한 면적의 최근 매매가(`trade_basis`, 공시가격 × 140%와 낮은 값)와 주변 전세 시세(`nearby_jeonse`, 3건 미만이면 표본 부족)를 찾아 기준일(`as_of`)과 함께 돌려준다 | FR-001~004, 009~010 | UI-01, UI-02 |
 | `GET /api/checks/{id}` | 저장된 판정 결과. 이 판정으로 만든 계약이 있으면 `contract_id`(없으면 null). 저장된 판정 단계가 지금 규칙에 없으면 409 `CHECK_OUTDATED` | FR-009 | UI-02 |
 | `GET /api/checks/{id}/special-terms` | 판정에 걸린 연동 규칙에 맞는 공공 자료 특약 예시(문구·출처·연결된 항목)와, 넣음/거절당함을 고르면 생기는 것(경고·서류·맨 위로 올라가는 할 일·상담 창구). 연동 규칙의 계약 당일 경고(`warnings`)·확인(`checks`)도 함께. MVP 연동 규칙(근저당, 비율 90% 이상, 신탁)에 연결된 MVP 특약만. "문제 항목"(결제 전 멈춤) 판정이면 409 `CHECK_BLOCKED`, 판정 단계가 지금 규칙에 없으면 409 `CHECK_OUTDATED`. 특약 예시는 지금 규칙 파일 기준 | FR-022, 039, 049~050 | UI-02, UI-03 |
+| `GET /api/checks/{id}/todo-preview` | 결제 전 할 일 종류 미리보기: 이 판정으로 패키지를 시작하면 생길 할 일의 종류·시점(`timing`)·증빙·맨 위로 올라가는지(`moved_to_top`)·생기는 조건(`note`, 반환보증 가입 시 등), 상품·금액, 임대차 신고 대상(`report_required`), 가정·안내 문구. **날짜는 주지 않음**(기한·알림·기록함은 패키지에서만). 전세(월세 없음)·반환보증 가입·대출 없음 가정, 판정의 연동 규칙(비율 90% 이상이면 2번 "계약 당일까지")·경보 단계(주의 이상이면 5번 맨 위)는 계약 때와 같게. 순서는 맨 위 할 일 → 번호순. "문제 항목"이면 409 `CHECK_BLOCKED`, 판정 단계가 지금 규칙에 없으면 409 `CHECK_OUTDATED` | FR-012 | UI-02 |
 | `POST /api/checks/{id}/payment` | 테스트 결제 (실제 돈은 나가지 않음): 판정 단계로 상품·금액을 서버가 정함(패키지 9,900원, 다가구·단독 할 일 관리만 4,900원) → `payment_id`. 같은 판정에 다시 누르면 앞서 한 결제를 200으로 돌려줌. "문제 항목"이면 409 `CHECK_BLOCKED`, 이미 계약을 만든 판정이면 409 `CHECK_ALREADY_USED` | FR-011, 013 | UI-02 (확인 창) |
 | `POST /api/admin/trades` | 실거래가 수집 (관리자): 공공데이터포털 API로 한 시군구(`lawd_cd`)의 아파트·연립다세대 매매·전월세를 `end_month`부터 거꾸로 `months`개월(기본 12) 받아 받은 시각(`fetched_at`)과 함께 저장. 같은 거래는 한 번만 저장. `X-Admin-Token` 헤더 = 서버 `ADMIN_TOKEN`이어야 함(없으면 401 `ADMIN_TOKEN_INVALID`, 서버에 `ADMIN_TOKEN`이 없으면 403 `ADMIN_DISABLED`). 인증키가 없으면 503 `SERVICE_KEY_MISSING`, 포털 오류는 502 `TRADE_API_ERROR`, 동시 수집이 겹치면 409 `TRADES_COLLECT_CONFLICT` | FR-046 | |
 | `POST /api/registry/parse` | 등기부 PDF → 요약 추출 결과 (저장 안 함). `fields`를 확인·수정해 `POST /api/checks`의 `registry`로 보낸다. 을구 임차권·전세권 보증금은 `fields.lease_amount`(선순위 채권)에 들어 있고, 이미 돌려받았거나 내 계약이면 확인 화면에서 `leases` 항목별로 빼서 보낸다. 같은 보증금이 전세권·임차권으로 함께 있으면 한 항목만 넣고 나머지는 `same_deposit_as`(남긴 항목의 순위번호)를 달아 뺀 상태로 준다 | FR-005~006 | UI-01 |
@@ -202,7 +203,6 @@ GitHub 이슈와 마일스톤(2주차·3주차·4주차)으로 진행을 관리�
 
 | 메서드·주소 | 하는 일 | FR | 이슈 |
 | --- | --- | --- | --- |
-| `GET /api/checks/{id}/todo-preview` | 결제 전에 생길 할 일 종류 미리보기. 화면이 규칙 파일로 그리면 생략 | FR-012 | #56 |
 | (`POST /api/registry/parse` 응답) | 등기 항목 쉬운 말 설명 (LLM) | FR-007 | #57 |
 | (`POST /api/contracts` 입력) | 공동 계약자 이메일, 같은 알림 발송 | FR-043 | #58 |
 

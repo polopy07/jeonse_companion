@@ -370,6 +370,29 @@ class ContractCreatedOut(ContractOut):
 PaymentProduct = Literal["package", "todo_only"]
 
 
+class TodoPreviewItem(BaseModel):
+    rule_id: str = Field(description="todos.yaml id (T1~T9)")
+    title: str
+    timing: str = Field(description="언제 하는 일인지 (날짜가 아니라 시점 설명, todos.yaml timing)")
+    evidence: str | None = Field(description="끝낼 때 기록함에 남길 증빙")
+    pinned: bool = Field(description="맨 위 고정 할 일 (반환보증·만기 통보·반환 확인)")
+    moved_to_top: bool = Field(description="이 판정의 경보 단계 때문에 맨 위로 올라가는 할 일 (예: 경보 주의 이상이면 반환보증)")
+    note: str | None = Field(description="생기는 조건 (반환보증 가입 시, 앞 할 일을 안 끝냈을 때)")
+
+
+class TodoPreviewOut(BaseModel):
+    """결제 전 할 일 종류 미리보기 (FR-012, UI-02). 날짜로 계산한 기한·알림·기록함은 패키지에서만."""
+
+    check_id: int
+    level: str
+    product: PaymentProduct = Field(description="시작할 상품 (package / todo_only)")
+    amount: int = Field(description="금액 (원)")
+    report_required: bool = Field(description="임대차 신고 대상 (보증금 기준, 전세 가정). 아니면 1번 대신 4번에서 확정일자")
+    todos: list[TodoPreviewItem] = Field(description="계약하면 생길 할 일. 맨 위로 올라가는 할 일 → 번호순 (계약 뒤 목록은 실제 날짜로 정렬)")
+    assumption: str = Field(description="미리보기의 가정 (전세·반환보증 가입), 화면에 그대로")
+    package_note: str = Field(description="결제 뒤에 받는 것 안내, 화면에 그대로")
+
+
 class PaymentOut(BaseModel):
     """테스트 결제 (FR-013). 실제 돈은 나가지 않는다."""
 
