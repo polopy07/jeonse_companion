@@ -375,6 +375,16 @@ class TodoOut(BaseModel):
     days_left: int | None = Field(description="기한(재알림은 알림일)까지 남은 날. 지났으면 음수, 기한이 없으면 null")
 
 
+class ContractDocumentOut(BaseModel):
+    """첫 계약 서류 한 종류 (FR-051). 올리지 않은 종류도 uploaded: false로 넣는다."""
+
+    kind: str = Field(description="todos.yaml first_documents id (contract 계약서 / down_payment 계약금 이체 내역)")
+    label: str
+    detail: str | None = Field(description="찍는 방법 안내")
+    uploaded: bool = Field(description="올렸는지. 보기는 GET /api/contracts/{id}/documents/{kind}")
+    uploaded_at: datetime | None
+
+
 class ContractOut(BaseModel):
     id: int
     today: date = Field(description="할 일 상태를 계산한 오늘 (X-Virtual-Today를 보냈으면 그날)")
@@ -404,6 +414,7 @@ class ContractOut(BaseModel):
     special_term_effects: list[SpecialTermEffectOut] = Field(
         description="기록한 특약 결과의 분기 (부속표 E): 넣음이면 기록함에 남길 서류, 거절당함이면 위험 안내·맨 위로 올라간 할 일·상담 창구")
     todos: list[TodoOut] = Field(description="할 일 목록 (sort_order 순서)")
+    documents: list[ContractDocumentOut] = Field(description="첫 계약 서류 (계약서·계약금 이체 내역, FR-051)")
 
 
 class ContractCreatedOut(ContractOut):

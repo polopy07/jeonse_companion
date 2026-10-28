@@ -43,6 +43,7 @@ def test_upload_finishes_todo_and_can_be_viewed(client, evidence_tmp):
     assert r.headers["content-type"] == "image/jpeg"
     assert r.headers["content-disposition"].startswith("inline")
     assert r.headers["x-content-type-options"] == "nosniff"
+    assert r.headers["cache-control"] == "private, no-store"   # 개인 서류, 다시 올린 뒤 앞 사진이 캐시에서 안 보이게
     assert client.get(f"/api/todos/{t4['id']}/evidence", headers={"X-Contract-Token": "wrong"}).status_code == 404
 
 

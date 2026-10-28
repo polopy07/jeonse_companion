@@ -122,13 +122,7 @@ def upload_evidence(todo_id: int, file: UploadFile, done_date: date | None = For
     """
     todo, row = _todo_and_contract(todo_id, x_contract_token, db)
     _active(row)
-    data = file.file.read(evidence.MAX_EVIDENCE_BYTES + 1)
-    if len(data) > evidence.MAX_EVIDENCE_BYTES:
-        raise api_error(413, "FILE_TOO_LARGE", f"증빙 파일은 {evidence.max_size_label()}까지 올릴 수 있습니다",
-                        "사진 크기를 줄여 다시 올리세요")
-    if not data:
-        raise RequestValidationError([{"type": "value_error", "loc": ("body", "file"), "input": None,
-                                       "msg": "Value error, 빈 파일입니다"}])
+    data = evidence.read_upload(file)
     if todo.status in FINISHED and done_date is None:
         finished_on = todo.done_date
     else:
@@ -154,13 +148,7 @@ def get_evidence(todo_id: int, db: Session = Depends(get_db),
                  x_contract_token: str | None = Header(None, description=TOKEN_HEADER_DESC)):
     """올린 증빙 파일 (기록함 보기, UI-05). 사진·PDF는 화면에 바로, 다른 형식은 내려받기로 준다. 무산된 계약도 볼 수 있다."""
     todo, _ = _todo_and_contract(todo_id, x_contract_token, db)
-    path = evidence.path_of(todo.evidence_path) if todo.evidence_path else None
-    if path is None or not path.is_file():
-        raise api_error(404, "NOT_FOUND", "올린 증빙이 없습니다")
-    media_type = evidence.media_type(todo.evidence_path)
-    disposition = "inline" if media_type != evidence.DOWNLOAD else "attachment"
-    return FileResponse(path, media_type=media_type, filename=f"evidence-{todo.rule_id}{path.suffix}",
-                        content_disposition_type=disposition, headers={"X-Content-Type-Options": "nosniff"})
+    return evidence.file_response(todo.evidence_path, f"evidence-{todo.rule_id}")
 
 
 @router.delete("/{todo_id}/evidence", response_model=ContractOut, responses=responses(404))
