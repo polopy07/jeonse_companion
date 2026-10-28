@@ -68,6 +68,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/api/checks.py` | `POST /api/checks`, `GET /api/checks/{id}`, `GET /api/checks/{id}/special-terms` |
 | `app/api/contracts.py` | `POST /api/contracts`, `GET /api/contracts/{id}` |
 | `app/api/todos.py` | `PATCH /api/todos/{id}` 할 일 끝내기·나중에 올리기·되돌리기, `POST`·`GET`·`DELETE /api/todos/{id}/evidence` 증빙 |
+| `app/api/documents.py` | `POST /api/contracts/{id}/documents`, `GET`·`DELETE /api/contracts/{id}/documents/{kind}` 첫 계약 서류 |
 | `app/evidence.py` | 증빙 파일 저장·삭제 (`EVIDENCE_DIR`, 기본 `backend/data/evidence`, git 제외) |
 | `app/registry/pdf.py` | 등기부 PDF → 요약 페이지 글자 ("부동산정보요약" 또는 증명서의 "주요 등기사항 요약", pdfplumber) |
 | `app/registry/parser.py` | 요약 글자 → 소유자, 근저당 채권최고액, 압류 등, 신탁 (규칙 파서) |
@@ -185,6 +186,13 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - `DELETE /api/todos/{id}/evidence`: 언제든(무산된 계약도) 지움. 완료했던 할 일은 `skipped`(완료 그대로, 기록함만 빈칸)
 - 파일은 `EVIDENCE_DIR`(기본 `backend/data/evidence/<계약 id>/`, git 제외)에 저장, DB에는 상대 경로만. `reset_demo_db.py`가 계약별 폴더(숫자 이름)만 같이 지움. 다시 열린 뒤 조건이 바뀌어 지워지는 할 일의 파일도 지움. 암호화 저장은 출시 준비
 - 나중에 올리기 한 할 일은 나중에 올리기로 바꾼 날(증빙을 지운 날) 7일 뒤 "증빙을 아직 안 올렸어요" 앱 안 알림 (`todos.yaml` `notifications.evidence_after_days`, FR-030)
+
+### 첫 계약 서류 (FR-051, #46)
+
+- 계약 당일 계약서 사진(`contract`)·계약금 이체 내역(`down_payment`)을 기록함의 첫 서류로 저장한다 (`todos.yaml` `first_documents`). 할 일 증빙이 아니라 할 일은 바뀌지 않는다
+- `POST /api/contracts/{id}/documents` (multipart `kind`, `file`): 종류마다 1장, 다시 올리면 바꿈. 크기·빈 파일·보기 형식은 증빙 사진과 같음(`app/evidence.py` `read_upload`·`file_response`)
+- `GET`·`DELETE /api/contracts/{id}/documents/{kind}`: 보기·지우기 (무산된 계약도). 계약 응답 `documents`에 종류마다 올렸는지
+- 파일은 증빙과 같은 계약 폴더(`EVIDENCE_DIR/<계약 id>/`)라 `reset_demo_db.py`가 같이 지움
 
 ### `POST /api/contracts/access-link` 접근 링크 이메일로 다시 받기 (#39)
 

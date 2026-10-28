@@ -59,6 +59,8 @@ class Contract(Base):
     # 패키지를 시작한 판정(check_id)과 계약 당일·잔금일 재비교 판정 (FR-048, FR-023)
     verdicts: Mapped[list["Verdict"]] = relationship(back_populates="contract", order_by="Verdict.id")
     alerts: Mapped[list["Alert"]] = relationship(back_populates="contract", cascade="all, delete-orphan")
+    # 계약 당일 첫 계약 서류 (계약서·계약금 이체 내역, FR-051)
+    documents: Mapped[list["ContractDocument"]] = relationship(back_populates="contract", cascade="all, delete-orphan")
 
 
 class Verdict(Base):
@@ -115,6 +117,21 @@ class Todo(Base):
     evidence_path: Mapped[str | None] = mapped_column(String(500))     # 기록함 증빙 사진
 
     contract: Mapped[Contract] = relationship(back_populates="todos")
+
+
+class ContractDocument(Base):
+    """계약 당일 첫 계약 서류 1장 (FR-051, todos.yaml first_documents). 종류마다 1장, 다시 올리면 바꾼다."""
+
+    __tablename__ = "contract_documents"
+    __table_args__ = (UniqueConstraint("contract_id", "kind", name="uq_contract_documents_kind"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    contract_id: Mapped[int] = mapped_column(ForeignKey("contracts.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(32))            # first_documents[].id (contract / down_payment)
+    path: Mapped[str] = mapped_column(String(500))           # 증빙 폴더 기준 상대 경로
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    contract: Mapped[Contract] = relationship(back_populates="documents")
 
 
 class Payment(Base):

@@ -29,8 +29,8 @@ from app.engine.todos import build_todos, report_required
 from app.errors import api_error, responses
 from app.models import Contract, ContractToken, Payment, Todo, Verdict
 from app.rules.loader import get_rules
-from app.schemas import (AccessLinkInput, AccessLinkResult, ContractCreatedOut, ContractInput, ContractOut, ContractPatch,
-                         SpecialTermEffectOut, TodoOut)
+from app.schemas import (AccessLinkInput, AccessLinkResult, ContractCreatedOut, ContractDocumentOut, ContractInput,
+                         ContractOut, ContractPatch, SpecialTermEffectOut, TodoOut)
 
 router = APIRouter(prefix="/api/contracts", tags=["계약"])
 logger = logging.getLogger(__name__)
@@ -250,7 +250,15 @@ def _to_out(row: Contract, db: Session, rules: dict, today: date) -> ContractOut
             for e in term_effects(row.special_term_result or {}, rules)
         ],
         todos=[_todo_out(t, today) for t in row.todos],
+        documents=_documents_out(row, rules),
     )
+
+
+def _documents_out(row: Contract, rules: dict) -> list[ContractDocumentOut]:
+    saved = {d.kind: d for d in row.documents}
+    return [ContractDocumentOut(kind=k["id"], label=k["label"], detail=k.get("detail"), uploaded=k["id"] in saved,
+                                uploaded_at=saved[k["id"]].uploaded_at if k["id"] in saved else None)
+            for k in rules["todos"]["first_documents"]]
 
 
 @router.post("", response_model=ContractCreatedOut, status_code=201, responses=responses(402, 404, 409, 422))
