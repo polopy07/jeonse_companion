@@ -142,7 +142,7 @@
 
 - 계약 전 확인(`/api/checks`, `/api/registry/parse`)은 그대로 로그인 없이 쓴다 (UC-001)
 - **계약별 접근 토큰 (#39)**: `POST /api/contracts` 응답에 `access_token`을 한 번만 준다(서버는 해시만 저장). 계약 아래 API(`GET·PATCH /api/contracts/{id}`, 앞으로 만들 할 일 완료·증빙·서류)는 헤더 `X-Contract-Token`이 맞아야 한다. 토큰이 없거나 틀리면 계약이 없을 때와 같은 404 `NOT_FOUND`(번호를 바꿔 가며 계약이 있는지 알아내지 못하게). 회원 식별은 이메일만 (NFR-011). 휴대폰을 바꾸거나 앱을 지우면 "접근 링크 이메일로 다시 받기"(`POST /api/contracts/access-link`, 2.1)로 다시 들어온다. 다시 받은 토큰은 `contract_tokens`에 해시로 더하고 처음 토큰은 그대로 쓸 수 있다
-- 캘린더 파일(`calendar.ics`, #47)은 캘린더 앱이 헤더를 못 보내므로 주소에 별도 구독용 토큰을 넣는다
+- 캘린더 구독(#47)은 캘린더 앱이 헤더를 못 보내므로 주소에 보기 전용 토큰을 넣는다(`/api/calendar/{token}.ics`). 계약 접근 토큰과 따로라 계약 API에는 쓸 수 없고, 다시 만들거나 끊으면 앞 주소는 404
 - **테스트 결제 (#40, FR-013)**: `POST /api/checks/{id}/payment` → `{payment_id, product: "package" | "todo_only", amount, method: "test", status: "paid"}`. 금액은 서버가 판정 단계로 정한다(9,900원, 다가구·단독 할 일 관리만 4,900원). "문제 항목" 판정이면 409 `CHECK_BLOCKED`. 실제 돈은 나가지 않는다
 - `POST /api/contracts`에 `payment_id`. 이 판정의 결제이거나 무산된 계약에서 풀린 결제(`released`)여야 하고, 아니면 402 `PAYMENT_REQUIRED`. 풀린 결제는 그 결제를 썼던 무산된 계약의 접근 토큰을 본문 `released_contract_token`으로 함께 보내야 한다(지금 만드는 계약의 토큰이 아니라 `X-Contract-Token` 헤더와 뜻이 달라서. 없으면 402와 접근 링크 다시 받기 안내, 결제 번호만 바꿔 남의 풀린 결제를 쓰지 못하게, `REQUIRE_CONTRACT_AUTH`와 상관없이 언제나). 풀린 결제가 할 일 관리만(4,900원)인데 다음 집이 패키지면 402(다시 결제). 결제 화면은 UI-02의 확인 창
 - 계약 무산(FR-016): `POST /api/contracts/{id}/cancel` → 계약 `cancelled`, 결제 `released`. 무산된 계약은 `GET`만 되고 바꾸는 요청은 409 `CONTRACT_CANCELLED`, 알림은 보내지 않는다
@@ -178,6 +178,9 @@ A = 개발 A(백엔드·규칙), B = 개발 B(화면). 주차는 노션 "할 일
 | `POST /api/admin/alerts/recalculate` | 경보 재계산 (관리자): 본문 `date`(→ `X-Virtual-Today` → 실제 오늘)를 기준일로 진행 중 계약의 추정 주택가격·내 보증금 비율·경보 단계를 계약 전 확인과 같은 규칙으로 다시 계산해 이력(`alerts`)에 남긴다. 실거래는 저장된 것(`POST /api/admin/trades`로 수집)에서 판정 때 단지로 찾고(판정 때 사용자가 매매 실거래가를 직접 넣었으면 판정처럼 그 값을 씀, `basis.trade_price_input`), 선순위 채권은 마지막으로 올린 등기부. 이 기능 전에 만든 판정에는 단지 정보가 없어 공시가격으로만 계산하니 시연 DB는 `reset_demo_db.py`로 초기화. `contract_ids`로 일부만, `official_prices`(`{계약 id: 새 공시가격}`)로 공시가격 새 발표를 적재한 뒤 계산. 같은 날 다시 부르면 그날 계산을 바꿈(가상 날짜를 되돌려 앞선 날을 부르면 그날 기록을 바꾸고, 앞 단계는 그날보다 앞선 기록). 단계가 바뀌면 계약 `alert_level`과 할 일을 다시 계산(주의 이상이면 T5 맨 위), 올라가면 앱 안 알림(`kind: "alert"`, 하루 한 건: 같은 날 한 번 더 오르면 그 알림을 새 단계로 고침, `raised`는 그날 앞서 계산한 단계보다도 높을 때만 true). 지금 `alert.yaml`에 없는 예전 단계는 정상으로 봄. 공시가격이 없는 계약·무산된 계약은 건너뜀 | FR-037, 046 | |
 | `POST /api/contracts/access-link` | 접근 링크 이메일로 다시 받기: 본문 `{"email"}`. 그 이메일로 만든 진행 중 계약(무산된 계약도 풀린 결제가 남아 있으면)마다 새 접근 토큰을 만들어 계약 이메일로 보냄(처음 토큰은 그대로, 계약마다 한 시간에 3번). 이메일이 없어도 같은 202 (계약이 있는지 알아내지 못하게). 링크는 `APP_LINK_BASE`가 있으면 `{APP_LINK_BASE}?contract={id}&token=...`, 없으면 접근 코드 | NFR-011 | UI-04 |
 | `PATCH /api/contracts/{id}` | 계약 조건(날짜·월세·대출·보증기관·중개·갱신·공동 계약·이메일)과 특약 넣음/거절당함을 바꾸고 할 일을 다시 계산. 보낸 칸만 바꾸고, 특약은 보낸 특약만 바꾼다(그 판정에서 안내한 특약만). 바꾼 뒤 조건이 계약 생성 규칙(날짜 순서·대출 실행일)을 어기거나 꼭 있어야 하는 칸에 null이면 422(아무것도 안 바뀜). 계약일을 뒤로 바꿔 목록에 있는 끝낸 할 일의 끝낸 날이 새 계약일보다 앞서게 되면 422 `contract_date`(그 할 일을 되돌리거나 끝낸 날을 고친 뒤 바꿈), 없는 계약이면 404. 같은 할 일은 `id`·상태·완료일을 유지하고, 끝낸 할 일의 완료일을 뒤 할 일의 기준일로 쓴다. 더는 해당하지 않는 할 일은 지우되 끝낸 것은 맨 뒤에 남긴다. 잔금일이 미뤄져 끝낸 T3·T4의 완료일이 새 잔금일보다 앞서면 다시 할 일로 돌린다. 주택 유형·보증금·`alert_level`은 바꾸지 않는다(경보 단계는 경보 재계산으로만 바뀜) `X-Contract-Token` 확인, 무산된 계약이면 409 `CONTRACT_CANCELLED` | FR-021, 049~050 | UI-03, UI-04 |
+| `POST /api/contracts/{id}/calendar-link` | 캘린더 구독 주소 만들기: `url`(https)·`webcal_url`(휴대폰에서 열면 캘린더 앱이 구독을 물음)·`created_at`. 주소에 보기 전용 토큰이 들어 있어 이 응답에서 한 번만 준다(서버엔 해시). 다시 만들면 앞 주소는 끊김(계약마다 살아 있는 주소 하나). 주소 앞부분은 `PUBLIC_BASE_URL`, 없으면 요청이 들어온 주소. `X-Contract-Token` 확인, 무산된 계약은 409. 앱 ICS 내보내기(#102)는 내보낸 때의 일정이고, 구독은 기한이 바뀌면 캘린더가 저절로 따라감. 캘린더 앱이 서버에 닿아야 해서 실제 구독은 배포 서버에서 | FR-042 | UI-04 |
+| `DELETE /api/contracts/{id}/calendar-link` | 구독 주소 끊기 (주소가 샜거나 더 쓰지 않을 때). 204, 끊을 주소가 없으면 404. 무산된 계약도 됨 | FR-042 | UI-04 |
+| `GET /api/calendar/{token}.ics` | 구독 파일 (`text/calendar`, 캘린더 앱이 헤더 없이 주기적으로 부름). 끝나지 않은 할 일마다 하루 종일 일정(기한, 재알림은 알림일), 기한 7·1일 전 오전 9시 알림(`todos.yaml` `notifications.due_before_days`), UID는 앱 내보내기와 같아 겹치지 않음. 집 주소·이름은 넣지 않음. 끊은·없는 주소 404, 무산된 계약은 일정 없는 캘린더(구독한 일정이 지워짐). 이 토큰은 계약 API에 쓸 수 없음 | FR-042 | |
 | `GET /api/demo-houses` | 시연 집 2채(해운대구 아파트·수영구 빌라, `docs/validation/demo_houses.yaml`): 계약 전 확인 입력값(`input`, 단지·공시가격·전용면적·등기부 확인값 포함. 그대로 `POST /api/checks`로), 시연 등기부를 읽은 결과(`registry`, `POST /api/registry/parse`와 같은 형식, 이름·주소는 가린 값), 시연용 가상 값(`virtual`, 화면에 "시연용 가상" 표시), 계약 당일 장면(`contract_day`, 날짜·특약 결과. 그대로 `POST /api/contracts`로). 정답표와 같은 결과를 보려면 기준일(`as_of`)의 실거래 저장본을 넣고(`cd backend && python load_demo_trades.py`) `X-Virtual-Today`에 그 날짜를 보낸다. `tests/test_demo_houses.py`가 정답표 기대값과 자동 대조 | FR-001, 046 | UI-01, UI-03 |
 
 입출력 예시는 `backend/README.md`, 전체 형식은 `openapi.json`.
@@ -190,7 +193,6 @@ GitHub 이슈와 마일스톤(2주차·3주차·4주차)으로 진행을 관리�
 | --- | --- | --- | --- | --- | --- |
 | `POST /api/contracts/{id}/registry-compare` | 계약 당일·잔금일 등기부를 다시 올려 점검 때와 비교, 바뀐 항목 표시 | FR-023, 048 | UI-03 | 3 | #41 |
 | `POST /api/contracts/{id}/documents` | 첫 계약 서류(계약서·이체 내역) 저장 | FR-051 | UI-03, UI-05 | 3 | #46 |
-| `GET /api/contracts/{id}/calendar.ics` | 할 일 기한을 캘린더 파일로 (`text/calendar`) | FR-042 | UI-04 | 3 | #47 |
 | `GET /api/contracts/{id}/timeline` | 계약 2년 기록을 날짜순으로 | FR-032 | UI-06 | 4 | #51 |
 | `GET /api/contracts/{id}/return-guide` | 반환 대응 단계, 청구 서류 대조 | FR-024, 034~035 | UI-08 | 4 | #52 |
 

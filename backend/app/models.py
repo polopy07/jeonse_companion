@@ -190,6 +190,22 @@ class Move(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
+class CalendarToken(Base):
+    """캘린더 구독 주소의 보기 전용 토큰 (FR-042, #47). 해시만 저장한다.
+
+    캘린더 앱은 X-Contract-Token 헤더를 보낼 수 없어 주소에 토큰을 넣는다. 이 토큰으로는 할 일 일정만 볼 수 있고
+    계약 API에는 쓸 수 없다(계약 접근 토큰과 따로). 다시 만들면 앞 주소는 폐기(revoked_at)된다.
+    """
+
+    __tablename__ = "calendar_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    contract_id: Mapped[int] = mapped_column(ForeignKey("contracts.id"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class Alert(Base):
     """역전세 경보 계산 이력 (FR-036, FR-037)."""
 

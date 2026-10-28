@@ -538,6 +538,14 @@ class MoveOut(BaseModel):
     todos: list[MoveTodoOut] = Field(description="지금 집 + 다음 집 할 일을 날짜순으로 묶은 목록 (FR-025)")
 
 
+class CalendarLinkOut(BaseModel):
+    """캘린더 구독 주소 (FR-042, #47). 이 응답에서 한 번만 준다 (서버에는 토큰 해시만)."""
+
+    url: str = Field(description="https 구독 주소 (구글 캘린더 \"URL로 추가\"에 넣음)")
+    webcal_url: str = Field(description="webcal:// 주소 (휴대폰에서 열면 캘린더 앱이 구독을 묻는다)")
+    created_at: datetime
+
+
 class TodoPatch(BaseModel):
     """할 일 완료·나중에 올리기·되돌리기 (FR-020, FR-029·030, UI-04)."""
 
