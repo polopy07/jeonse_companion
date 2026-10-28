@@ -69,7 +69,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/engine/special_terms.py` | 판정에 맞는 특약 예시와 넣음/거절당함 결과 (special_terms.yaml, linkage.yaml) |
 | `app/api/checks.py` | `POST /api/checks`, `GET /api/checks/{id}`, `GET /api/checks/{id}/special-terms` |
 | `app/api/contracts.py` | `POST /api/contracts`, `GET /api/contracts/{id}` |
-| `app/api/moves.py` | `POST`·`GET /api/contracts/{id}/move` 갈아타기 |
+| `app/api/moves.py` | `POST`·`GET /api/contracts/{id}/move` 갈아타기, `POST .../move/next` 다음 집 계약 연결, 전입 경고(`check_move_in`) |
 | `app/api/todos.py` | `PATCH /api/todos/{id}` 할 일 끝내기·나중에 올리기·되돌리기, `POST`·`GET`·`DELETE /api/todos/{id}/evidence` 증빙 |
 | `app/evidence.py` | 증빙 파일 저장·삭제 (`EVIDENCE_DIR`, 기본 `backend/data/evidence`, git 제외) |
 | `app/api/alerts.py` | `GET /api/contracts/{id}/alerts/latest` 경보 리포트 |
@@ -217,6 +217,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - 전입 순서 `move_in_warning`: 다음 집 전입 예정일(없으면 잔금일)이 반환 예정일과 같거나 앞서면 true, 9번 할 일을 끝냈으면 false (FR-027). 앞서면 날짜를 다시 보라는 경고, 같은 날이면 "보증금 먼저 받고 전입신고" 순서 안내 (PO 결정 Q12)
 - `next_todos`: 다음 집 날짜로 계산한 할 일 9종 (연동 규칙·특약은 다음 집 계약 전 확인 뒤 계약을 만들 때). `todos`: 지금 집 + 다음 집 할 일을 날짜순으로 묶은 목록 (FR-025)
 - 정답표 S10·S10-b와의 대조는 `tests/test_move.py`
+- 다음 집 계약 연결 `POST /api/contracts/{id}/move/next` (`{"next_contract_id", "next_contract_token"}`): 다음 집 계약 전 확인(FR-028)으로 계약을 만든 뒤 연결한다. 그 뒤 다음 집의 전입신고(4번)를 지금 집 반환 확인(9번)이나 임차권등기(반환 대응 R3) 전에 끝내려 하면 `PATCH`·증빙 올리기가 409 `MOVE_IN_BEFORE_RETURN`(FR-027, UC-008 *a). 앱은 경고 창을 띄우고, 그래도 끝내면 `confirm_move_in: true`로 다시 보낸다. 지금 계약이 무산됐으면 경고하지 않는다. `tests/test_move_in_warning.py`
 
 ### `POST /api/admin/trades` 실거래가 수집 (FR-046)
 

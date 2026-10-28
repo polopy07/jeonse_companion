@@ -532,10 +532,19 @@ class MoveOut(BaseModel):
     loan_gap_days: int | None = Field(description="새 대출 실행이 기존 대출 상환보다 먼저인 일수")
     move_in_date: date = Field(description="다음 집 전입 예정일 (입력이 없으면 잔금일)")
     move_in_warning: bool = Field(description="전입 예정일이 반환 예정일과 같거나 앞서면 true (반환 확인을 끝냈으면 false, FR-027)")
+    next_contract_id: int | None = Field(
+        None, description="다음 집으로 만든 계약 (POST .../move/next로 연결). 연결하면 그 계약의 전입신고를 끝낼 때 경고한다")
     warnings: list[str] = Field(description="화면에 그대로 보여 줄 안내 (자금 틈·대출 순서·전입 순서)")
     next_todos: list[MoveTodoOut] = Field(description="다음 집 할 일 9종 (다음 집 날짜로 계산, 할 일 순서대로). "
                                                        "다음 집 계약 전 확인의 연동 규칙·특약은 계약을 만들 때 반영된다")
     todos: list[MoveTodoOut] = Field(description="지금 집 + 다음 집 할 일을 날짜순으로 묶은 목록 (FR-025)")
+
+
+class MoveLinkInput(BaseModel):
+    """갈아타기에 다음 집 계약 연결 (FR-027). 다음 집 계약을 만든 휴대폰이 그 계약의 접근 토큰을 함께 보낸다."""
+
+    next_contract_id: int
+    next_contract_token: str = Field(min_length=1, description="다음 집 계약을 만들 때 받은 access_token")
 
 
 class TodoPatch(BaseModel):
@@ -545,6 +554,9 @@ class TodoPatch(BaseModel):
         description="done 완료(증빙을 올린 할 일만) / skipped 나중에 올리기(완료 처리, 기록함은 빈칸) / todo 되돌리기")
     done_date: date | None = Field(
         None, description="끝낸 날. 없으면 오늘(가상 날짜면 그날). 뒤 할 일의 기준일이 된다 (예: 전입신고 완료 다음 날 → 반환보증 시작)")
+    confirm_move_in: bool = Field(
+        False, description="갈아타기 다음 집의 전입신고를 지금 집 반환 확인 전에 끝낼 때, 경고(409 MOVE_IN_BEFORE_RETURN)를 "
+                           "보고 그래도 끝내면 true (FR-027)")
 
 
 AlertLevel = Literal["caution", "warning", "danger"]

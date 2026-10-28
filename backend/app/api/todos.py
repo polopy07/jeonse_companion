@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app import evidence
 from app.api.contracts import FINISHED, TOKEN_HEADER_DESC, _active, _contract_for, _sync_todos, _to_out, done_floor
+from app.api.moves import check_move_in
 from app.clock import today as today_dep
 from app.db import get_db
 from app.errors import api_error, responses
@@ -80,6 +81,8 @@ def update_todo(todo_id: int, inp: TodoPatch, db: Session = Depends(get_db), rul
     - 되돌리기는 이 할 일을 먼저 끝내야 하는 뒤 할 일이 끝나 있으면 409 DEPENDENT_DONE, 조건이 바뀌어 지금 계약에 없는
       끝낸 할 일(기록으로만 남은 것)이면 409 TODO_NOT_PLANNED
     - 끝낸 날이 오늘보다 뒤이거나 계약일(계약 전날 하는 할 일은 시작일)보다 앞서면 422
+    - 갈아타기 다음 집의 전입신고(4번)를 지금 집 반환 확인(9번)·임차권등기 전에 끝내면 409 MOVE_IN_BEFORE_RETURN.
+      경고를 보고 그래도 끝내면 confirm_move_in: true (FR-027)
     무산된 계약은 409 CONTRACT_CANCELLED, 없는 할 일이나 토큰이 틀리면 404.
     """
     todo, row = _todo_and_contract(todo_id, x_contract_token, db)
@@ -102,6 +105,8 @@ def update_todo(todo_id: int, inp: TodoPatch, db: Session = Depends(get_db), rul
         if inp.status == "done" and todo.evidence and not todo.evidence_path:
             raise api_error(409, "EVIDENCE_REQUIRED", f"증빙({todo.evidence})을 올려야 끝낼 수 있습니다",
                             "증빙 사진을 올리거나 \"나중에 올리기\"를 고르세요")
+        if not inp.confirm_move_in and todo.status not in FINISHED:
+            check_move_in(todo, row, db)
         todo.status, todo.done_date = inp.status, done_date
         if inp.status == "skipped":
             todo.skipped_date = today   # 증빙 재알림은 이날부터 센다 (FR-030)
@@ -110,6 +115,7 @@ def update_todo(todo_id: int, inp: TodoPatch, db: Session = Depends(get_db), rul
 
 @router.post("/{todo_id}/evidence", response_model=ContractOut, responses=responses(404, 409, 413, 422))
 def upload_evidence(todo_id: int, file: UploadFile, done_date: date | None = Form(None),
+                    confirm_move_in: bool = Form(False, description="전입 경고(409 MOVE_IN_BEFORE_RETURN)를 보고 그래도 끝내면 true"),
                     db: Session = Depends(get_db), rules: dict = Depends(get_rules),
                     today: date = Depends(today_dep),
                     x_contract_token: str | None = Header(None, description=TOKEN_HEADER_DESC)):
@@ -133,6 +139,8 @@ def upload_evidence(todo_id: int, file: UploadFile, done_date: date | None = For
         finished_on = todo.done_date
     else:
         finished_on = _finish_date(todo, row, done_date, today, rules)
+    if not confirm_move_in and todo.status not in FINISHED:   # 끝낸 할 일에 사진만 올리는 것은 경고하지 않음
+        check_move_in(todo, row, db)
 
     old = todo.evidence_path
     new = evidence.save(row.id, todo.id, data, file.filename)
