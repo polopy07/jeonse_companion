@@ -30,6 +30,18 @@ type Slot = RecordDoc & { key: string; todo?: ApiTodo };
  */
 const CLAIM_TODOS = new Set(['T1', 'T4', 'T5', 'R1', 'R2', 'R3']);
 
+/**
+ * 할 일별 증빙 사진 버전. 다시 올리거나 지울 때마다 올려 사진 주소(?v=)를 바꾼다. 창 밖에 두어 창을 닫았다 다시 열어도
+ * 앞 사진 주소로 돌아가지 않게, 앞에 앱 실행마다 다른 값을 붙여 앱을 다시 켠 뒤에도 휴대폰 캐시와 겹치지 않게 (#122 리뷰 1번)
+ */
+const LAUNCH = Date.now().toString(36);
+const evidenceVersions = new Map<number, number>();
+const bumpVersion = (todoId: number) => {
+  const v = (evidenceVersions.get(todoId) ?? 0) + 1;
+  evidenceVersions.set(todoId, v);
+  return v;
+};
+
 /** "2026-10-20" → "10.20" */
 const md = (s: string) => `${Number(s.slice(5, 7))}.${s.slice(8, 10)}`;
 
@@ -181,10 +193,11 @@ function EvidenceSheet({
   const token = contractToken(contract.id);
   const active = contract.status !== 'cancelled';
   const [busy, setBusy] = useState(false);
+  // 사진을 고르는 중 / 서버에 보내는 중 (버튼 문구를 나눠 보여 준다, #122 리뷰 3번)
+  const [phase, setPhase] = useState<'picking' | 'uploading' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  // 다시 올리면 바꿔서 앞 사진이 캐시에서 보이지 않게
-  const [version, setVersion] = useState(0);
+  const [version, setVersion] = useState(() => evidenceVersions.get(todo.id) ?? 0);
 
   const run = async (call: () => Promise<ApiContract | null>) => {
     if (busy) return;
@@ -194,7 +207,7 @@ function EvidenceSheet({
       const updated = await call();
       if (updated) {
         setLatestContract(updated);
-        setVersion((v) => v + 1);
+        setVersion(bumpVersion(todo.id));
       }
     } catch (e) {
       const message =
@@ -202,14 +215,25 @@ function EvidenceSheet({
       setError(message || '증빙을 바꾸지 못했어요');
     } finally {
       setBusy(false);
+      setPhase(null);
       setConfirmDelete(false);
     }
   };
   const upload = (source: EvidenceSource) =>
     run(async () => {
+      setPhase('picking');
       const file = await pickEvidence(source);
-      return file ? uploadEvidence(todo.id, token, file) : null;
+      if (!file) return null;
+      setPhase('uploading');
+      return uploadEvidence(todo.id, token, file);
     });
+  // 기록함에서 올려도 할 일이 끝난다는 것을 미리 알린다 (#122 리뷰 2번)
+  const which = todo.rule_id.startsWith('T') ? `${todo.rule_id.slice(1)}번 할 일` : '이 반환 대응 단계';
+  const uploadNote = todo.evidence_uploaded
+    ? '다시 올리면 앞 사진을 바꿔요.'
+    : todo.status === 'skipped'
+      ? `올리면 나중에 올리기로 끝낸 ${which}의 기록함이 채워져요.`
+      : `올리면 ${which}${todo.rule_id.startsWith('T') ? '이' : '가'} 끝나요. 할 일 탭에서 끝내는 것과 같아요.`;
   // 확인 창(Alert)은 웹에서 동작하지 않아 한 번 더 누르게 한다
   const remove = () => {
     if (!confirmDelete) {
@@ -235,7 +259,7 @@ function EvidenceSheet({
         </AppText>
 
         {todo.evidence_uploaded ? (
-          <EvidenceImage todoId={todo.id} token={token} version={`${todo.done_date ?? ''}-${version}`} />
+          <EvidenceImage todoId={todo.id} token={token} version={`${LAUNCH}-${todo.done_date ?? ''}-${version}`} />
         ) : (
           <View style={[styles.preview, styles.previewEmpty]}>
             <AppText size={13} color={Colors.textSub}>
@@ -251,9 +275,22 @@ function EvidenceSheet({
         ) : null}
 
         {active ? (
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+          <AppText size={12} color={Colors.textSub} leading={1.6} style={{ marginTop: 14 }}>
+            {uploadNote}
+          </AppText>
+        ) : null}
+        {active ? (
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
             <Button
-              label={busy ? '올리는 중…' : todo.evidence_uploaded ? '다시 찍기' : '사진 찍기'}
+              label={
+                phase === 'picking'
+                  ? '사진 고르는 중…'
+                  : phase === 'uploading'
+                    ? '올리는 중…'
+                    : todo.evidence_uploaded
+                      ? '다시 찍기'
+                      : '사진 찍기'
+              }
               onPress={() => upload('camera')}
               style={{ flex: 1, opacity: busy ? 0.6 : 1 }}
             />
