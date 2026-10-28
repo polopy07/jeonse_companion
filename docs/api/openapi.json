@@ -1648,7 +1648,7 @@
           "반환 대응"
         ],
         "summary": "Return Guide",
-        "description": "반환 대응 안내 (UI-08): 단계와 진행, 청구 서류 대조 (FR-034·035). 무산된 계약도 기록으로 볼 수 있다.\n\n\"못 받음\"을 고르기 전에도 볼 수 있다(preview): 경보가 위험일 때 청구 서류를 미리 점검하는 데 쓴다.",
+        "description": "반환 대응 안내 (UI-08): 단계와 진행, 청구 서류 대조 (FR-034·035). 무산된 계약도 기록으로 볼 수 있다.\n\n\"못 받음\"을 고르기 전에도 볼 수 있다(preview): 경보가 위험일 때 청구 서류를 미리 점검하는 데 쓴다.\npreview에서는 지금 준비할 수 있는 할 일(T) 서류만 대조한다 (반환 대응 단계 서류는 \"못 받음\" 뒤에 생김).",
         "operationId": "return_guide_api_contracts__contract_id__return_guide_get",
         "parameters": [
           {

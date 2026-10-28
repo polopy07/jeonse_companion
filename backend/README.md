@@ -200,9 +200,9 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 ### 반환 대응 (FR-024·034·035, #52)
 
 - `POST /api/contracts/{id}/return-response`: 9번(반환 확인)에서 "못 받음". 오늘(가상 날짜)을 `not_returned_date`로 저장하고 반환 대응 단계 R1~R4를 기한 없는 할 일로 맨 위에 붙인다(`todos.yaml` `return_response`). 만기일 전이면 409 `RETURN_NOT_DUE`, 9번을 이미 끝냈으면 409 `ALREADY_RETURNED`, 다시 보내면 그대로
-- 단계는 할 일이라 끝내기·나중에 올리기·증빙(반환 요청 캡처, 내용증명 사본, 임차권등기가 된 등기부, 청구 접수 기록)은 `PATCH`·`POST /api/todos/{id}` 그대로. 시작일에 앱 안 알림. 나중에 돌려받으면 9번을 끝낸다(`return-guide`가 `ended`)
+- 단계는 할 일이라 끝내기·나중에 올리기·증빙(반환 요청 캡처, 내용증명 사본, 임차권등기가 된 등기부, 청구 접수 기록)은 `PATCH`·`POST /api/todos/{id}` 그대로. 시작일에 앱 안 알림. 나중에 돌려받으면 9번을 끝낸다(`return-guide`가 `ended`). 그러면 남은 단계는 할 일에서 빠지고 끝낸 단계는 맨 뒤 기록으로 남는다(맨 위·고정 표시도 풂). 9번을 되돌리면 단계가 다시 맨 위로
 - `DELETE /api/contracts/{id}/return-response`: 잘못 고른 "못 받음" 되돌리기. 끝낸 단계가 있으면 409 `RETURN_STEP_DONE`
-- `GET /api/contracts/{id}/return-guide`: 단계 진행(`state` done / current / todo), 단계별 창구 링크, 청구 서류 대조(단계마다 적은 할 일의 증빙을 기록함에 올렸는지, 이 계약에 없는 할 일의 서류는 뺌), 빠진 서류 수, 공공 상담 창구. "못 받음" 전에도 `preview`로 볼 수 있다(경보 위험일 때 미리 점검)
+- `GET /api/contracts/{id}/return-guide`: 단계 진행(`state` done / current / todo), 단계별 창구 링크, 청구 서류 대조(단계마다 적은 할 일의 증빙을 기록함에 올렸는지, 이 계약에 없는 할 일의 서류는 뺌), 빠진 서류 수, 공공 상담 창구. "못 받음" 전에도 `preview`로 볼 수 있다(경보 위험일 때 미리 점검, 서류는 지금 준비할 수 있는 할 일(T) 서류만)
 - 4단계는 보증기관에 따라 HUG·HF·SGI 청구 창구, 미가입은 공공 상담(증빙 없음). 단계별 서류는 팀 제안(`hypothesis: true`), 출시 전 보증기관 청구 서류·법률 자문으로 확인
 - 반환 대응 중에는 만기일을 "못 받음"을 고른 날보다 뒤로 바꿀 수 없다 (`PATCH /api/contracts/{id}` 422 `end_date`)
 

@@ -19,7 +19,7 @@ import calendar
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-from app.engine.return_response import return_steps
+from app.engine.return_response import confirm_todo_id, return_steps
 from app.rules.conditions import evaluate
 
 
@@ -204,7 +204,8 @@ class _Builder:
             planned = self.plan(rule)
             if planned is not None:
                 self.plans[rule["id"]] = planned
-        if self.not_returned_date is not None:
+        # 반환 대응 중 늦게라도 돌려받아 9번을 끝내면 단계는 계획에서 뺀다 (끝낸 단계는 기록으로만 남는다, #124 리뷰)
+        if self.not_returned_date is not None and confirm_todo_id(self.rules) not in self.done_dates:
             # 반환 대응 (FR-024, FR-034): 시작일은 "못 받음"을 고른 날, 기한은 없음. 가장 급한 일이라 맨 위로
             for step in return_steps(self.values["guarantor"], self.rules):
                 self.plans[step.id] = PlannedTodo(

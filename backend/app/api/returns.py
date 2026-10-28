@@ -87,15 +87,20 @@ def return_guide(contract_id: int, db: Session = Depends(get_db), rules: dict = 
     """반환 대응 안내 (UI-08): 단계와 진행, 청구 서류 대조 (FR-034·035). 무산된 계약도 기록으로 볼 수 있다.
 
     "못 받음"을 고르기 전에도 볼 수 있다(preview): 경보가 위험일 때 청구 서류를 미리 점검하는 데 쓴다.
+    preview에서는 지금 준비할 수 있는 할 일(T) 서류만 대조한다 (반환 대응 단계 서류는 "못 받음" 뒤에 생김).
     """
     row = _contract_for(contract_id, x_contract_token, db)
     started = row.not_returned_date is not None
-    by_rule = {t.rule_id: t for t in row.todos if not t.archived}
+    steps = return_steps(row.guarantor, rules)
+    step_ids = {s.id for s in steps}
+    # 돌려받아 끝난 뒤에는 끝낸 단계가 기록(archived)으로만 남으므로 단계는 기록까지 본다
+    by_rule = {t.rule_id: t for t in row.todos if not t.archived or t.rule_id in step_ids}
     confirm = by_rule.get(confirm_todo_id(rules))
     ended = started and confirm is not None and confirm.status in FINISHED
-    steps = return_steps(row.guarantor, rules)
 
-    names = {rule_id: t.evidence for rule_id, t in by_rule.items()} | {s.id: s.evidence for s in steps}
+    names = {rule_id: t.evidence for rule_id, t in by_rule.items()}
+    if started:
+        names |= {s.id: s.evidence for s in steps}
     uploaded = {rule_id for rule_id, t in by_rule.items() if t.evidence_path}
     docs = check_documents(steps, names, uploaded)
     missing = {d.rule_id for d in docs if not d.uploaded}

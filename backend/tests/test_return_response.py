@@ -58,13 +58,14 @@ def test_preview_before_not_returned(client):
     assert _states(g) == ["todo"] * 4 and all(s["todo_id"] is None for s in g["steps"])
     r4 = g["steps"][3]
     assert r4["title"] == "반환보증 청구" and r4["link"]["url"] == "https://www.khug.or.kr"
-    # 단계별 서류를 처음 나온 순서로: 계약서(T4) → 반환 요청(R1) → 신고필증(T1) → 내용증명(R2) → 보증서(T5) → 등기부(R3)
-    assert [d["rule_id"] for d in g["documents"]] == ["T4", "R1", "T1", "R2", "T5", "R3"]
+    # 미리 점검은 지금 준비할 수 있는 할 일 서류만, 처음 나온 순서로: 계약서(T4) → 신고필증(T1) → 보증서(T5)
+    # (반환 요청·내용증명·등기부는 "못 받음" 뒤 단계에서 생기는 서류라 세지 않음, #124 리뷰)
+    assert [d["rule_id"] for d in g["documents"]] == ["T4", "T1", "T5"]
     assert next(d for d in g["documents"] if d["rule_id"] == "T4") == {
         "rule_id": "T4", "todo_id": _todo(c, "T4")["id"], "name": "확정일자 받은 계약서", "uploaded": False,
         "needed_by": STEPS}
-    assert g["missing_count"] == 6
-    assert g["steps"][1]["missing_documents"] == ["확정일자 받은 계약서", "반환 요청 기록 (문자·통화 캡처)"]
+    assert g["missing_count"] == 3
+    assert g["steps"][1]["missing_documents"] == ["확정일자 받은 계약서"]
     assert g["disclaimer"] and [h["label"] for h in g["help_desks"]] == ["대법원 전자소송", "대한법률구조공단 상담"]
 
 
@@ -122,12 +123,28 @@ def test_already_returned_and_ended(client):
     r = _start(client, c)
     assert r.status_code == 409 and _code(r) == "ALREADY_RETURNED"
 
-    # 반환 대응 중 늦게라도 돌려받으면 9번을 끝낸다 → 끝남 (남은 단계는 할 일로 두되 지금 할 단계는 없음)
+    # 반환 대응 중 늦게라도 돌려받으면 9번을 끝낸다 → 끝남. 남은 단계는 할 일에서 빠지고(맨 위에 남지 않게),
+    # 끝낸 단계는 기록(archived)으로 남는다 (#124 리뷰 1번)
     c2 = _contract(client)
     c2 = _keep(c2, _start(client, c2).json())
-    assert _set(client, c2, "T9", {"status": "skipped"}, day="2028-12-20").status_code == 200
+    c2 = _keep(c2, _upload(client, c2, "R1", day="2028-12-05"))
+    r = _set(client, c2, "T9", {"status": "skipped"}, day="2028-12-20")
+    assert r.status_code == 200
+    todos = {t["rule_id"]: t for t in r.json()["todos"]}
+    assert [s for s in STEPS if s in todos] == ["R1"]
+    assert todos["R1"]["status"] == "done" and not todos["R1"]["moved_to_top"]
+    assert r.json()["todos"][-1]["rule_id"] == "R1"   # 기록은 맨 뒤 (계획에서 빠진 끝낸 할 일)
     g = _guide(client, c2, "2028-12-20")
-    assert g["status"] == "ended" and _states(g) == ["todo"] * 4
+    assert g["status"] == "ended" and _states(g) == ["done", "todo", "todo", "todo"]
+    assert g["steps"][0]["evidence_uploaded"] is True
+
+    # 9번을 되돌리면 단계가 다시 할 일로 (끝낸 1단계는 그대로)
+    r = _set(client, c2, "T9", {"status": "todo"}, day="2028-12-21")
+    assert r.status_code == 200, r.text
+    todos = {t["rule_id"]: t for t in r.json()["todos"]}
+    assert all(s in todos for s in STEPS) and todos["R1"]["status"] == "done" and todos["R1"]["moved_to_top"]
+    assert [t["rule_id"] for t in r.json()["todos"][:4]] == STEPS   # 다시 맨 위
+    assert _guide(client, c2, "2028-12-21")["status"] == "in_progress"
 
 
 def test_undo_not_returned(client):

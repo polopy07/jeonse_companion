@@ -213,6 +213,7 @@ def _sync_todos(row: Contract, check: Verdict, rules: dict) -> None:
     for t in sorted(existing.values(), key=lambda t: t.sort_order):
         if t.status in FINISHED:
             t.sort_order, t.archived = len(todos) + 1, True
+            t.pinned = t.moved_to_top = False   # 기록은 맨 뒤라 맨 위·고정 표시도 푼다
             todos.append(t)
         elif db is not None:   # 다시 연 뒤 지워지는 할 일의 증빙 파일도 (볼 수도 지울 수도 없게 남지 않게)
             evidence.remove_after_commit(db, t.evidence_path)
