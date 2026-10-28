@@ -106,6 +106,10 @@
 | `TODO_NOT_STARTED` | 409 | 잔금일에 하는 할 일(3번 재비교·4번 전입신고)을 시작일 전 날짜로 끝내려 함 |
 | `DEPENDENT_DONE` | 409 | 이 할 일을 먼저 끝내야 하는 뒤 할 일이 이미 끝나 있어 되돌릴 수 없음. 뒤 할 일부터 되돌림 |
 | `TODO_NOT_PLANNED` | 409 | 계약 조건이 바뀌어 지금 계약에는 없는 끝낸 할 일(기록으로만 남은 것, 예: 5번을 끝내 빠진 6번)을 되돌리려 함. 되돌리면 재계산에서 기록째 지워져서 막음. 기록으로만 남은 할 일은 `DEPENDENT_DONE`의 뒤 할 일로 치지 않음 |
+| `RETURN_NOT_DUE` | 409 | 만기일 전에 "못 받음"(반환 대응 시작)을 고름 (FR-024) |
+| `ALREADY_RETURNED` | 409 | 9번(반환 확인)을 이미 끝낸 계약에 "못 받음"을 고름. 잘못 끝냈으면 9번을 먼저 되돌림 |
+| `RETURN_NOT_STARTED` | 409 | 반환 대응을 시작하지 않은 계약에 "못 받음" 되돌리기 |
+| `RETURN_STEP_DONE` | 409 | 끝낸 반환 대응 단계(나중에 올리기 포함)가 있어 "못 받음"을 되돌릴 수 없음 (기록이 지워지지 않게). 돈을 돌려받았으면 9번을 끝냄 |
 | `ADMIN_TOKEN_INVALID` | 401 | 관리자 API에 `X-Admin-Token` 헤더가 없거나 서버 `ADMIN_TOKEN`과 다름 |
 | `ADMIN_DISABLED` | 403 | 서버에 `ADMIN_TOKEN`이 없어 관리자 API가 꺼져 있음 |
 | `TRADES_COLLECT_CONFLICT` | 409 | 같은 거래를 동시에 수집한 다른 요청과 겹쳐 저장하지 못함 → 다시 시도 |
@@ -173,6 +177,9 @@ A = 개발 A(백엔드·규칙), B = 개발 B(화면). 주차는 노션 "할 일
 | `POST /api/admin/notifications/run` | 알림 실행 (관리자, 시연용): 날짜(본문 `date` → `X-Virtual-Today` → 실제 오늘)를 오늘로 보고 그날 보낼 알림을 만든다. 할 일 시작일·기한 7일 전·1일 전·재알림일(`todos.yaml` `notifications`), 건너뛴 날의 알림은 7일 안의 것만. 나중에 올리기(`skipped`)한 증빙이 필요한 할 일은 나중에 올리기로 바꾼 날(증빙을 지운 날) 7일 뒤 `kind: "evidence"` 앱 안 알림(`evidence_after_days`, FR-030). 앱 안 알림은 `sent`, 이메일은 반환보증(T5·T6)만 보내고(`EMAIL_BACKEND`), 못 보내면 `failed`로 남겨 다음 실행에서 3번까지 다시 보냄(NFR-008). 알림 이메일이 없거나 그사이 무산·완료, 또는 알림일이 7일보다 지났으면(남은 날 문구가 틀려서) `skipped`. 응답에 `email_sent`·`email_failed`. 같은 알림은 한 번만 | FR-040, 041, 044 | |
 | `POST /api/contracts/access-link` | 접근 링크 이메일로 다시 받기: 본문 `{"email"}`. 그 이메일로 만든 진행 중 계약(무산된 계약도 풀린 결제가 남아 있으면)마다 새 접근 토큰을 만들어 계약 이메일로 보냄(처음 토큰은 그대로, 계약마다 한 시간에 3번). 이메일이 없어도 같은 202 (계약이 있는지 알아내지 못하게). 링크는 `APP_LINK_BASE`가 있으면 `{APP_LINK_BASE}?contract={id}&token=...`, 없으면 접근 코드 | NFR-011 | UI-04 |
 | `PATCH /api/contracts/{id}` | 계약 조건(날짜·월세·대출·보증기관·중개·갱신·공동 계약·이메일)과 특약 넣음/거절당함을 바꾸고 할 일을 다시 계산. 보낸 칸만 바꾸고, 특약은 보낸 특약만 바꾼다(그 판정에서 안내한 특약만). 바꾼 뒤 조건이 계약 생성 규칙(날짜 순서·대출 실행일)을 어기거나 꼭 있어야 하는 칸에 null이면 422(아무것도 안 바뀜). 계약일을 뒤로 바꿔 목록에 있는 끝낸 할 일의 끝낸 날이 새 계약일보다 앞서게 되면 422 `contract_date`(그 할 일을 되돌리거나 끝낸 날을 고친 뒤 바꿈), 없는 계약이면 404. 같은 할 일은 `id`·상태·완료일을 유지하고, 끝낸 할 일의 완료일을 뒤 할 일의 기준일로 쓴다. 더는 해당하지 않는 할 일은 지우되 끝낸 것은 맨 뒤에 남긴다. 잔금일이 미뤄져 끝낸 T3·T4의 완료일이 새 잔금일보다 앞서면 다시 할 일로 돌린다. 주택 유형·보증금·`alert_level`은 바꾸지 않는다 `X-Contract-Token` 확인, 무산된 계약이면 409 `CONTRACT_CANCELLED` | FR-021, 049~050 | UI-03, UI-04 |
+| `POST /api/contracts/{id}/return-response` | 9번(반환 확인)에서 "못 받음" (반환 대응 시작): 오늘(가상 날짜면 그날)을 `not_returned_date`로 저장하고 반환 대응 단계 4개(R1 반환 요청 기록 → R2 내용증명 → R3 임차권등기명령 → R4 반환보증 청구, 미가입은 공공 상담, `todos.yaml` `return_response`)를 기한 없는 할 일로 맨 위에 붙인다. 단계 끝내기·증빙은 다른 할 일처럼 `PATCH`·`POST /api/todos/{id}`. 만기일 전이면 409 `RETURN_NOT_DUE`, 9번을 이미 끝냈으면 409 `ALREADY_RETURNED`, 이미 시작했으면 그대로 200. 계약 전체를 돌려줌(`not_returned_date`). 나중에 돌려받으면 9번을 끝낸다. 반환 대응 중에는 만기일을 `not_returned_date`보다 뒤로 바꿀 수 없음(`PATCH /api/contracts/{id}` 422 `end_date`). `X-Contract-Token` 확인, 무산된 계약은 409 | FR-024 | UI-04, UI-08 |
+| `DELETE /api/contracts/{id}/return-response` | "못 받음"을 잘못 골랐을 때 되돌리기: 반환 대응 단계 할 일을 지우고 `not_returned_date`를 null로. 시작하지 않았으면 409 `RETURN_NOT_STARTED`, 끝낸 단계가 있으면 409 `RETURN_STEP_DONE` | FR-024 | UI-08 |
+| `GET /api/contracts/{id}/return-guide` | 반환 대응 안내: `status`(`preview` "못 받음" 전 미리 점검 / `in_progress` / `ended` 반환 대응 중 9번을 끝냄), 단계(`steps`: 제목·안내·창구 `link`·증빙·`state` done/current/todo·`todo_id`·이 단계에 필요한데 없는 서류 `missing_documents`), 청구 서류 대조(`documents`: 단계별 서류를 그 할 일의 증빙으로 보고 기록함에 올렸는지 `uploaded`, 필요한 단계 `needed_by`. 이 계약에 없는 할 일의 서류는 뺌), `missing_count`, 공공 상담 창구 `help_desks`, `disclaimer`. 보증기관별 4단계 안내·창구는 `by_guarantor`. 무산된 계약도 볼 수 있음 | FR-034~035 | UI-08 |
 | `GET /api/demo-houses` | 시연 집 2채(해운대구 아파트·수영구 빌라, `docs/validation/demo_houses.yaml`): 계약 전 확인 입력값(`input`, 단지·공시가격·전용면적·등기부 확인값 포함. 그대로 `POST /api/checks`로), 시연 등기부를 읽은 결과(`registry`, `POST /api/registry/parse`와 같은 형식, 이름·주소는 가린 값), 시연용 가상 값(`virtual`, 화면에 "시연용 가상" 표시), 계약 당일 장면(`contract_day`, 날짜·특약 결과. 그대로 `POST /api/contracts`로). 정답표와 같은 결과를 보려면 기준일(`as_of`)의 실거래 저장본을 넣고(`cd backend && python load_demo_trades.py`) `X-Virtual-Today`에 그 날짜를 보낸다. `tests/test_demo_houses.py`가 정답표 기대값과 자동 대조 | FR-001, 046 | UI-01, UI-03 |
 
 입출력 예시는 `backend/README.md`, 전체 형식은 `openapi.json`.
@@ -188,7 +195,6 @@ GitHub 이슈와 마일스톤(2주차·3주차·4주차)으로 진행을 관리�
 | `GET /api/contracts/{id}/calendar.ics` | 할 일 기한을 캘린더 파일로 (`text/calendar`) | FR-042 | UI-04 | 3 | #47 |
 | `POST /api/contracts/{id}/move` | 갈아타기: 다음 집 날짜·보증금·계약금 → 자금 틈, 전입 순서 경고 (저장) | FR-025~028 | UI-07 | 3 | #48 |
 | `GET /api/contracts/{id}/timeline` | 계약 2년 기록을 날짜순으로 | FR-032 | UI-06 | 4 | #51 |
-| `GET /api/contracts/{id}/return-guide` | 반환 대응 단계, 청구 서류 대조 | FR-024, 034~035 | UI-08 | 4 | #52 |
 | `GET /api/contracts/{id}/alerts/latest` | 최근 역전세 경보 단계·계산 근거·기준일 | FR-036~038 | UI-09 | 4 | #53 |
 | `POST /api/admin/alerts/recalculate` | 경보 재계산 (관리자, 스케줄러는 서버 안에서 직접 실행) | FR-037 | | 4 | #54 |
 

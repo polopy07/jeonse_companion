@@ -51,6 +51,8 @@ class Contract(Base):
     payment_id: Mapped[int | None] = mapped_column(Integer)                 # 이 계약에 쓴 테스트 결제 (payments.id)
     status: Mapped[str] = mapped_column(String(16), default="active", server_default="active")   # active / cancelled
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # 9번(반환 확인)에서 "못 받음"을 고른 날 (FR-024). 있으면 반환 대응 단계(R1~R4)를 할 일로 붙인다
+    not_returned_date: Mapped[date | None] = mapped_column(Date)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
