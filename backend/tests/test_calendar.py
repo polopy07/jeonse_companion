@@ -44,7 +44,7 @@ def test_build_ics_matches_app_rules():
     assert events == {"jeonse-3-T5@jeonse-companion": ("20270601", "[전동기] 반환보증 가입"),
                       "jeonse-3-T6@jeonse-companion": ("20270502", "[전동기] 반환보증 가입 마감 전 재알림")}
     assert "DTEND;VALUE=DATE:20270602" in text and "TRIGGER:-P6DT15H" in text and "TRIGGER:-PT15H" in text
-    assert "HUG\; 기준" in text.replace("\r\n ", "")          # 이스케이프
+    assert r"HUG\; 기준" in text.replace("\r\n ", "")          # 이스케이프
     assert "2026-12-02부터 할 수 있어요." in text.replace("\r\n ", "")
     assert alarm_triggers([7, 1]) == ["-P6DT15H", "-PT15H"]
     assert all(len(line.encode()) <= 75 for line in text.split("\r\n"))
