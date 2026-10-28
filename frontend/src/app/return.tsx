@@ -6,15 +6,52 @@ import { AppText } from '@/components/AppText';
 import { Icon } from '@/components/Icon';
 import { Card, Disclaimer, Screen, SectionLabel } from '@/components/layout';
 import { Colors, Radius } from '@/constants/theme';
-import { helpDesks, returnSteps } from '@/data/demo';
+import { helpDesks, house, returnSteps as demoSteps } from '@/data/demo';
+import type { ApiContract } from '@/lib/api';
+import { useLatestContract } from '@/lib/contract';
 
-/** UI-08 반환 대응 안내 (정적). 일반 절차 안내이며 개별 법률 판단이 아니다 */
+type ReturnStep = { title: string; body: string; state: 'done' | 'current' | 'todo' };
+
+/** 보증기관별 청구 창구 (rules/guarantors.yaml claim_channel). 기관 이름은 제도 안내로만 쓴다 */
+const claimChannels = {
+  HUG: { label: '주택도시보증공사', channel: 'HUG 보증 이행 청구 창구' },
+  HF: { label: '한국주택금융공사', channel: 'HF 보증 이행 청구 창구' },
+  SGI: { label: '서울보증보험', channel: 'SGI 보험금 청구 창구' },
+} as const;
+
+/**
+ * 내 계약의 반환 대응 순서. 반환 확인 → 반환 대응 흐름(#52)이 서버에 생기기 전이라 진행 상태는 첫 단계부터 시작하고,
+ * 만기일과 보증기관(미가입이면 공공 상담 창구)만 계약 값으로 바꾼다
+ */
+function stepsFor(contract: ApiContract): ReturnStep[] {
+  const claim = contract.guarantor === 'none' ? null : claimChannels[contract.guarantor];
+  return [
+    { title: '반환 요청 기록', body: '보증금 반환을 요청한 문자·통화 기록을 캡처해 기록함에 남겨요.', state: 'current' },
+    ...demoSteps.slice(1, 3).map((s) => ({ ...s, state: 'todo' as const })),
+    claim
+      ? {
+          title: '반환보증 청구',
+          body: `${claim.label} 반환보증 가입자예요. ${claim.channel}에서 절차를 안내받으세요.`,
+          state: 'todo',
+        }
+      : {
+          title: '공공 상담 받기',
+          body: '반환보증에 가입하지 않았어요. 대한법률구조공단 등 공공 상담 창구에서 다음 절차를 안내받으세요.',
+          state: 'todo',
+        },
+  ];
+}
+
+/** UI-08 반환 대응 안내 (정적). 일반 절차 안내이며 개별 법률 판단이 아니다. 계약이 있으면 그 만기일·보증기관으로 */
 export default function ReturnScreen() {
+  const contract = useLatestContract();
+  const returnSteps: ReturnStep[] = contract ? stepsFor(contract) : demoSteps;
+  const endDate = contract ? contract.end_date.replaceAll('-', '.') : house.endDate;
   return (
     <Screen title="반환 대응 안내">
       <View style={styles.hero}>
         <AppText size={12} weight="semibold" color={Colors.dangerDeep}>
-          2028.11.19 만기 · 보증금 못 받음
+          {endDate} 만기 · 보증금 못 받음
         </AppText>
         <AppText size={19} weight="bold" color={Colors.dangerText} leading={1.4} style={{ marginTop: 6 }}>
           아직 이사 가지 마세요. 순서대로 함께 챙길게요.

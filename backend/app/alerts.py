@@ -44,9 +44,19 @@ def _senior_of(inputs: dict) -> int | None:
     return inputs["registry.mortgage_amount"] + (inputs.get("registry.lease_amount") or 0)
 
 
-def senior_debt(row: Contract) -> int | None:
-    """마지막으로 올린 등기부의 선순위 채권. 올린 적 없으면 None."""
-    for v in reversed(row.verdicts):   # 계약 당일·잔금일 재비교 판정이 있으면 그것이 최근 (FR-048, FR-023)
+def _compared_on(v: Verdict) -> str:
+    """재비교 판정은 비교한 날, 계약 전 확인 판정은 "" (가장 앞)."""
+    return (v.comparison or {}).get("compared_on", "")
+
+
+def senior_debt(row: Contract, as_of: date | None = None) -> int | None:
+    """as_of까지 마지막으로 올린 등기부의 선순위 채권. 올린 적 없으면 None.
+
+    계약 당일·잔금일 재비교 판정이 있으면 비교한 날이 가장 늦은 것이 최근이다 (FR-048, FR-023). 올린 순서(id)가
+    아니라 비교한 날로 고르는 것은 가상 날짜를 되돌려 앞선 날로 다시 비교할 수 있어서다.
+    """
+    seen = [v for v in row.verdicts if as_of is None or _compared_on(v) <= as_of.isoformat()]
+    for v in sorted(seen, key=lambda v: (_compared_on(v), v.id), reverse=True):
         senior = _senior_of(v.inputs or {})
         if senior is not None:
             return senior
@@ -77,7 +87,7 @@ def calculate(row: Contract, check: Verdict, db: Session, rules: dict, as_of: da
     trade_price = user_trade if user_trade is not None else (pick.price if pick else None)
     official_estimate = estimate_price(row.official_price, None, cfg)
     price = estimate_price(row.official_price, trade_price, cfg)
-    ratio = deposit_ratio(row.deposit, price, senior_debt(row), cfg)
+    ratio = deposit_ratio(row.deposit, price, senior_debt(row, as_of), cfg)
     median = nearby.median if nearby else None
     level = alert_level({"deposit_ratio": ratio.ratio, "deposit": row.deposit, "nearby_jeonse_median": median}, cfg)
     basis = {

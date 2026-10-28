@@ -17,7 +17,7 @@ const stages = ['계약 전', '계약 당일', '입주 준비', '거주', '만�
 
 type HomeView = {
   houseLine: string;
-  /** "잔금일까지" + "D-10" */
+  /** "잔금일까지" + "D-15" */
   headline: string;
   dday: string;
   stage: number;
@@ -30,7 +30,7 @@ type HomeView = {
 
 const DAY = 86_400_000;
 const dotted = (s: string) => s.split('-').join('.');
-/** "2026.10.09" → "10/9" */
+/** "2026.10.13" → "10/13" */
 const shortDate = (s: string) => {
   const [, m, d] = s.split('.');
   return `${Number(m)}/${Number(d)}`;
@@ -41,16 +41,16 @@ const ddayText = (days: number) => (days === 0 ? 'D-DAY' : days > 0 ? `D-${days}
 const demoHome: HomeView = {
   houseLine: `${house.name} · 보증금 1억 4,000만 원`,
   headline: '잔금일까지',
-  dday: 'D-10',
+  dday: 'D-15',
   stage: 2,
   period: `${house.contractDate} 계약 → ${house.endDate} 만기`,
   now: {
-    when: '11월 20일(금) · 잔금 보낸 직후',
+    when: '11월 25일(수) · 잔금 보낸 직후',
     title: '전입신고',
     detail: '잔금을 보낸 날 바로 전입신고를 해야 다음 날부터 대항력이 생겨요. 주민센터나 정부24에서 할 수 있어요.',
   },
   ratio: checkResult.deposit_ratio,
-  ratioAt: '10/9 기준',
+  ratioAt: '10/13 기준',
   checkedAt: today.full,
 };
 

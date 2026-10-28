@@ -118,6 +118,12 @@ export type TodoView = {
   status: TodoViewStatus;
   todayBefore?: boolean;
   href?: '/switch';
+  /** 서버 할 일 id (PATCH /api/todos/{id}). 시연 할 일이면 없음 */
+  todoId?: number;
+  /** 완료 증빙으로 올릴 것. 없으면 증빙 없이 끝내는 할 일 */
+  evidence?: string | null;
+  /** 나중에 올리기로 끝낸 할 일 (기록함이 빈칸이라 증빙을 올릴 수 있음) */
+  skipped?: boolean;
 };
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -133,6 +139,10 @@ function dateLabel(s: string, today: Date) {
 const ddayLabel = (days: number) => (days === 0 ? 'D-DAY' : days > 0 ? `D-${days}` : `D+${-days}`);
 
 function whenLabel(t: ApiTodo, today: Date) {
+  if (t.status !== 'todo') {
+    const proof = t.evidence_uploaded ? ' · 증빙 1장' : t.status === 'skipped' ? ' · 증빙은 나중에' : '';
+    return `${t.done_date ? `${dateLabel(t.done_date, today)} ` : ''}완료${proof}`;
+  }
   if (t.due_date) {
     return t.start_date && t.start_date !== t.due_date
       ? `${dateLabel(t.start_date, today)} ~ ${dateLabel(t.due_date, today)}`
@@ -148,16 +158,17 @@ function whenLabel(t: ApiTodo, today: Date) {
  * 서버가 오늘(가상 날짜면 그날) 기준으로 계산한 값을 쓴다. "지금 할 일"은 할 때가 됐거나 기한이 지난 첫 할 일
  * (없으면 끝나지 않은 첫 할 일)이고, 시작 전인 고정 할 일은 흐리게 보여 준다. today는 날짜 표기(올해면 연도 생략)에만 쓴다.
  * 예: 특약 거절로 맨 위에 올라간 전입신고(잔금일)는 목록 맨 위에 두되, 계약일에는 오늘 기한인 할 일이 "지금 할 일"
+ * 나중에 올리기(skipped)도 끝낸 할 일로 목록에 남긴다 (서버 state는 #95 전까지 done이 아니라 status로 본다)
  */
 export function todoViews(todos: ApiTodo[], today: Date): TodoView[] {
-  const shown = todos.filter((t) => t.status !== 'skipped');
+  const open = (t: ApiTodo) => t.status === 'todo';
   const isLater = (t: ApiTodo) => t.pinned && t.state === 'upcoming';
-  const due = shown.find((t) => t.state === 'in_progress' || t.state === 'overdue');
-  const current = due ?? shown.find((t) => t.state !== 'done' && !isLater(t));
-  return shown
+  const due = todos.find((t) => open(t) && (t.state === 'in_progress' || t.state === 'overdue'));
+  const current = due ?? todos.find((t) => open(t) && !isLater(t));
+  return todos
     .map((t) => {
       let status: TodoViewStatus;
-      if (t.state === 'done') status = 'done';
+      if (!open(t)) status = 'done';
       else if (t === current) status = 'current';
       else if (isLater(t)) status = 'later';
       else status = 'upcoming';
@@ -176,6 +187,9 @@ export function todoViews(todos: ApiTodo[], today: Date): TodoView[] {
         status,
         todayBefore: status === 'current',
         href: t.rule_id === 'T9' ? '/switch' : undefined,
+        todoId: t.id,
+        evidence: t.evidence,
+        skipped: t.status === 'skipped',
       };
     });
 }
