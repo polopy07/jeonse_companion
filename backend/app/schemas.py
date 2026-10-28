@@ -334,6 +334,10 @@ class ContractInput(BaseModel):
     renewal_right_used: bool = Field(False, description="계약갱신요구권을 써서 갱신한 계약인지")
     co_tenant: bool = Field(False, description="공동 계약자(부부) 여부")
     email: str | None = Field(None, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", description="알림 이메일")
+    co_tenant_email: str | None = Field(
+        None, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+        description="공동 계약자 알림 이메일 (FR-043). co_tenant가 true일 때만, 알림 이메일과 다른 주소. 같은 알림 이메일을 "
+                    "따로 받고, 이 주소로 접근 링크를 다시 받아 자기 휴대폰에서 같은 계약을 볼 수 있다")
     special_term_result: dict[str, SpecialTermResult] = Field(
         default_factory=dict, description="특약별 넣음/거절당함 (special_terms.yaml의 id가 키)")
     payment_id: int | None = Field(
@@ -352,6 +356,11 @@ class ContractInput(BaseModel):
             raise ValueError("만기일은 잔금일보다 뒤여야 합니다")
         if self.loan_execution_date is not None and not self.loan:
             raise ValueError("전세대출이 없으면 대출 실행일을 비워 두세요")
+        if self.co_tenant_email is not None:
+            if not self.co_tenant:
+                raise ValueError("공동 계약이 아니면 공동 계약자 이메일을 비워 두세요")
+            if self.email and self.co_tenant_email.strip().lower() == self.email.strip().lower():
+                raise ValueError("공동 계약자 이메일은 알림 이메일과 다른 주소여야 합니다")
         return self
 
 
@@ -373,13 +382,15 @@ class ContractPatch(BaseModel):
     co_tenant: bool | None = Field(None, description="공동 계약자 여부")
     email: str | None = Field(None, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
                               description="알림 이메일. null을 보내면 지운다")
+    co_tenant_email: str | None = Field(None, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+                                        description="공동 계약자 알림 이메일. null을 보내면 지운다 (공동 계약을 끄려면 함께 지움)")
     special_term_result: dict[str, SpecialTermResult] | None = Field(
         None, description="바꿀 특약만 보낸다 (보내지 않은 특약의 결과는 그대로). 그 판정에서 안내한 특약만 받는다")
 
     @model_validator(mode="after")
     def no_null_for_required(self):
         # 값이 꼭 있어야 하는 칸에 null을 보내면 막는다 (보내지 않은 칸은 그대로 둔다)
-        nullable = {"loan_execution_date", "email"}
+        nullable = {"loan_execution_date", "email", "co_tenant_email"}
         for name in self.model_fields_set - nullable:
             if getattr(self, name) is None:
                 raise ValueError(f"{name}은(는) 비워 둘 수 없습니다")
@@ -412,6 +423,16 @@ class TodoOut(BaseModel):
     days_left: int | None = Field(description="기한(재알림은 알림일)까지 남은 날. 지났으면 음수, 기한이 없으면 null")
 
 
+class ContractDocumentOut(BaseModel):
+    """첫 계약 서류 한 종류 (FR-051). 올리지 않은 종류도 uploaded: false로 넣는다."""
+
+    kind: str = Field(description="todos.yaml first_documents id (contract 계약서 / down_payment 계약금 이체 내역)")
+    label: str
+    detail: str | None = Field(description="찍는 방법 안내")
+    uploaded: bool = Field(description="올렸는지. 보기는 GET /api/contracts/{id}/documents/{kind}")
+    uploaded_at: datetime | None
+
+
 class ContractOut(BaseModel):
     id: int
     today: date = Field(description="할 일 상태를 계산한 오늘 (X-Virtual-Today를 보냈으면 그날)")
@@ -432,6 +453,7 @@ class ContractOut(BaseModel):
     renewal_right_used: bool
     co_tenant: bool
     email: str | None
+    co_tenant_email: str | None = Field(description="공동 계약자 알림 이메일 (FR-043)")
     special_term_result: dict[str, SpecialTermResult]
     report_required: bool = Field(description="임대차 신고 대상인지 (FR-015). 비대상이면 T1 없이 T4에서 확정일자를 함께 받는다")
     alert_level: str | None = Field(
@@ -441,6 +463,7 @@ class ContractOut(BaseModel):
     special_term_effects: list[SpecialTermEffectOut] = Field(
         description="기록한 특약 결과의 분기 (부속표 E): 넣음이면 기록함에 남길 서류, 거절당함이면 위험 안내·맨 위로 올라간 할 일·상담 창구")
     todos: list[TodoOut] = Field(description="할 일 목록 (sort_order 순서)")
+    documents: list[ContractDocumentOut] = Field(description="첫 계약 서류 (계약서·계약금 이체 내역, FR-051)")
 
 
 class ContractCreatedOut(ContractOut):
@@ -512,7 +535,8 @@ class DemoHousesResult(BaseModel):
 
 
 class AccessLinkInput(BaseModel):
-    email: str = Field(max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", description="계약을 만들 때 넣은 알림 이메일")
+    email: str = Field(max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+                       description="계약을 만들 때 넣은 알림 이메일 또는 공동 계약자 이메일")
 
 
 class AccessLinkResult(BaseModel):
@@ -532,7 +556,7 @@ class NotificationOut(BaseModel):
     kind: Literal["start", "due_before", "remind", "evidence"] = Field(
         description="start 시작일 / due_before 기한 며칠 전 / remind 재알림 / evidence 나중에 올리기 한 증빙을 올리라는 알림")
     notify_date: date_
-    channel: Literal["app", "email"]
+    channel: Literal["app", "email", "email_co"] = Field(description="app / email(계약 이메일) / email_co(공동 계약자 이메일)")
     status: Literal["sent", "pending", "failed", "skipped"] = Field(
         description="app은 sent. email은 sent(보냄) / failed(못 보냄, 다음 실행에서 다시) / skipped(알림 이메일 없음·그사이 무산·완료)")
     title: str
@@ -612,10 +636,19 @@ class MoveOut(BaseModel):
     loan_gap_days: int | None = Field(description="새 대출 실행이 기존 대출 상환보다 먼저인 일수")
     move_in_date: date = Field(description="다음 집 전입 예정일 (입력이 없으면 잔금일)")
     move_in_warning: bool = Field(description="전입 예정일이 반환 예정일과 같거나 앞서면 true (반환 확인을 끝냈으면 false, FR-027)")
+    next_contract_id: int | None = Field(
+        None, description="다음 집으로 만든 계약 (POST .../move/next로 연결). 연결하면 그 계약의 전입신고를 끝낼 때 경고한다")
     warnings: list[str] = Field(description="화면에 그대로 보여 줄 안내 (자금 틈·대출 순서·전입 순서)")
     next_todos: list[MoveTodoOut] = Field(description="다음 집 할 일 9종 (다음 집 날짜로 계산, 할 일 순서대로). "
                                                        "다음 집 계약 전 확인의 연동 규칙·특약은 계약을 만들 때 반영된다")
     todos: list[MoveTodoOut] = Field(description="지금 집 + 다음 집 할 일을 날짜순으로 묶은 목록 (FR-025)")
+
+
+class MoveLinkInput(BaseModel):
+    """갈아타기에 다음 집 계약 연결 (FR-027). 다음 집 계약을 만든 휴대폰이 그 계약의 접근 토큰을 함께 보낸다."""
+
+    next_contract_id: int
+    next_contract_token: str = Field(min_length=1, description="다음 집 계약을 만들 때 받은 access_token")
 
 
 class TodoPatch(BaseModel):
@@ -625,6 +658,9 @@ class TodoPatch(BaseModel):
         description="done 완료(증빙을 올린 할 일만) / skipped 나중에 올리기(완료 처리, 기록함은 빈칸) / todo 되돌리기")
     done_date: date | None = Field(
         None, description="끝낸 날. 없으면 오늘(가상 날짜면 그날). 뒤 할 일의 기준일이 된다 (예: 전입신고 완료 다음 날 → 반환보증 시작)")
+    confirm_move_in: bool = Field(
+        False, description="갈아타기 다음 집의 전입신고를 지금 집 반환 확인 전에 끝낼 때, 경고(409 MOVE_IN_BEFORE_RETURN)를 "
+                           "보고 그래도 끝내면 true (FR-027)")
 
 
 AlertLevel = Literal["caution", "warning", "danger"]
