@@ -1,5 +1,5 @@
 import * as DocumentPicker from 'expo-document-picker';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -26,6 +26,7 @@ import {
   type TrustConsent,
 } from '@/lib/check';
 import { dottedDate, todayDate } from '@/lib/clock';
+import { hasConsent, useConsent } from '@/lib/consent';
 import { formatWon, parseManwon, parseNumber } from '@/lib/format';
 
 const steps = ['집 정보', '공시가격', '등기부', '확인·수정'];
@@ -50,7 +51,15 @@ const todayText = () => dottedDate(todayDate());
 const toManwonText = (won: number) => (won ? String(Math.round(won / 10_000)) : '');
 
 /** 계약 전 확인 입력 (UI-01 입력 부분, FR-001~006). 집 정보 → 공시가격 → 등기부 → 추출 결과 확인·수정 → 결과 */
+/** 서비스 안내·개인정보 동의를 받은 뒤에만 계약 전 확인을 시작한다 (처음 한 번, 안내 버전이 바뀌면 다시) */
 export default function PrecheckScreen() {
+  const consent = useConsent();
+  if (consent === undefined) return null; // 휴대폰에서 불러오는 중
+  if (!hasConsent(consent)) return <Redirect href={{ pathname: '/consent', params: { next: 'precheck' } }} />;
+  return <PrecheckForm />;
+}
+
+function PrecheckForm() {
   const [step, setStep] = useState(0);
   const [preset, setPreset] = useState<DemoHouse | null>(null);
   const [houses, setHouses] = useState<DemoHouse[]>(demoHouses);
