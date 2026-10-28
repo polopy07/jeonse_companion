@@ -38,7 +38,15 @@
           "imageWidth": 76
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "할 일을 끝낸 증빙 사진을 앨범에서 고르려고 사진에 접근해요",
+          "cameraPermission": "할 일을 끝낸 증빙(신고필증·보증서 등)을 찍으려고 카메라를 써요",
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
