@@ -81,6 +81,9 @@ class Verdict(Base):
     rules_version: Mapped[str] = mapped_column(String(16))
     # 단지를 주었을 때 실거래 근거 {as_of, trade_basis, nearby_jeonse} (FR-003, FR-004). 기준일을 함께 남긴다 (NFR-014)
     market: Mapped[dict] = mapped_column(JSONType, default=dict)
+    # 등기부 재비교(FR-023, FR-048)로 다시 판정한 것이면 contract_day / balance_day, 계약 전 확인이면 null
+    stage: Mapped[str | None] = mapped_column(String(16))
+    comparison: Mapped[dict | None] = mapped_column(JSONType)   # 재비교 결과 (계약 전 확인 판정과 항목별 비교, 기준일)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

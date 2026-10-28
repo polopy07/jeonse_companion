@@ -159,6 +159,19 @@ def _todo_values(row: Contract) -> dict:
     return {name: getattr(row, name) for name in _TODO_FIELDS}
 
 
+def todo_linkages(row: Contract, check: Verdict) -> list[str]:
+    """할 일에 쓰는 연동 규칙: 계약 전 확인 판정 + 등기부 재비교로 새로 걸린 것 (FR-023, PO 2026-10-28).
+
+    더하기만 한다. 재비교에서 근저당이 말소돼 연동이 풀려도 빼지 않는다 (잔금 때 말소하기로 한 근저당이라도
+    3번 할 일의 근저당 금액 비교는 그대로 해야 하고, 끝낸 할 일의 필수 확인이 사라지지 않게).
+    """
+    linkages = list(check.linkages or [])
+    for v in row.verdicts:
+        if v.stage is not None:
+            linkages += [lid for lid in v.linkages or [] if lid not in linkages]
+    return linkages
+
+
 def _sync_todos(row: Contract, check: Verdict, rules: dict) -> None:
     """계약 조건으로 할 일을 만들거나 다시 계산한다.
 
@@ -171,9 +184,10 @@ def _sync_todos(row: Contract, check: Verdict, rules: dict) -> None:
     existing = {t.rule_id: t for t in row.todos}
     # "나중에 올리기"(skipped)도 끝낸 할 일이다 (FR-030: 완료 처리하되 기록함만 빈칸)
     done_dates = {t.rule_id: t.done_date for t in row.todos if t.status in FINISHED and t.done_date}
+    linkages = todo_linkages(row, check)
 
     def plan():
-        return build_todos(_todo_values(row), check.linkages, row.special_term_result, row.alert_level, rules,
+        return build_todos(_todo_values(row), linkages, row.special_term_result, row.alert_level, rules,
                            done_dates=done_dates)
 
     planned = plan()
