@@ -51,24 +51,39 @@ def _to_result(row: Verdict, rules: dict) -> CheckResult:
     )
 
 
+def trade_records(db: Session, lawd_cd: str, housing_type: str) -> list[Trade]:
+    return list(db.scalars(select(Trade).where(Trade.lawd_cd == lawd_cd, Trade.housing_type == housing_type)).all())
+
+
+def find_market(db: Session, housing_type: str, complex_: dict, exclusive_area: float | None, rules: dict, as_of: date,
+                records: list[Trade] | None = None):
+    """단지(lawd_cd·umd_name·complex_name·jibun)로 저장된 실거래에서 매매 실거래가와 주변 전세 시세를 찾는다.
+    계약 전 확인과 계약 중 경보 재계산(app.alerts)이 같이 쓴다. records를 주면 다시 불러오지 않는다."""
+    key = ComplexKey(housing_type, complex_["lawd_cd"], complex_["umd_name"], complex_["complex_name"],
+                     complex_.get("jibun"))
+    if records is None:
+        records = trade_records(db, key.lawd_cd, housing_type)
+    return (pick_trade_price(records, key, exclusive_area, as_of, rules["alert"]),
+            nearby_jeonse(records, key, exclusive_area, as_of, rules["alert"]))
+
+
 def _market(inp: CheckInput, db: Session, rules: dict, as_of: date):
     """단지를 주었으면 저장된 실거래에서 매매 실거래가와 주변 전세 시세를 찾는다."""
-    c = inp.complex
-    key = ComplexKey(inp.housing_type, c.lawd_cd, c.umd_name, c.complex_name, c.jibun)
-    records = db.scalars(select(Trade).where(Trade.lawd_cd == c.lawd_cd, Trade.housing_type == inp.housing_type)).all()
-    return (pick_trade_price(records, key, inp.exclusive_area, as_of, rules["alert"]),
-            nearby_jeonse(records, key, inp.exclusive_area, as_of, rules["alert"]))
+    return find_market(db, inp.housing_type, inp.complex.model_dump(), inp.exclusive_area, rules, as_of)
 
 
 @router.post("", response_model=CheckResult, status_code=201, responses=responses(422))
 def create_check(inp: CheckInput, db: Session = Depends(get_db), rules: dict = Depends(get_rules),
                  today: date = Depends(today_dep)):
     market: dict = {}
+    if inp.trade_price is not None:   # 사용자가 직접 넣은 매매 실거래가. 경보 재계산도 판정처럼 이 값을 먼저 쓴다 (FR-037)
+        market["trade_price_input"] = inp.trade_price
     pick = nearby = None
     if inp.complex is not None:
         as_of = today
         pick, nearby = _market(inp, db, rules, as_of)
         market["as_of"] = as_of.isoformat()
+        market["complex"] = inp.complex.model_dump()   # 계약 중 경보 재계산(FR-037)에서 같은 단지 실거래를 다시 찾는다
         if pick is not None and inp.trade_price is None:
             inp = inp.model_copy(update={"trade_price": pick.price})
 
