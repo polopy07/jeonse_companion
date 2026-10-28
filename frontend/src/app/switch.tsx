@@ -1,12 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
-import { TextField, Toggle } from '@/components/form';
+import { ChoiceChips, TextField, Toggle } from '@/components/form';
 import { Icon } from '@/components/Icon';
 import { Button, Card, Screen, SectionLabel } from '@/components/layout';
 import { Colors, Radius } from '@/constants/theme';
-import { ApiError, apiEnabled, getMove, postMove, type ApiContract, type ApiMove, type ApiMoveTodo } from '@/lib/api';
+import {
+  ApiError,
+  apiEnabled,
+  getMove,
+  postMove,
+  type ApiContract,
+  type ApiMove,
+  type ApiMoveTodo,
+  type Guarantor,
+} from '@/lib/api';
 import { dateKey, parseDateKey, useVirtualToday } from '@/lib/clock';
 import { contractToken, ddayLabel, useLatestContract } from '@/lib/contract';
 import { formatWon, parseManwon } from '@/lib/format';
@@ -36,6 +45,8 @@ type NextForm = {
   deposit: string;
   down: string;
   loan: boolean;
+  /** 다음 집 반환보증 보증기관. 미가입이면 다음 집 할 일에 반환보증(5·6번)이 생기지 않는다 */
+  guarantor: Guarantor;
 };
 
 /** 계약이 있을 때 처음 보여 줄 다음 집 예시 값: 만기 2주 전 잔금(자금 틈 장면), 그 10주 전 계약, 2년 계약, 보증금은 지금과 같게 */
@@ -50,6 +61,7 @@ function exampleNext(contract: ApiContract): NextForm {
     deposit: manwon(contract.deposit),
     down: manwon(Math.round(contract.deposit / 10 / 10_000) * 10_000),
     loan: false,
+    guarantor: contract.guarantor,
   };
 }
 
@@ -60,6 +72,7 @@ const formFromMove = (m: ApiMove): NextForm => ({
   deposit: manwon(m.next.deposit),
   down: manwon(m.next.down_payment),
   loan: m.next.loan,
+  guarantor: m.next.guarantor,
 });
 
 /** 시연 데이터 (계약이 없거나 서버 주소가 없을 때) */
@@ -70,6 +83,7 @@ const demoNext: NextForm = {
   deposit: '16000',
   down: '1600',
   loan: false,
+  guarantor: 'HUG',
 };
 
 /**
@@ -97,6 +111,9 @@ function SwitchForm({ contract }: { contract: ApiContract | null }) {
   const [dirty, setDirty] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 사용자가 저장하지 않은 입력을 고쳤는지. 불러오기가 늦게 끝나거나 가상 날짜가 바뀌어도 고치던 입력은 덮지 않는다
+  const edited = useRef(false);
+  const active = contract?.status !== 'cancelled';
 
   // 저장한 갈아타기가 있으면 불러온다 (가상 날짜가 바뀌면 반환 확인 여부·할 일 상태가 달라져 다시)
   const contractId = contract?.id ?? null;
@@ -107,8 +124,10 @@ function SwitchForm({ contract }: { contract: ApiContract | null }) {
       .then((m) => {
         if (!alive) return;
         setPlan(m);
-        setForm(formFromMove(m));
-        setDirty(false);
+        if (!edited.current) {
+          setForm(formFromMove(m));
+          setDirty(false);
+        }
       })
       .catch((e) => {
         // 404 = 아직 시작하지 않음 (예시 값으로 입력)
@@ -123,12 +142,14 @@ function SwitchForm({ contract }: { contract: ApiContract | null }) {
 
   const edit = (patch: Partial<NextForm>) => {
     setForm((f) => ({ ...f, ...patch }));
+    edited.current = true;
     setDirty(true);
     setError(null);
   };
 
   const shown = plan && !dirty ? plan : null;
-  const end = shown ? parseDateKey(shown.return_date) : contract ? parseDateKey(contract.end_date) : parseDate(demoEnd);
+  // 반환일은 입력을 고치는 중에도 서버 기준(돌려받았으면 그날, 아니면 9번 기한)으로. 저장한 적이 없으면 만기일
+  const end = plan ? parseDateKey(plan.return_date) : contract ? parseDateKey(contract.end_date) : parseDate(demoEnd);
   const refundWon = contract ? contract.deposit : parseManwon(demoRefund);
   const bal = parseDate(form.balanceDate);
 
@@ -161,9 +182,10 @@ function SwitchForm({ contract }: { contract: ApiContract | null }) {
         deposit: depositWon,
         down_payment: downWon,
         loan: form.loan,
-        guarantor: contract.guarantor,
+        guarantor: form.guarantor,
       });
       setPlan(m);
+      edited.current = false;
       setDirty(false);
       setError(null);
     } catch (e) {
@@ -173,19 +195,16 @@ function SwitchForm({ contract }: { contract: ApiContract | null }) {
     }
   };
 
+  // 무산된 계약은 저장하면 409라 버튼을 숨긴다 (저장한 갈아타기는 계속 볼 수 있음)
+  const canSave = !!contract && active && (dirty || !plan);
+
   return (
     <Screen
       title="다음 집으로 갈아타기"
       footer={
         <View style={{ gap: 8 }}>
-          {contract && (dirty || !plan) ? (
-            <Button label={saving ? '계산하는 중…' : '자금 틈 계산하고 저장'} onPress={save} />
-          ) : null}
-          <Button
-            label="다음 집 계약 전 확인하기"
-            href="/precheck"
-            variant={contract && (dirty || !plan) ? 'outline' : 'primary'}
-          />
+          {canSave ? <Button label={saving ? '계산하는 중…' : '자금 틈 계산하고 저장'} onPress={save} /> : null}
+          <Button label="다음 집 계약 전 확인하기" href="/precheck" variant={canSave ? 'outline' : 'primary'} />
         </View>
       }>
       <AppText size={13} color={Colors.textSub} style={{ marginTop: 6 }}>
@@ -199,7 +218,7 @@ function SwitchForm({ contract }: { contract: ApiContract | null }) {
         {contract ? (
           <View style={styles.fields}>
             <Fixed
-              label={shown?.returned ? '돌려받은 날' : '반환 예정일'}
+              label={plan?.returned ? '돌려받은 날' : '반환 예정일'}
               value={end ? dotDate(dateKey(end)) : '-'}
             />
             <Fixed label="돌려받을 보증금" value={`${formatWon(contract.deposit)} 원`} />
@@ -253,13 +272,28 @@ function SwitchForm({ contract }: { contract: ApiContract | null }) {
               <TextField label="만기일" value={form.endDate} onChange={(v) => edit({ endDate: v })} />
               <View style={{ flex: 1 }} />
             </View>
+            <ChoiceChips
+              label="다음 집 반환보증 보증기관"
+              choices={[
+                { value: 'HUG', label: 'HUG' },
+                { value: 'HF', label: 'HF' },
+                { value: 'SGI', label: 'SGI' },
+                { value: 'none', label: '가입 안 함' },
+              ]}
+              value={form.guarantor}
+              onChange={(guarantor) => edit({ guarantor })}
+            />
             <View style={styles.inlineToggle}>
               <AppText size={13} style={{ flex: 1 }}>
                 다음 집도 전세대출을 받아요
               </AppText>
               <Toggle value={form.loan} onChange={(v) => edit({ loan: v })} label="다음 집 전세대출" />
             </View>
-            {!plan ? (
+            {!active ? (
+              <AppText size={12} color={Colors.textHint}>
+                무산된 계약이라 새로 저장할 수 없어요. 저장해 둔 갈아타기는 계속 볼 수 있어요.
+              </AppText>
+            ) : !plan ? (
               <AppText size={12} color={Colors.textHint}>
                 예시 값이에요. 다음 집 계약서대로 고친 뒤 저장해 주세요.
               </AppText>
