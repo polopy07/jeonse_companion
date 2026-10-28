@@ -136,7 +136,7 @@ function dateLabel(s: string, today: Date) {
 }
 
 /** 서버가 계산한 남은 날 → "D-3" / "D-DAY" / "D+2" */
-const ddayLabel = (days: number) => (days === 0 ? 'D-DAY' : days > 0 ? `D-${days}` : `D+${-days}`);
+export const ddayLabel = (days: number) => (days === 0 ? 'D-DAY' : days > 0 ? `D-${days}` : `D+${-days}`);
 
 function whenLabel(t: ApiTodo, today: Date) {
   if (t.status !== 'todo') {
@@ -186,7 +186,8 @@ export function todoViews(todos: ApiTodo[], today: Date): TodoView[] {
         badge: badges.length ? badges.join(' · ') : undefined,
         status,
         todayBefore: status === 'current',
-        href: t.rule_id === 'T9' ? '/switch' : undefined,
+        // 7번(만기 6개월 전 "이사할게요")·9번(반환 확인)에서 갈아타기로 (FR-025)
+        href: t.rule_id === 'T7' || t.rule_id === 'T9' ? '/switch' : undefined,
         todoId: t.id,
         evidence: t.evidence,
         skipped: t.status === 'skipped',
