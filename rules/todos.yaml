@@ -31,7 +31,7 @@ notifications:
   catch_up_days: 7          # 알림 실행을 건너뛴 날의 알림은 7일 안의 것만 보낸다 (가상 날짜로 몇 달을 건너뛰어도 지난 알림이 쏟아지지 않게)
   email_todos: [T5, T6]     # 이메일로도 보내는 할 일: 반환보증 가입(기한 7·1일 전)과 마감 30일 전 재알림
   evidence_after_days: 7    # 나중에 올리기(FR-030) 한 할 일은 나중에 올리기로 바꾼 날(증빙을 지운 날) 7일 뒤 증빙을 올리라고 다시 알림 (앱 안 알림만)
-  hypothesis: true          # 기한 7·1일 전, 7일, 증빙 재알림 7일은 팀 제안 (PO 확인 필요)
+  hypothesis: false         # 기한 7·1일 전, 7일, 증빙 재알림 7일 (PO 확정 2026-10-28)
 
 # 계약 당일 첫 계약 서류 (FR-051, UC-003 5단계, UI-03). 기록함의 첫 서류로 저장한다 (POST /api/contracts/{id}/documents).
 # 할 일이 아니라 완료·알림·기한은 없다. 특약 반영 분기의 "특약이 보이는 계약서 사진"(special_terms.yaml require_document)도 이 계약서로 남긴다

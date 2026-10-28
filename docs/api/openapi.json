@@ -681,6 +681,394 @@
         }
       }
     },
+    "/api/contracts/{contract_id}/move": {
+      "post": {
+        "tags": [
+          "갈아타기"
+        ],
+        "summary": "Save Move",
+        "description": "갈아타기 저장 (FR-025~027). 다음 집 입력을 저장하고 자금 틈·대출 순서·전입 순서 경고·두 집 할 일을 돌려준다.\n\n다시 보내면 다음 집 입력을 바꾼다 (처음 저장한 날 decided_on은 그대로). 다음 집 계약일·잔금일이 지금 계약일보다\n앞서면 422. 무산된 계약이면 409.",
+        "operationId": "save_move_api_contracts__contract_id__move_post",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
+          },
+          {
+            "name": "x-virtual-today",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘",
+              "title": "X-Virtual-Today"
+            },
+            "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoveOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "갈아타기"
+        ],
+        "summary": "Get Move",
+        "description": "저장한 갈아타기를 지금 계약 상태로 다시 계산해 돌려준다. 저장한 적이 없으면 404.",
+        "operationId": "get_move_api_contracts__contract_id__move_get",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
+          },
+          {
+            "name": "x-virtual-today",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘",
+              "title": "X-Virtual-Today"
+            },
+            "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoveOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/contracts/{contract_id}/registry-compare": {
+      "post": {
+        "tags": [
+          "등기부 재비교"
+        ],
+        "summary": "Compare",
+        "description": "다시 올린 등기부 요약(POST /api/registry/parse 결과를 확인한 fields)을 계약 전 확인 때와 비교한다.\n\n- 항목별 변동(same / risk / eased). 새로 생기거나 늘어난 항목이 있으면 hold와 \"계약 보류 후 상담\"(계약 당일) /\n  \"잔금 보류 후 상담\"(잔금일) 안내. 근저당이 말소되거나 줄어든 것은 변동으로만 보여 준다\n- 계약 전에 근저당이 있었으면 근저당 금액 비교를 필수 확인으로 돌려준다 (mortgage_check, FR-023)\n- 다시 판정한 결과를 계약의 판정 기록으로 남긴다 (경보 재계산은 이 등기부의 선순위 채권을 씀)\n- 새로 걸린 연동 규칙은 할 일에 더하고(근저당 → 3번 근저당 금액 비교, 비율 90% 이상 → 2번 기한 계약일,\n  신탁 → 신탁사 동의서), 경보는 오늘 기준으로 이 계약만 바로 다시 계산한다 (계약의 alert_level·경보 이력)\n무산된 계약은 409 CONTRACT_CANCELLED, 없는 계약이나 토큰이 틀리면 404.",
+        "operationId": "compare_api_contracts__contract_id__registry_compare_post",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
+          },
+          {
+            "name": "x-virtual-today",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘",
+              "title": "X-Virtual-Today"
+            },
+            "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistryCompareInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistryCompareOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "등기부 재비교"
+        ],
+        "summary": "Compare History",
+        "description": "이 계약의 등기부 재비교 기록 (올린 순서, 기록함 UC-006 사후조건). 무산된 계약도 볼 수 있다.",
+        "operationId": "compare_history_api_contracts__contract_id__registry_compare_get",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RegistryCompareOut"
+                  },
+                  "title": "Response Compare History Api Contracts  Contract Id  Registry Compare Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/todos/{todo_id}": {
       "patch": {
         "tags": [
@@ -1346,6 +1734,77 @@
         }
       }
     },
+    "/api/contracts/{contract_id}/alerts/latest": {
+      "get": {
+        "tags": [
+          "역전세 경보"
+        ],
+        "summary": "Latest Alert",
+        "description": "최근 경보 단계·계산 근거·기준일. 재계산한 적이 없으면 계약을 시작할 때의 값. 무산된 계약도 볼 수 있다.",
+        "operationId": "latest_alert_api_contracts__contract_id__alerts_latest_get",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertReportOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/registry/parse": {
       "post": {
         "tags": [
@@ -1636,6 +2095,113 @@
         }
       }
     },
+    "/api/admin/alerts/recalculate": {
+      "post": {
+        "tags": [
+          "관리자"
+        ],
+        "summary": "Recalculate Alerts",
+        "description": "역전세 경보 재계산 (FR-037). 실거래 수집(POST /api/admin/trades)이나 공시가격 새 발표 뒤 실행한다.\n\n날짜는 본문 date → X-Virtual-Today → 실제 오늘 순서. 같은 날 다시 부르면 그날 계산을 바꾼다(이력이 늘지 않음).\n단계가 바뀌면 계약의 경보 단계와 할 일을 바꾸고(주의 이상이면 T5 맨 위), 올라가면 앱 안 알림을 만든다.",
+        "operationId": "recalculate_alerts_api_admin_alerts_recalculate_post",
+        "parameters": [
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "환경 변수 ADMIN_TOKEN과 같은 값",
+              "title": "X-Admin-Token"
+            },
+            "description": "환경 변수 ADMIN_TOKEN과 같은 값"
+          },
+          {
+            "name": "x-virtual-today",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘",
+              "title": "X-Virtual-Today"
+            },
+            "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AlertRecalcInput"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Inp"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertRecalcResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -1684,6 +2250,413 @@
           "message"
         ],
         "title": "AccessLinkResult"
+      },
+      "AlertBasisOut": {
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "format": "date",
+            "title": "As Of",
+            "description": "계산 기준일 (실거래 기간·공시가격 기준)"
+          },
+          "official_price": {
+            "type": "integer",
+            "title": "Official Price",
+            "description": "계산에 쓴 공시가격 (원)"
+          },
+          "official_estimate": {
+            "type": "integer",
+            "title": "Official Estimate",
+            "description": "공시가격 × 140% (원)"
+          },
+          "multiplier": {
+            "type": "number",
+            "title": "Multiplier",
+            "description": "공시가격에 곱한 비율 (alert.yaml estimated_price.official_price_multiplier)"
+          },
+          "trade": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TradeBasisOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "같은 단지·비슷한 면적 매매 실거래. 단지를 모르거나 거래가 없으면 null"
+          },
+          "trade_price_input": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trade Price Input",
+            "description": "계약 전 확인 때 사용자가 직접 넣은 매매 실거래가 (원). 있으면 판정 때처럼 단지 실거래 대신 이 값을 쓴다"
+          },
+          "nearby_jeonse": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NearbyJeonseOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "주변 전세 시세. 단지를 모르면 null"
+          },
+          "senior_debt": {
+            "type": "integer",
+            "title": "Senior Debt",
+            "description": "선순위 채권 (근저당 채권최고액 + 임차권·전세권 보증금, 마지막으로 올린 등기부)"
+          },
+          "ratio_is_minimum": {
+            "type": "boolean",
+            "title": "Ratio Is Minimum",
+            "description": "등기부를 올리지 않아 선순위 채권을 0원으로 둔 최소 추정치인지"
+          },
+          "complex_known": {
+            "type": "boolean",
+            "title": "Complex Known",
+            "description": "실거래를 찾을 단지를 아는지 (모르면 공시가격으로만 계산)"
+          },
+          "rules_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rules Version",
+            "description": "재계산에 쓴 alert.yaml 버전. 계약 시작 값은 null"
+          }
+        },
+        "type": "object",
+        "required": [
+          "as_of",
+          "official_price",
+          "official_estimate",
+          "multiplier",
+          "trade",
+          "nearby_jeonse",
+          "senior_debt",
+          "ratio_is_minimum",
+          "complex_known",
+          "rules_version"
+        ],
+        "title": "AlertBasisOut",
+        "description": "경보 계산 근거 (FR-038, UI-09)."
+      },
+      "AlertPointOut": {
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "format": "date",
+            "title": "As Of",
+            "description": "계산 기준일"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "caution",
+                  "warning",
+                  "danger"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level",
+            "description": "경보 단계 (alert.yaml levels[].id), 정상이면 null"
+          },
+          "estimated_price": {
+            "type": "integer",
+            "title": "Estimated Price",
+            "description": "추정 주택가격 (원)"
+          },
+          "deposit_ratio": {
+            "type": "number",
+            "title": "Deposit Ratio",
+            "description": "내 보증금 비율 = (보증금 + 선순위 채권) ÷ 추정 주택가격"
+          }
+        },
+        "type": "object",
+        "required": [
+          "as_of",
+          "level",
+          "estimated_price",
+          "deposit_ratio"
+        ],
+        "title": "AlertPointOut"
+      },
+      "AlertRecalcInput": {
+        "properties": {
+          "date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date",
+            "description": "이 날을 기준일로 다시 계산한다 (가상 날짜). 없으면 X-Virtual-Today, 그것도 없으면 실제 오늘"
+          },
+          "contract_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Ids",
+            "description": "이 계약만 다시 계산. 없으면 진행 중 계약 모두"
+          },
+          "official_prices": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer",
+                  "maximum": 1000000000000.0,
+                  "exclusiveMinimum": 0.0
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Official Prices",
+            "description": "공시가격 새 발표 적재: {계약 id: 새 공시가격(원)}. 계약의 공시가격을 바꾼 뒤 계산한다. 없는 계약 id는 무시"
+          }
+        },
+        "type": "object",
+        "title": "AlertRecalcInput"
+      },
+      "AlertRecalcItem": {
+        "properties": {
+          "contract_id": {
+            "type": "integer",
+            "title": "Contract Id"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "caution",
+                  "warning",
+                  "danger"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          },
+          "previous_level": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "caution",
+                  "warning",
+                  "danger"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Level",
+            "description": "앞 계산(없으면 계약 시작)의 단계"
+          },
+          "raised": {
+            "type": "boolean",
+            "title": "Raised",
+            "description": "단계가 올라갔는지. 올라가면 앱 안 알림을 만든다"
+          },
+          "estimated_price": {
+            "type": "integer",
+            "title": "Estimated Price"
+          },
+          "deposit_ratio": {
+            "type": "number",
+            "title": "Deposit Ratio"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contract_id",
+          "level",
+          "previous_level",
+          "raised",
+          "estimated_price",
+          "deposit_ratio"
+        ],
+        "title": "AlertRecalcItem"
+      },
+      "AlertRecalcResult": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/AlertRecalcItem"
+            },
+            "type": "array",
+            "title": "Results",
+            "description": "다시 계산한 계약 (공시가격이 없는 계약·무산된 계약은 빠짐)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "results"
+        ],
+        "title": "AlertRecalcResult"
+      },
+      "AlertReportOut": {
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "format": "date",
+            "title": "As Of",
+            "description": "계산 기준일"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "caution",
+                  "warning",
+                  "danger"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level",
+            "description": "경보 단계 (alert.yaml levels[].id), 정상이면 null"
+          },
+          "estimated_price": {
+            "type": "integer",
+            "title": "Estimated Price",
+            "description": "추정 주택가격 (원)"
+          },
+          "deposit_ratio": {
+            "type": "number",
+            "title": "Deposit Ratio",
+            "description": "내 보증금 비율 = (보증금 + 선순위 채권) ÷ 추정 주택가격"
+          },
+          "contract_id": {
+            "type": "integer",
+            "title": "Contract Id"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label",
+            "description": "단계 이름 (주의 / 경고 / 위험), 정상이면 null"
+          },
+          "recalculated": {
+            "type": "boolean",
+            "title": "Recalculated",
+            "description": "계약 중 재계산한 값인지. false면 계약을 시작할 때의 값"
+          },
+          "previous_level": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "caution",
+                  "warning",
+                  "danger"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Level",
+            "description": "바로 앞 계산의 단계. 앞 계산이 없으면 null"
+          },
+          "previous_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Ratio",
+            "description": "바로 앞 계산의 내 보증금 비율. 앞 계산이 없으면 null"
+          },
+          "basis": {
+            "$ref": "#/components/schemas/AlertBasisOut"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/AlertPointOut"
+            },
+            "type": "array",
+            "title": "History",
+            "description": "계약 시작부터의 계산 이력 (기준일 순서, 마지막이 이 값)"
+          },
+          "data_limits": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Data Limits",
+            "description": "데이터 한계 안내 (alert.yaml recalculation.data_limits), 화면에 그대로"
+          }
+        },
+        "type": "object",
+        "required": [
+          "as_of",
+          "level",
+          "estimated_price",
+          "deposit_ratio",
+          "contract_id",
+          "label",
+          "recalculated",
+          "previous_level",
+          "previous_ratio",
+          "basis",
+          "history",
+          "data_limits"
+        ],
+        "title": "AlertReportOut",
+        "description": "최근 역전세 경보 (FR-036~038, UI-09). 재계산한 적이 없으면 계약을 시작할 때(계약 전 확인)의 값."
       },
       "Body_parse_registry_api_registry_parse_post": {
         "properties": {
@@ -2210,7 +3183,7 @@
               }
             ],
             "title": "Alert Level",
-            "description": "시작할 때의 경보 단계 (alert.yaml levels[].id), 정상이면 null"
+            "description": "지금 경보 단계 (alert.yaml levels[].id), 정상이면 null. 계약을 시작할 때 정하고 경보 재계산(FR-037)으로 바뀐다"
           },
           "status": {
             "type": "string",
@@ -2644,7 +3617,7 @@
               }
             ],
             "title": "Alert Level",
-            "description": "시작할 때의 경보 단계 (alert.yaml levels[].id), 정상이면 null"
+            "description": "지금 경보 단계 (alert.yaml levels[].id), 정상이면 null. 계약을 시작할 때 정하고 경보 재계산(FR-037)으로 바뀐다"
           },
           "status": {
             "type": "string",
@@ -3169,6 +4142,349 @@
         ],
         "title": "MatchedRuleOut"
       },
+      "MoveInput": {
+        "properties": {
+          "contract_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Contract Date",
+            "description": "다음 집 계약일"
+          },
+          "balance_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Balance Date",
+            "description": "다음 집 잔금일"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date",
+            "description": "다음 집 만기일"
+          },
+          "deposit": {
+            "type": "integer",
+            "maximum": 1000000000000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Deposit",
+            "description": "다음 집 보증금 (원)"
+          },
+          "down_payment": {
+            "type": "integer",
+            "maximum": 1000000000000.0,
+            "minimum": 0.0,
+            "title": "Down Payment",
+            "description": "다음 집 계약금 (원). 잔금 = 보증금 − 계약금"
+          },
+          "monthly_rent": {
+            "type": "integer",
+            "maximum": 1000000000000.0,
+            "minimum": 0.0,
+            "title": "Monthly Rent",
+            "description": "월세 (원, 전세면 0)",
+            "default": 0
+          },
+          "loan": {
+            "type": "boolean",
+            "title": "Loan",
+            "description": "다음 집 전세대출 유무",
+            "default": false
+          },
+          "loan_execution_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loan Execution Date",
+            "description": "다음 집 대출 실행일, 모르면 비워 둠 (잔금일로 본다)"
+          },
+          "guarantor": {
+            "type": "string",
+            "enum": [
+              "HUG",
+              "HF",
+              "SGI",
+              "none"
+            ],
+            "title": "Guarantor",
+            "description": "다음 집 보증기관 (미가입은 none)",
+            "default": "none"
+          },
+          "brokered": {
+            "type": "boolean",
+            "title": "Brokered",
+            "description": "중개 거래 여부",
+            "default": true
+          },
+          "renewal_right_used": {
+            "type": "boolean",
+            "title": "Renewal Right Used",
+            "description": "계약갱신요구권을 써서 갱신한 계약인지",
+            "default": false
+          },
+          "move_in_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Move In Date",
+            "description": "다음 집 전입 예정일. 없으면 잔금일"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contract_date",
+          "balance_date",
+          "end_date",
+          "deposit",
+          "down_payment"
+        ],
+        "title": "MoveInput",
+        "description": "갈아타기: 다음 집 계약 조건 (FR-025, UI-07). 만기 6개월 전 할 일(7번)에서 \"이사할게요\"를 고르면 입력한다.\n\n다음 집 계약 전 확인(POST /api/checks)은 따로 한다 (FR-028). 여기서는 날짜·돈으로 자금 틈과 할 일만 계산한다."
+      },
+      "MoveOut": {
+        "properties": {
+          "contract_id": {
+            "type": "integer",
+            "title": "Contract Id",
+            "description": "지금 계약 id"
+          },
+          "today": {
+            "type": "string",
+            "format": "date",
+            "title": "Today",
+            "description": "계산한 오늘 (X-Virtual-Today를 보냈으면 그날)"
+          },
+          "decided_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Decided On",
+            "description": "갈아타기를 처음 저장한 날"
+          },
+          "next": {
+            "$ref": "#/components/schemas/MoveInput",
+            "description": "저장한 다음 집 입력"
+          },
+          "current_deposit": {
+            "type": "integer",
+            "title": "Current Deposit",
+            "description": "지금 집 보증금 (원)"
+          },
+          "return_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Return Date",
+            "description": "지금 집 보증금 반환 예정일 (9번 할 일 기한, 없으면 만기일)"
+          },
+          "returned": {
+            "type": "boolean",
+            "title": "Returned",
+            "description": "지금 집 반환 확인(9번 할 일)을 끝냈는지"
+          },
+          "next_balance": {
+            "type": "integer",
+            "title": "Next Balance",
+            "description": "다음 집 잔금 = 보증금 − 계약금 (원)"
+          },
+          "gap_days": {
+            "type": "integer",
+            "title": "Gap Days",
+            "description": "반환 예정일이 다음 집 잔금일보다 늦은 일수. 늦지 않으면 0"
+          },
+          "gap_amount": {
+            "type": "integer",
+            "title": "Gap Amount",
+            "description": "그동안 비는 금액 = min(지금 집 보증금, 다음 집 잔금). 틈이 없으면 0 (PO 결정 Q5)"
+          },
+          "loan_order": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "new_loan_first",
+                  "old_repayment_first"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loan Order",
+            "description": "두 집 모두 전세대출일 때: new_loan_first 새 대출 실행이 기존 대출 상환보다 먼저 / old_repayment_first 기존 대출 상환 뒤 새 대출. 아니면 null"
+          },
+          "loan_gap_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loan Gap Days",
+            "description": "새 대출 실행이 기존 대출 상환보다 먼저인 일수"
+          },
+          "move_in_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Move In Date",
+            "description": "다음 집 전입 예정일 (입력이 없으면 잔금일)"
+          },
+          "move_in_warning": {
+            "type": "boolean",
+            "title": "Move In Warning",
+            "description": "전입 예정일이 반환 예정일과 같거나 앞서면 true (반환 확인을 끝냈으면 false, FR-027)"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "description": "화면에 그대로 보여 줄 안내 (자금 틈·대출 순서·전입 순서)"
+          },
+          "next_todos": {
+            "items": {
+              "$ref": "#/components/schemas/MoveTodoOut"
+            },
+            "type": "array",
+            "title": "Next Todos",
+            "description": "다음 집 할 일 9종 (다음 집 날짜로 계산, 할 일 순서대로). 다음 집 계약 전 확인의 연동 규칙·특약은 계약을 만들 때 반영된다"
+          },
+          "todos": {
+            "items": {
+              "$ref": "#/components/schemas/MoveTodoOut"
+            },
+            "type": "array",
+            "title": "Todos",
+            "description": "지금 집 + 다음 집 할 일을 날짜순으로 묶은 목록 (FR-025)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contract_id",
+          "today",
+          "decided_on",
+          "next",
+          "current_deposit",
+          "return_date",
+          "returned",
+          "next_balance",
+          "gap_days",
+          "gap_amount",
+          "loan_order",
+          "loan_gap_days",
+          "move_in_date",
+          "move_in_warning",
+          "warnings",
+          "next_todos",
+          "todos"
+        ],
+        "title": "MoveOut"
+      },
+      "MoveTodoOut": {
+        "properties": {
+          "house": {
+            "type": "string",
+            "enum": [
+              "current",
+              "next"
+            ],
+            "title": "House",
+            "description": "current 지금 집 / next 다음 집"
+          },
+          "rule_id": {
+            "type": "string",
+            "title": "Rule Id",
+            "description": "todos.yaml id (T1~T9)"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "remind_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remind Date"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "done",
+              "upcoming",
+              "in_progress",
+              "overdue"
+            ],
+            "title": "State",
+            "description": "오늘 기준 상태 (TodoOut.state와 같음)"
+          },
+          "days_left": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days Left"
+          }
+        },
+        "type": "object",
+        "required": [
+          "house",
+          "rule_id",
+          "title",
+          "start_date",
+          "due_date",
+          "remind_date",
+          "state",
+          "days_left"
+        ],
+        "title": "MoveTodoOut",
+        "description": "지금 집과 다음 집 할 일을 하나로 묶은 목록의 한 줄 (FR-025)."
+      },
       "NearbyJeonseOut": {
         "properties": {
           "median": {
@@ -3383,6 +4699,248 @@
         ],
         "title": "PaymentOut",
         "description": "테스트 결제 (FR-013). 실제 돈은 나가지 않는다."
+      },
+      "RegistryCompareInput": {
+        "properties": {
+          "registry": {
+            "$ref": "#/components/schemas/RegistryInput"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "contract_day",
+                  "balance_day"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage",
+            "description": "contract_day 계약 당일 / balance_day 잔금일. 비우면 오늘(가상 날짜)이 계약일까지면 계약 당일, 계약 다음 날부터는 잔금일"
+          }
+        },
+        "type": "object",
+        "required": [
+          "registry"
+        ],
+        "title": "RegistryCompareInput",
+        "description": "계약 당일·잔금일에 다시 올린 등기부 요약 (FR-023, FR-048, UC-006). POST /api/registry/parse 결과를 확인·수정한 fields."
+      },
+      "RegistryCompareItemOut": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field",
+            "description": "fields.yaml 이름 (registry.seizure 등)"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before",
+            "description": "계약 전 확인 때 값. 그때 등기부를 올리지 않았으면 null"
+          },
+          "after": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "After",
+            "description": "다시 올린 등기부 값"
+          },
+          "change": {
+            "type": "string",
+            "enum": [
+              "same",
+              "risk",
+              "eased"
+            ],
+            "title": "Change",
+            "description": "same 그대로 / risk 새로 생기거나 늘어남 / eased 없어지거나 줄어듦"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "label",
+          "before",
+          "after",
+          "change"
+        ],
+        "title": "RegistryCompareItemOut"
+      },
+      "RegistryCompareOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "재비교로 다시 판정한 결과 id (verdicts.id)"
+          },
+          "contract_id": {
+            "type": "integer",
+            "title": "Contract Id"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "contract_day",
+              "balance_day"
+            ],
+            "title": "Stage"
+          },
+          "compared_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Compared On",
+            "description": "비교한 날 (가상 날짜면 그날)"
+          },
+          "baseline_check_id": {
+            "type": "integer",
+            "title": "Baseline Check Id",
+            "description": "비교 기준인 계약 전 확인 판정 (계약의 check_id)"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RegistryCompareItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "changed": {
+            "type": "boolean",
+            "title": "Changed",
+            "description": "바뀐 항목이 있는지 (줄어든 것 포함)"
+          },
+          "hold": {
+            "type": "boolean",
+            "title": "Hold",
+            "description": "새로 생기거나 늘어난 항목이 있어 보류를 안내하는지"
+          },
+          "advice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advice",
+            "description": "hold일 때 \"계약 보류 후 상담\" / \"잔금 보류 후 상담\""
+          },
+          "hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint",
+            "description": "hold일 때 할 일 안내, 화면에 그대로"
+          },
+          "mortgage_check_required": {
+            "type": "boolean",
+            "title": "Mortgage Check Required",
+            "description": "계약 전에 근저당이 있었으면 true: 근저당 금액 비교가 필수 확인 (FR-023, L-MORTGAGE)"
+          },
+          "mortgage_check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegistryCompareItemOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "mortgage_check_required면 채권최고액 비교 항목"
+          },
+          "baseline_missing": {
+            "type": "boolean",
+            "title": "Baseline Missing",
+            "description": "계약 전 확인에서 등기부를 올리지 않아 다시 올린 등기부에 있는 것을 모두 위험으로 봄"
+          },
+          "level_before": {
+            "type": "string",
+            "title": "Level Before",
+            "description": "계약 전 확인 판정 단계 (verdict.yaml levels[].id)"
+          },
+          "level_after": {
+            "type": "string",
+            "title": "Level After",
+            "description": "계약 전 확인 입력에 등기부만 바꿔 다시 판정한 단계 (달라지면 등기부 때문)"
+          },
+          "level_after_label": {
+            "type": "string",
+            "title": "Level After Label"
+          },
+          "deposit_ratio_before": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit Ratio Before"
+          },
+          "deposit_ratio_after": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit Ratio After",
+            "description": "다시 판정한 내 보증금 비율. 계약 전 확인 때 보증금·공시가격 기준이고, 계약의 지금 값은 경보(alert_level)에 반영"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "contract_id",
+          "stage",
+          "compared_on",
+          "baseline_check_id",
+          "items",
+          "changed",
+          "hold",
+          "advice",
+          "hint",
+          "mortgage_check_required",
+          "mortgage_check",
+          "baseline_missing",
+          "level_before",
+          "level_after",
+          "level_after_label",
+          "deposit_ratio_before",
+          "deposit_ratio_after"
+        ],
+        "title": "RegistryCompareOut",
+        "description": "등기부 재비교 결과 (FR-023, FR-048). 다시 판정한 결과는 계약의 판정 기록으로 남는다 (경보 재계산의 선순위 채권도 이 등기부)."
       },
       "RegistryEntryOut": {
         "properties": {

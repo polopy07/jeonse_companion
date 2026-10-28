@@ -29,6 +29,7 @@ uvicorn app.main:app --reload
 
 - 금액(원) 칸은 `BigInteger`로 둔다. PostgreSQL `integer`는 최대 2,147,483,647원(약 21.4억)이라 공시가격 15.3억이 넘으면 추정 주택가격(×1.4)부터 저장되지 않는다. SQLite는 정수 크기를 가리지 않아 테스트에서 드러나지 않으니 `tests/test_money_columns.py`가 칸 형식을 따로 검사한다.
 - 배포 서버에서는 `DATABASE_URL`만 그 서버의 PostgreSQL 주소로 바꾸면 된다.
+- 웹(`npx expo start --web`)은 개발 편의용이다. 브라우저가 API를 부르려면 `.env`에 `CORS_ORIGINS=http://localhost:8081,http://127.0.0.1:8081`(Expo 웹 개발 서버, 쉼표로 더함)을 넣는다. 기본은 빈 값이라 꺼져 있다(배포 서버는 비워 둠). 서버 오류(500)에도 허용한 주소면 CORS 헤더를 붙인다. 휴대폰 앱(Expo Go)은 CORS와 상관없다. 쿠키는 쓰지 않고 계약 토큰은 헤더(`X-Contract-Token`)로 보낸다
 - 환경 변수는 `.env.example`을 `backend/.env`로 복사해 채운다(`.env`는 git에 올리지 않음). 서버는 `.env`를 자동으로 읽지 않으므로 `uvicorn app.main:app --host 0.0.0.0 --env-file .env`로 띄운다. 실거래가 조회(2주차)에는 공공데이터포털 일반 인증키가 필요하다 (Encoding·Decoding 키 아무거나, 활용신청할 API 목록은 `.env.example`).
 - 테이블은 서버가 시작할 때 `create_all`로 만들기 때문에 **이미 있는 테이블에는 새 칸이 생기지 않는다**. 모델(`app/models.py`)이 바뀐 브랜치를 받으면 로컬 DB를 다시 만든다: `docker compose down -v && docker compose up -d` (SQLite는 파일을 지운다). 배포 전까지는 이렇게 하고, 배포 서버에 데이터가 쌓이기 시작하면 Alembic을 들인다
 
@@ -38,6 +39,8 @@ uvicorn app.main:app --reload
 pytest                      # 임시 SQLite 파일로 실행 (DB 설치 불필요)
 TEST_DATABASE_URL=postgresql+psycopg://jeonse:jeonse@localhost:5432/jeonse_test pytest
 ```
+
+시연 흐름만 돌려 보려면 `pytest tests/test_demo_flow.py -v`: 시연 집 2채로 계약 전 확인 → 결제 → 계약 당일(담보 설정 금지 "거절당함"으로 할 일 순서가 바뀌는 장면) → 가상 날짜로 계약 2년(증빙·반환보증 알림 이메일·경보 재계산·갈아타기·반환 확인)을 배포 서버처럼 결제·접근 토큰을 요구하는 설정으로 이어서 돌린다. 리허설 전에 서버 쪽 연결이 끊긴 곳이 없는지 본다.
 
 PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`)가 같은 테스트(SQLite)와 `rules/check_rules.py`를 자동으로 돌린다. 의존성은 `requirements.txt`에 버전을 정확히 고정했으니, 올릴 때는 PR로 바꾸고 CI 통과를 확인한다.
 
@@ -60,6 +63,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/engine/check.py` | 계약 전 확인: 입력 → 비율 → 판정 |
 | `app/engine/todos.py` | 할 일 9종 생성: 기한·선행 조건·순서 (todos.yaml, guarantors.yaml, linkage.yaml) |
 | `app/engine/alert.py` | 경보 단계 (alert.yaml) |
+| `app/engine/move.py` | 갈아타기: 자금 틈·대출 순서·전입 순서 경고 (정답표 S10) |
 | `app/engine/market.py` | 같은 단지·비슷한 면적의 최근 매매가, 주변 전세 시세 중앙값 (alert.yaml) |
 | `app/trades/client.py` | 공공데이터포털 실거래가 API 4종 호출·응답 해석 |
 | `app/trades/collect.py` | 실거래 수집·저장 (같은 거래는 한 번만) |
@@ -67,9 +71,14 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/engine/special_terms.py` | 판정에 맞는 특약 예시와 넣음/거절당함 결과 (special_terms.yaml, linkage.yaml) |
 | `app/api/checks.py` | `POST /api/checks`, `GET /api/checks/{id}`, `GET /api/checks/{id}/special-terms` |
 | `app/api/contracts.py` | `POST /api/contracts`, `GET /api/contracts/{id}` |
+| `app/api/moves.py` | `POST`·`GET /api/contracts/{id}/move` 갈아타기 |
+| `app/api/recompare.py` | `POST`·`GET /api/contracts/{id}/registry-compare` 등기부 재비교 |
+| `app/engine/registry_compare.py` | 등기부 재비교: 항목별 변동·보류 안내 |
 | `app/api/todos.py` | `PATCH /api/todos/{id}` 할 일 끝내기·나중에 올리기·되돌리기, `POST`·`GET`·`DELETE /api/todos/{id}/evidence` 증빙 |
 | `app/api/documents.py` | `POST /api/contracts/{id}/documents`, `GET`·`DELETE /api/contracts/{id}/documents/{kind}` 첫 계약 서류 |
 | `app/evidence.py` | 증빙 파일 저장·삭제 (`EVIDENCE_DIR`, 기본 `backend/data/evidence`, git 제외) |
+| `app/api/alerts.py` | `GET /api/contracts/{id}/alerts/latest` 경보 리포트 |
+| `app/alerts.py` | 역전세 경보 재계산 (`POST /api/admin/alerts/recalculate`): 계약 중 비율·단계 다시 계산, 할 일·알림 |
 | `app/registry/pdf.py` | 등기부 PDF → 요약 페이지 글자 ("부동산정보요약" 또는 증명서의 "주요 등기사항 요약", pdfplumber) |
 | `app/registry/parser.py` | 요약 글자 → 소유자, 근저당 채권최고액, 압류 등, 신탁 (규칙 파서) |
 | `app/api/registry.py` | `POST /api/registry/parse` |
@@ -209,6 +218,31 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - `GET`·`PATCH /api/contracts/{id}`, `POST /api/contracts/{id}/cancel`은 헤더 `X-Contract-Token`이 계약을 만들 때 받은 `access_token`과 맞아야 한다. 틀리면 계약이 없을 때와 같은 404 `NOT_FOUND` (번호를 바꿔 가며 계약이 있는지 알아내지 못하게). `REQUIRE_CONTRACT_AUTH`가 false면 헤더를 보내지 않은 요청은 통과시킨다
 - `POST /api/contracts/{id}/cancel` (본문 없음): 계약 `status: "cancelled"`, 쓴 결제는 `released`. 할 일은 지우지 않고 기록으로 남긴다. 무산된 계약은 `GET`만 되고 `PATCH`·다시 무산은 409 `CONTRACT_CANCELLED`
 - `contracts`에 `access_token_hash`·`payment_id`·`status`·`cancelled_at` 칸, `payments` 테이블을 넣었다. 예전 DB는 서버를 켤 때 새 칸을 자동으로 더한다(`init_db`). 예전 계약은 토큰이 없어 `REQUIRE_CONTRACT_AUTH=true`면 열 수 없으니 시연 전에는 `python reset_demo_db.py`
+
+### `POST /api/contracts/{id}/move` 갈아타기 (FR-025~027)
+
+- 만기 6개월 전 할 일(7번)에서 "이사할게요"를 고르면 다음 집 계약일·잔금일·만기일·보증금·계약금(과 대출·보증기관·전입 예정일)을 보낸다. `X-Contract-Token` 확인, 무산된 계약은 409
+- 다음 집 입력만 `moves` 표에 저장하고(계약마다 1개, 다시 보내면 바꿈), 계산은 `GET`할 때마다 지금 계약 상태로 다시 한다 (지금 계약의 날짜를 바꾸거나 반환 확인을 끝내도 맞게)
+- 다음 집 계약일·잔금일이 지금 계약일보다 앞서면 422, 대출 실행일은 다음 집 계약일과 잔금일 사이(아니면 422). 두 번 눌러 동시에 저장해도 먼저 저장한 행을 고친다. 저장한 입력이 나중에 바뀐 입력 규칙과 맞지 않으면 `GET`이 409 `MOVE_INPUT_OUTDATED`
+- 반환 예정일 = 지금 계약 9번 할 일 기한(없으면 만기일). 9번을 끝냈으면(나중에 올리기 포함) 끝낸 날이 반환일이고, 이미 돌려받았으니 자금 틈은 0, 대출 순서·전입 순서 경고는 내지 않는다. 자금 틈 `gap_days` = 반환 예정일 − 다음 집 잔금일(늦지 않으면 0), `gap_amount` = min(지금 집 보증금, 다음 집 잔금 = 보증금 − 계약금) (PO 결정 Q5)
+- 대출 순서 `loan_order`: 두 집 모두 전세대출일 때 새 대출 실행일(모르면 잔금일)이 반환 예정일보다 앞서면 `new_loan_first`, 아니면 `old_repayment_first`. 은행 확인 안내를 같이
+- 전입 순서 `move_in_warning`: 다음 집 전입 예정일(없으면 잔금일)이 반환 예정일과 같거나 앞서면 true, 9번 할 일을 끝냈으면 false (FR-027). 앞서면 날짜를 다시 보라는 경고, 같은 날이면 "보증금 먼저 받고 전입신고" 순서 안내 (PO 결정 Q12)
+- `next_todos`: 다음 집 날짜로 계산한 할 일 9종 (연동 규칙·특약은 다음 집 계약 전 확인 뒤 계약을 만들 때). `todos`: 지금 집 + 다음 집 할 일을 날짜순으로 묶은 목록 (FR-025)
+- 정답표 S10·S10-b와의 대조는 `tests/test_move.py`
+
+### `POST /api/contracts/{id}/registry-compare` 등기부 재비교 (FR-023·048, #41)
+
+```json
+{"registry": {"mortgage": true, "mortgage_amount": 150000000, "seizure": false}, "stage": "balance_day"}
+```
+
+- 계약 당일(점검한 날과 계약일이 다를 때, FR-048)·잔금일 아침(3번 할 일, FR-023)에 등기부 요약을 다시 올려(`POST /api/registry/parse` → 확인) 계약 전 확인 판정과 비교한다. `stage`를 비우면 오늘(가상 날짜)이 계약일까지면 계약 당일, 계약 다음 날부터는 잔금일
+- 항목별 `same` / `risk`(새로 생기거나 늘어남) / `eased`(없어지거나 줄어듦). `risk`가 있으면 `hold`와 "계약 보류 후 상담" / "잔금 보류 후 상담". 근저당 말소·감액은 변동으로만 보여 주고 보류는 안내하지 않는다 (잔금 때 말소하기로 한 근저당)
+- 계약 전에 근저당이 있었으면 `mortgage_check`(채권최고액 비교)를 필수 확인으로 (L-MORTGAGE)
+- 계약 전 확인과 같은 입력(보증금·공시가격도 그때 값)에 등기부만 바꿔 다시 판정해 계약의 판정 기록(`verdicts.stage`·`comparison`)으로 남긴다. 그래서 `level_after`·`deposit_ratio_after`가 달라지면 등기부 때문. `GET`은 재비교 기록
+- 다시 판정해 새로 걸린 연동 규칙은 할 일에 더한다 (근저당 → 3번 근저당 금액 비교, 비율 90% 이상 → 2번 기한 계약일, 신탁 → 신탁사 동의서. PO 2026-10-28). 더하기만 하고, 근저당이 말소된 등기부를 올려도 빼지 않는다 (`contracts.todo_linkages`)
+- 경보는 재비교한 날 기준으로 이 계약만 바로 다시 계산한다 (계약의 지금 보증금·공시가격 + 이 등기부의 선순위 채권, `alert_level`·경보 이력·올라가면 앱 알림). 경보 재계산의 선순위 채권은 그날까지 비교한 날이 가장 늦은 등기부 (가상 날짜를 되돌려 다시 비교해도 날짜로 고름, `alerts.senior_debt`)
+- 3번 할 일 완료는 지금처럼 증빙(잔금일 등기부 열람본)으로 한다 (재비교가 할 일 상태를 바꾸지 않음)
 
 ### `POST /api/admin/trades` 실거래가 수집 (FR-046)
 

@@ -93,6 +93,49 @@ class RegistryParseResult(BaseModel):
     warnings: list[str]
 
 
+RegistryStage = Literal["contract_day", "balance_day"]
+
+
+class RegistryCompareInput(BaseModel):
+    """계약 당일·잔금일에 다시 올린 등기부 요약 (FR-023, FR-048, UC-006). POST /api/registry/parse 결과를 확인·수정한 fields."""
+
+    registry: RegistryInput
+    stage: RegistryStage | None = Field(
+        None, description="contract_day 계약 당일 / balance_day 잔금일. 비우면 오늘(가상 날짜)이 계약일까지면 계약 당일, 계약 다음 날부터는 잔금일")
+
+
+class RegistryCompareItemOut(BaseModel):
+    field: str = Field(description="fields.yaml 이름 (registry.seizure 등)")
+    label: str
+    before: bool | int | None = Field(description="계약 전 확인 때 값. 그때 등기부를 올리지 않았으면 null")
+    after: bool | int = Field(description="다시 올린 등기부 값")
+    change: Literal["same", "risk", "eased"] = Field(description="same 그대로 / risk 새로 생기거나 늘어남 / eased 없어지거나 줄어듦")
+
+
+class RegistryCompareOut(BaseModel):
+    """등기부 재비교 결과 (FR-023, FR-048). 다시 판정한 결과는 계약의 판정 기록으로 남는다 (경보 재계산의 선순위 채권도 이 등기부)."""
+
+    id: int = Field(description="재비교로 다시 판정한 결과 id (verdicts.id)")
+    contract_id: int
+    stage: RegistryStage
+    compared_on: date = Field(description="비교한 날 (가상 날짜면 그날)")
+    baseline_check_id: int = Field(description="비교 기준인 계약 전 확인 판정 (계약의 check_id)")
+    items: list[RegistryCompareItemOut]
+    changed: bool = Field(description="바뀐 항목이 있는지 (줄어든 것 포함)")
+    hold: bool = Field(description="새로 생기거나 늘어난 항목이 있어 보류를 안내하는지")
+    advice: str | None = Field(description="hold일 때 \"계약 보류 후 상담\" / \"잔금 보류 후 상담\"")
+    hint: str | None = Field(description="hold일 때 할 일 안내, 화면에 그대로")
+    mortgage_check_required: bool = Field(description="계약 전에 근저당이 있었으면 true: 근저당 금액 비교가 필수 확인 (FR-023, L-MORTGAGE)")
+    mortgage_check: RegistryCompareItemOut | None = Field(description="mortgage_check_required면 채권최고액 비교 항목")
+    baseline_missing: bool = Field(description="계약 전 확인에서 등기부를 올리지 않아 다시 올린 등기부에 있는 것을 모두 위험으로 봄")
+    level_before: str = Field(description="계약 전 확인 판정 단계 (verdict.yaml levels[].id)")
+    level_after: str = Field(description="계약 전 확인 입력에 등기부만 바꿔 다시 판정한 단계 (달라지면 등기부 때문)")
+    level_after_label: str
+    deposit_ratio_before: float | None
+    deposit_ratio_after: float | None = Field(
+        description="다시 판정한 내 보증금 비율. 계약 전 확인 때 보증금·공시가격 기준이고, 계약의 지금 값은 경보(alert_level)에 반영")
+
+
 class ComplexInput(BaseModel):
     """실거래를 찾을 단지 (공공데이터포털 실거래가의 이름 그대로). 시연 집은 미리 매칭해 둔다."""
 
@@ -364,7 +407,8 @@ class ContractOut(BaseModel):
     email: str | None
     special_term_result: dict[str, SpecialTermResult]
     report_required: bool = Field(description="임대차 신고 대상인지 (FR-015). 비대상이면 T1 없이 T4에서 확정일자를 함께 받는다")
-    alert_level: str | None = Field(description="시작할 때의 경보 단계 (alert.yaml levels[].id), 정상이면 null")
+    alert_level: str | None = Field(
+        description="지금 경보 단계 (alert.yaml levels[].id), 정상이면 null. 계약을 시작할 때 정하고 경보 재계산(FR-037)으로 바뀐다")
     status: ContractStatus = Field(description="active / cancelled (계약 무산, FR-016)")
     payment_id: int | None = Field(description="이 계약에 쓴 테스트 결제. 결제 없이 만든 계약이면 null")
     special_term_effects: list[SpecialTermEffectOut] = Field(
@@ -475,6 +519,79 @@ class NotificationRunResult(BaseModel):
     created: list[NotificationOut] = Field(description="이번 실행에서 새로 만든 알림. 이미 만든 알림은 다시 만들지 않는다")
 
 
+class MoveInput(BaseModel):
+    """갈아타기: 다음 집 계약 조건 (FR-025, UI-07). 만기 6개월 전 할 일(7번)에서 "이사할게요"를 고르면 입력한다.
+
+    다음 집 계약 전 확인(POST /api/checks)은 따로 한다 (FR-028). 여기서는 날짜·돈으로 자금 틈과 할 일만 계산한다.
+    """
+
+    contract_date: date = Field(description="다음 집 계약일")
+    balance_date: date = Field(description="다음 집 잔금일")
+    end_date: date = Field(description="다음 집 만기일")
+    deposit: Money = Field(description="다음 집 보증금 (원)")
+    down_payment: MoneyOrZero = Field(description="다음 집 계약금 (원). 잔금 = 보증금 − 계약금")
+    monthly_rent: MoneyOrZero = Field(0, description="월세 (원, 전세면 0)")
+    loan: bool = Field(False, description="다음 집 전세대출 유무")
+    loan_execution_date: date | None = Field(None, description="다음 집 대출 실행일, 모르면 비워 둠 (잔금일로 본다)")
+    guarantor: Guarantor = Field("none", description="다음 집 보증기관 (미가입은 none)")
+    brokered: bool = Field(True, description="중개 거래 여부")
+    renewal_right_used: bool = Field(False, description="계약갱신요구권을 써서 갱신한 계약인지")
+    move_in_date: date | None = Field(None, description="다음 집 전입 예정일. 없으면 잔금일")
+
+    @model_validator(mode="after")
+    def dates_and_money(self):
+        if self.balance_date < self.contract_date:
+            raise ValueError("잔금일은 계약일과 같거나 뒤여야 합니다")
+        if self.end_date <= self.balance_date:
+            raise ValueError("만기일은 잔금일보다 뒤여야 합니다")
+        if self.down_payment >= self.deposit:
+            raise ValueError("계약금은 보증금보다 적어야 합니다")
+        if self.move_in_date is not None and self.move_in_date < self.balance_date:
+            raise ValueError("전입 예정일은 잔금일과 같거나 뒤여야 합니다")
+        if self.loan_execution_date is not None and not self.loan:
+            raise ValueError("전세대출이 없으면 대출 실행일을 비워 두세요")
+        # 새 대출은 다음 집 잔금을 치르는 돈이라 계약일과 잔금일 사이 (틀린 날짜로 대출 순서 차이가 수백 일이 되지 않게)
+        if self.loan_execution_date is not None and not self.contract_date <= self.loan_execution_date <= self.balance_date:
+            raise ValueError("대출 실행일은 다음 집 계약일과 잔금일 사이여야 합니다")
+        return self
+
+
+class MoveTodoOut(BaseModel):
+    """지금 집과 다음 집 할 일을 하나로 묶은 목록의 한 줄 (FR-025)."""
+
+    house: Literal["current", "next"] = Field(description="current 지금 집 / next 다음 집")
+    rule_id: str = Field(description="todos.yaml id (T1~T9)")
+    title: str
+    start_date: date | None
+    due_date: date | None
+    remind_date: date | None
+    state: Literal["done", "upcoming", "in_progress", "overdue"] = Field(description="오늘 기준 상태 (TodoOut.state와 같음)")
+    days_left: int | None
+
+
+class MoveOut(BaseModel):
+    contract_id: int = Field(description="지금 계약 id")
+    today: date = Field(description="계산한 오늘 (X-Virtual-Today를 보냈으면 그날)")
+    decided_on: date = Field(description="갈아타기를 처음 저장한 날")
+    next: MoveInput = Field(description="저장한 다음 집 입력")
+    current_deposit: int = Field(description="지금 집 보증금 (원)")
+    return_date: date = Field(description="지금 집 보증금 반환 예정일 (9번 할 일 기한, 없으면 만기일)")
+    returned: bool = Field(description="지금 집 반환 확인(9번 할 일)을 끝냈는지")
+    next_balance: int = Field(description="다음 집 잔금 = 보증금 − 계약금 (원)")
+    gap_days: int = Field(description="반환 예정일이 다음 집 잔금일보다 늦은 일수. 늦지 않으면 0")
+    gap_amount: int = Field(description="그동안 비는 금액 = min(지금 집 보증금, 다음 집 잔금). 틈이 없으면 0 (PO 결정 Q5)")
+    loan_order: Literal["new_loan_first", "old_repayment_first"] | None = Field(
+        description="두 집 모두 전세대출일 때: new_loan_first 새 대출 실행이 기존 대출 상환보다 먼저 / "
+                    "old_repayment_first 기존 대출 상환 뒤 새 대출. 아니면 null")
+    loan_gap_days: int | None = Field(description="새 대출 실행이 기존 대출 상환보다 먼저인 일수")
+    move_in_date: date = Field(description="다음 집 전입 예정일 (입력이 없으면 잔금일)")
+    move_in_warning: bool = Field(description="전입 예정일이 반환 예정일과 같거나 앞서면 true (반환 확인을 끝냈으면 false, FR-027)")
+    warnings: list[str] = Field(description="화면에 그대로 보여 줄 안내 (자금 틈·대출 순서·전입 순서)")
+    next_todos: list[MoveTodoOut] = Field(description="다음 집 할 일 9종 (다음 집 날짜로 계산, 할 일 순서대로). "
+                                                       "다음 집 계약 전 확인의 연동 규칙·특약은 계약을 만들 때 반영된다")
+    todos: list[MoveTodoOut] = Field(description="지금 집 + 다음 집 할 일을 날짜순으로 묶은 목록 (FR-025)")
+
+
 class TodoPatch(BaseModel):
     """할 일 완료·나중에 올리기·되돌리기 (FR-020, FR-029·030, UI-04)."""
 
@@ -482,3 +599,64 @@ class TodoPatch(BaseModel):
         description="done 완료(증빙을 올린 할 일만) / skipped 나중에 올리기(완료 처리, 기록함은 빈칸) / todo 되돌리기")
     done_date: date | None = Field(
         None, description="끝낸 날. 없으면 오늘(가상 날짜면 그날). 뒤 할 일의 기준일이 된다 (예: 전입신고 완료 다음 날 → 반환보증 시작)")
+
+
+AlertLevel = Literal["caution", "warning", "danger"]
+
+
+class AlertBasisOut(BaseModel):
+    """경보 계산 근거 (FR-038, UI-09)."""
+
+    as_of: date_ = Field(description="계산 기준일 (실거래 기간·공시가격 기준)")
+    official_price: int = Field(description="계산에 쓴 공시가격 (원)")
+    official_estimate: int = Field(description="공시가격 × 140% (원)")
+    multiplier: float = Field(description="공시가격에 곱한 비율 (alert.yaml estimated_price.official_price_multiplier)")
+    trade: TradeBasisOut | None = Field(description="같은 단지·비슷한 면적 매매 실거래. 단지를 모르거나 거래가 없으면 null")
+    trade_price_input: int | None = Field(
+        None, description="계약 전 확인 때 사용자가 직접 넣은 매매 실거래가 (원). 있으면 판정 때처럼 단지 실거래 대신 이 값을 쓴다")
+    nearby_jeonse: NearbyJeonseOut | None = Field(description="주변 전세 시세. 단지를 모르면 null")
+    senior_debt: int = Field(description="선순위 채권 (근저당 채권최고액 + 임차권·전세권 보증금, 마지막으로 올린 등기부)")
+    ratio_is_minimum: bool = Field(description="등기부를 올리지 않아 선순위 채권을 0원으로 둔 최소 추정치인지")
+    complex_known: bool = Field(description="실거래를 찾을 단지를 아는지 (모르면 공시가격으로만 계산)")
+    rules_version: str | None = Field(description="재계산에 쓴 alert.yaml 버전. 계약 시작 값은 null")
+
+
+class AlertPointOut(BaseModel):
+    as_of: date_ = Field(description="계산 기준일")
+    level: AlertLevel | None = Field(description="경보 단계 (alert.yaml levels[].id), 정상이면 null")
+    estimated_price: int = Field(description="추정 주택가격 (원)")
+    deposit_ratio: float = Field(description="내 보증금 비율 = (보증금 + 선순위 채권) ÷ 추정 주택가격")
+
+
+class AlertReportOut(AlertPointOut):
+    """최근 역전세 경보 (FR-036~038, UI-09). 재계산한 적이 없으면 계약을 시작할 때(계약 전 확인)의 값."""
+
+    contract_id: int
+    label: str | None = Field(description="단계 이름 (주의 / 경고 / 위험), 정상이면 null")
+    recalculated: bool = Field(description="계약 중 재계산한 값인지. false면 계약을 시작할 때의 값")
+    previous_level: AlertLevel | None = Field(description="바로 앞 계산의 단계. 앞 계산이 없으면 null")
+    previous_ratio: float | None = Field(description="바로 앞 계산의 내 보증금 비율. 앞 계산이 없으면 null")
+    basis: AlertBasisOut
+    history: list[AlertPointOut] = Field(description="계약 시작부터의 계산 이력 (기준일 순서, 마지막이 이 값)")
+    data_limits: list[str] = Field(description="데이터 한계 안내 (alert.yaml recalculation.data_limits), 화면에 그대로")
+
+
+class AlertRecalcInput(BaseModel):
+    date: date_ | None = Field(None, description="이 날을 기준일로 다시 계산한다 (가상 날짜). 없으면 X-Virtual-Today, 그것도 없으면 실제 오늘")
+    contract_ids: list[int] | None = Field(None, description="이 계약만 다시 계산. 없으면 진행 중 계약 모두")
+    official_prices: dict[int, Money] | None = Field(
+        None, description="공시가격 새 발표 적재: {계약 id: 새 공시가격(원)}. 계약의 공시가격을 바꾼 뒤 계산한다. 없는 계약 id는 무시")
+
+
+class AlertRecalcItem(BaseModel):
+    contract_id: int
+    level: AlertLevel | None
+    previous_level: AlertLevel | None = Field(description="앞 계산(없으면 계약 시작)의 단계")
+    raised: bool = Field(description="단계가 올라갔는지. 올라가면 앱 안 알림을 만든다")
+    estimated_price: int
+    deposit_ratio: float
+
+
+class AlertRecalcResult(BaseModel):
+    date: date_
+    results: list[AlertRecalcItem] = Field(description="다시 계산한 계약 (공시가격이 없는 계약·무산된 계약은 빠짐)")

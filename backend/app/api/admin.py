@@ -7,13 +7,14 @@ from fastapi import APIRouter, Depends, Header
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import notifications
+from app import alerts, notifications
 from app.clock import today as today_dep
 from app.config import admin_token, data_go_kr_service_key
 from app.db import get_db
 from app.errors import api_error, responses
 from app.rules.loader import get_rules
-from app.schemas import NotificationOut, NotificationRunInput, NotificationRunResult, TradeCollectInput, TradeCollectResult
+from app.schemas import (AlertRecalcInput, AlertRecalcItem, AlertRecalcResult, NotificationOut, NotificationRunInput,
+                         NotificationRunResult, TradeCollectInput, TradeCollectResult)
 from app.trades.client import TradeApiError
 from app.trades.collect import collect
 
@@ -75,3 +76,17 @@ def run_notifications(inp: NotificationRunInput | None = None, db: Session = Dep
     return NotificationRunResult(date=day, email_sent=email_sent, email_failed=email_failed, created=[NotificationOut(
         contract_id=n.contract_id, todo_rule_id=n.todo_rule_id, kind=n.kind, notify_date=n.notify_date,
         channel=n.channel, status=n.status, title=n.title) for n in created])
+
+
+@router.post("/alerts/recalculate", response_model=AlertRecalcResult, responses=responses(401, 403, 422))
+def recalculate_alerts(inp: AlertRecalcInput | None = None, db: Session = Depends(get_db),
+                       rules: dict = Depends(get_rules), today: date = Depends(today_dep)):
+    """역전세 경보 재계산 (FR-037). 실거래 수집(POST /api/admin/trades)이나 공시가격 새 발표 뒤 실행한다.
+
+    날짜는 본문 date → X-Virtual-Today → 실제 오늘 순서. 같은 날 다시 부르면 그날 계산을 바꾼다(이력이 늘지 않음).
+    단계가 바뀌면 계약의 경보 단계와 할 일을 바꾸고(주의 이상이면 T5 맨 위), 올라가면 앱 안 알림을 만든다.
+    """
+    inp = inp or AlertRecalcInput()
+    day = inp.date or today
+    results = alerts.recalculate(db, day, rules, inp.contract_ids, inp.official_prices)
+    return AlertRecalcResult(date=day, results=[AlertRecalcItem(**vars(r)) for r in results])
