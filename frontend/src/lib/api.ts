@@ -47,10 +47,11 @@ async function sendFetch(url: string, init: RequestInit): Promise<RawResponse> {
  * Expo의 fetch는 React Native FormData의 { uri, name, type } 파일을 받지 않고, expo-file-system으로 읽으면
  * Expo Go에서 문서 선택기가 복사한 파일에 읽기 권한이 없다. XMLHttpRequest는 uri를 네이티브에서 직접 읽어 보낸다
  */
-function sendXhr(url: string, method: string, form: FormData): Promise<RawResponse> {
+function sendXhr(url: string, method: string, form: FormData, headers: Record<string, string>): Promise<RawResponse> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open(method, url);
+    for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value);
     xhr.timeout = TIMEOUT_MS;
     xhr.onload = () => {
       let body: unknown = null;
@@ -68,12 +69,13 @@ function sendXhr(url: string, method: string, form: FormData): Promise<RawRespon
 async function request<T>(path: string, init: RequestInit, { xhr = false }: { xhr?: boolean } = {}): Promise<T> {
   if (!API_URL) throw new ApiError('API_URL_MISSING', '서버 주소가 설정되지 않았어요');
   const url = `${API_URL}${path}`;
-  // 시연 가상 날짜 (FR-044): 서버가 그날을 오늘로 보고 계산한다 (등기부 업로드(xhr)는 날짜와 상관없음)
+  // 시연 가상 날짜 (FR-044): 서버가 그날을 오늘로 보고 계산한다 (증빙 업로드도 그날 끝낸 것으로)
   const day = virtualToday();
-  if (day && !xhr) init = { ...init, headers: { ...(init.headers as Record<string, string>), 'X-Virtual-Today': day } };
+  const headers = { ...(init.headers as Record<string, string> | undefined), ...(day ? { 'X-Virtual-Today': day } : {}) };
+  init = { ...init, headers };
   let res: RawResponse;
   try {
-    res = xhr ? await sendXhr(url, init.method ?? 'GET', init.body as FormData) : await sendFetch(url, init);
+    res = xhr ? await sendXhr(url, init.method ?? 'GET', init.body as FormData, headers) : await sendFetch(url, init);
   } catch (e) {
     // 연결 실패의 실제 원인 (Expo 터미널에 찍힌다)
     if (__DEV__) console.warn(`[api] ${init.method ?? 'GET'} ${path} 실패:`, e);
@@ -116,16 +118,24 @@ export type ApiRegistryParseResult = {
   warnings: string[];
 };
 
-/** 등기부 PDF(부동산정보요약) → 추출 결과. 저장하지 않는다 */
-export async function parseRegistry(file: { uri: string; name: string; mimeType?: string | null }) {
-  const form = new FormData();
+/** 문서 선택기·사진 선택기에서 고른 파일 */
+export type PickedFile = { uri: string; name: string; mimeType?: string | null };
+
+/** 고른 파일을 multipart `file` 칸에 넣는다 */
+async function appendFile(form: FormData, file: PickedFile, defaultType: string) {
   if (Platform.OS === 'web') {
     const blob = await (await fetch(file.uri)).blob();
     form.append('file', blob, file.name);
   } else {
     // React Native의 FormData는 { uri, name, type }으로 파일을 보낸다 (fetch가 아니라 XMLHttpRequest로, sendXhr 참고)
-    form.append('file', { uri: file.uri, name: file.name, type: file.mimeType ?? 'application/pdf' } as unknown as Blob);
+    form.append('file', { uri: file.uri, name: file.name, type: file.mimeType ?? defaultType } as unknown as Blob);
   }
+}
+
+/** 등기부 PDF(부동산정보요약) → 추출 결과. 저장하지 않는다 */
+export async function parseRegistry(file: PickedFile) {
+  const form = new FormData();
+  await appendFile(form, file, 'application/pdf');
   return request<ApiRegistryParseResult>(
     '/api/registry/parse',
     { method: 'POST', body: form },
@@ -268,10 +278,15 @@ export type ApiTodo = {
   prerequisites: string[];
   required_checks: string[];
   evidence: string | null;
+  /** 증빙 사진을 올렸는지 (보기는 GET /api/todos/{id}/evidence) */
+  evidence_uploaded: boolean;
   pinned: boolean;
   moved_to_top: boolean;
   sort_order: number;
+  /** todo / done 완료 / skipped 나중에 올리기 (완료로 치고 기록함만 빈칸) */
   status: 'todo' | 'done' | 'skipped';
+  /** 끝낸 날 (done·skipped). 뒤 할 일의 기준일 */
+  done_date: string | null;
   rules_version: string;
   /** 오늘(가상 날짜면 그날) 기준: done 끝냄 / upcoming 시작 전 / in_progress 할 때 / overdue 기한 지남 */
   state: 'done' | 'upcoming' | 'in_progress' | 'overdue';
@@ -346,6 +361,35 @@ export function patchContract(contractId: number, token: string | null, patch: A
     headers: { 'Content-Type': 'application/json', ...contractHeaders(token) },
     body: JSON.stringify(patch),
   });
+}
+
+// ---- PATCH /api/todos/{id}, POST /api/todos/{id}/evidence ----
+
+/**
+ * 할 일 끝내기·되돌리기 (FR-020, FR-029·030). done은 증빙을 올린 할 일만(아니면 409 EVIDENCE_REQUIRED),
+ * skipped는 나중에 올리기, todo는 되돌리기. 먼저 끝낼 할 일이 남았으면 409 PREREQUISITE_NOT_DONE,
+ * 뒤 할 일을 이미 끝냈으면 409 DEPENDENT_DONE. 끝낸 날로 뒤 기한을 다시 계산해 계약 전체를 돌려준다
+ */
+export function patchTodo(todoId: number, token: string | null, status: ApiTodo['status']) {
+  return request<ApiContract>(`/api/todos/${todoId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...contractHeaders(token) },
+    body: JSON.stringify({ status }),
+  });
+}
+
+/**
+ * 증빙 사진 1장을 올려 할 일을 끝낸다 (FR-029, 기록함 FR-031). 나중에 올리기였던 할 일은 끝낸 날 그대로 완료로,
+ * 다시 올리면 앞 사진을 바꾼다. 20MB가 넘으면 413 FILE_TOO_LARGE. 끝낼 수 있는 조건은 patchTodo와 같다
+ */
+export async function uploadEvidence(todoId: number, token: string | null, file: PickedFile) {
+  const form = new FormData();
+  await appendFile(form, file, 'image/jpeg');
+  return request<ApiContract>(
+    `/api/todos/${todoId}/evidence`,
+    { method: 'POST', headers: contractHeaders(token), body: form },
+    { xhr: Platform.OS !== 'web' },
+  );
 }
 
 // ---- GET /api/demo-houses ----

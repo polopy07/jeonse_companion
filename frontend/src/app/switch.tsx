@@ -10,7 +10,7 @@ import { formatWon, parseManwon } from '@/lib/format';
 
 const DAY = 24 * 60 * 60 * 1000;
 
-/** "2028.11.19" → Date. 형식이 틀리면 null */
+/** "2028.11.24" → Date. 형식이 틀리면 null */
 function parseDate(s: string): Date | null {
   const m = s.trim().match(/^(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})$/);
   if (!m) return null;
@@ -22,9 +22,9 @@ const md = (d: Date) => `${d.getMonth() + 1}.${String(d.getDate()).padStart(2, '
 
 /** UI-07 갈아타기 입력: 지금 집 만기와 다음 집 잔금 사이의 자금 틈을 계산한다 */
 export default function SwitchScreen() {
-  const [endDate, setEndDate] = useState('2028.11.19');
+  const [endDate, setEndDate] = useState('2028.11.24');
   const [refund, setRefund] = useState('14000');
-  const [balanceDate, setBalanceDate] = useState('2028.11.15');
+  const [balanceDate, setBalanceDate] = useState('2028.11.20');
   const [nextDeposit, setNextDeposit] = useState('16000');
   const [nextDown, setNextDown] = useState('1600');
   const [keepRecords, setKeepRecords] = useState(true);
@@ -93,7 +93,7 @@ export default function SwitchScreen() {
           <GapChart end={end} bal={bal} />
         ) : (
           <AppText size={13} color={Colors.textSub}>
-            날짜를 2028.11.19처럼 입력해 주세요.
+            날짜를 2028.11.24처럼 입력해 주세요.
           </AppText>
         )}
         {gapDays !== null ? (
