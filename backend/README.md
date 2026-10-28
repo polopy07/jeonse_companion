@@ -40,6 +40,8 @@ pytest                      # 임시 SQLite 파일로 실행 (DB 설치 불필�
 TEST_DATABASE_URL=postgresql+psycopg://jeonse:jeonse@localhost:5432/jeonse_test pytest
 ```
 
+시연 흐름만 돌려 보려면 `pytest tests/test_demo_flow.py -v`: 시연 집 2채로 계약 전 확인 → 결제 → 계약 당일(담보 설정 금지 "거절당함"으로 할 일 순서가 바뀌는 장면) → 가상 날짜로 계약 2년(증빙·반환보증 알림 이메일·경보 재계산·갈아타기·반환 확인)을 배포 서버처럼 결제·접근 토큰을 요구하는 설정으로 이어서 돌린다. 리허설 전에 서버 쪽 연결이 끊긴 곳이 없는지 본다.
+
 PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`)가 같은 테스트(SQLite)와 `rules/check_rules.py`를 자동으로 돌린다. 의존성은 `requirements.txt`에 버전을 정확히 고정했으니, 올릴 때는 PR로 바꾸고 CI 통과를 확인한다.
 
 ## 구조
