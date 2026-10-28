@@ -350,7 +350,7 @@
           "계약"
         ],
         "summary": "Send Access Link",
-        "description": "접근 링크 이메일로 다시 받기 (#39, 휴대폰을 바꾸거나 앱을 지웠을 때).\n\n그 이메일로 만든 진행 중 계약마다 새 접근 토큰을 만들어 계약 이메일로 보낸다. 처음 토큰은 그대로 둔다\n(남이 다시 받기를 눌러도 원래 휴대폰이 쫓겨나지 않게). 이메일이 없어도 같은 202를 돌려준다.\n무산된 계약도 풀린 결제(released)가 남아 있으면 보낸다: 그 토큰이 있어야 다음 집 계약에 결제를 다시 쓴다(FR-016).",
+        "description": "접근 링크 이메일로 다시 받기 (#39, 휴대폰을 바꾸거나 앱을 지웠을 때).\n\n그 이메일(계약 이메일 또는 공동 계약자 이메일, FR-043)로 만든 진행 중 계약마다 새 접근 토큰을 만들어 그 주소로 보낸다.\n처음 토큰은 그대로 둔다\n(남이 다시 받기를 눌러도 원래 휴대폰이 쫓겨나지 않게). 이메일이 없어도 같은 202를 돌려준다.\n무산된 계약도 풀린 결제(released)가 남아 있으면 보낸다: 그 토큰이 있어야 다음 집 계약에 결제를 다시 쓴다(FR-016).",
         "operationId": "send_access_link_api_contracts_access_link_post",
         "requestBody": {
           "content": {
@@ -2337,7 +2337,7 @@
             "maxLength": 254,
             "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
             "title": "Email",
-            "description": "계약을 만들 때 넣은 알림 이메일"
+            "description": "계약을 만들 때 넣은 알림 이메일 또는 공동 계약자 이메일"
           }
         },
         "type": "object",
@@ -3272,6 +3272,18 @@
             ],
             "title": "Email"
           },
+          "co_tenant_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Co Tenant Email",
+            "description": "공동 계약자 알림 이메일 (FR-043)"
+          },
           "special_term_result": {
             "additionalProperties": {
               "type": "string",
@@ -3372,6 +3384,7 @@
           "renewal_right_used",
           "co_tenant",
           "email",
+          "co_tenant_email",
           "special_term_result",
           "report_required",
           "alert_level",
@@ -3531,6 +3544,20 @@
             ],
             "title": "Email",
             "description": "알림 이메일"
+          },
+          "co_tenant_email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 254,
+                "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Co Tenant Email",
+            "description": "공동 계약자 알림 이메일 (FR-043). co_tenant가 true일 때만, 알림 이메일과 다른 주소. 같은 알림 이메일을 따로 받고, 이 주소로 접근 링크를 다시 받아 자기 휴대폰에서 같은 계약을 볼 수 있다"
           },
           "special_term_result": {
             "additionalProperties": {
@@ -3706,6 +3733,18 @@
             ],
             "title": "Email"
           },
+          "co_tenant_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Co Tenant Email",
+            "description": "공동 계약자 알림 이메일 (FR-043)"
+          },
           "special_term_result": {
             "additionalProperties": {
               "type": "string",
@@ -3801,6 +3840,7 @@
           "renewal_right_used",
           "co_tenant",
           "email",
+          "co_tenant_email",
           "special_term_result",
           "report_required",
           "alert_level",
@@ -3959,6 +3999,20 @@
             ],
             "title": "Email",
             "description": "알림 이메일. null을 보내면 지운다"
+          },
+          "co_tenant_email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 254,
+                "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Co Tenant Email",
+            "description": "공동 계약자 알림 이메일. null을 보내면 지운다 (공동 계약을 끄려면 함께 지움)"
           },
           "special_term_result": {
             "anyOf": [
@@ -4709,9 +4763,11 @@
             "type": "string",
             "enum": [
               "app",
-              "email"
+              "email",
+              "email_co"
             ],
-            "title": "Channel"
+            "title": "Channel",
+            "description": "app / email(계약 이메일) / email_co(공동 계약자 이메일)"
           },
           "status": {
             "type": "string",
