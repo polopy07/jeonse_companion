@@ -70,7 +70,7 @@ def test_scenario_dates_and_order(rules, sid):
 
 @pytest.mark.parametrize("sid", ["S10", "S10-b"])
 def test_next_contract_after_switch(rules, sid):
-    # 갈아타기 다음 집도 같은 엔진으로 할 일을 만든다 (자금 틈·전입 순서는 3주차)
+    # 갈아타기 다음 집도 같은 엔진으로 할 일을 만든다 (자금 틈·전입 순서는 tests/test_move.py)
     s = BY_ID[sid]
     todos = _build(rules, s, inp=s["next_contract"])
     _assert_matches(todos, s["expected"]["next_contract_todos"])
