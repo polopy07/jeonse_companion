@@ -11,12 +11,11 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app import mailer
-from app.engine.schedule import Notice, due_on, notices
+from app.engine.schedule import FINISHED as DONE, Notice, due_on, notices
 from app.models import Contract, Notification, Todo
 
 logger = logging.getLogger(__name__)
 MAX_ATTEMPTS = 3
-DONE = ("done", "skipped")   # 알리지 않는 할 일 상태
 
 
 def _title(todo: Todo, notice: Notice) -> str:

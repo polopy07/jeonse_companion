@@ -5,13 +5,15 @@
 from dataclasses import dataclass
 from datetime import date, timedelta
 
+FINISHED = ("done", "skipped")   # 끝낸 할 일 상태: 상태는 done으로 보이고 알림은 보내지 않는다
+
 
 def todo_state(status: str, start: date | None, due: date | None, remind: date | None, today: date) -> str:
-    """done(끝냄) / upcoming(시작 전) / in_progress(할 때) / overdue(기한 지남).
+    """done(끝냄, 건너뛴 할 일 포함) / upcoming(시작 전) / in_progress(할 때) / overdue(기한 지남).
 
     재알림(T6·T8)은 알림일(remind)이 시작이자 기한이다.
     """
-    if status == "done":
+    if status in FINISHED:
         return "done"
     start = remind or start
     end = remind or due

@@ -29,9 +29,27 @@ def require_contract_auth() -> bool:
     return os.environ.get("REQUIRE_CONTRACT_AUTH", "false").strip().lower() in ("1", "true", "yes", "on")
 
 
+def allow_virtual_today() -> bool:
+    """X-Virtual-Today(시연용 가상 날짜)를 받을지 (API 명세 1.7).
+
+    로컬 개발·시연은 기본 true. 배포 서버는 false로 두어 헤더를 무시하고 실제 오늘(한국 시간)로만 계산한다.
+    """
+    return os.environ.get("ALLOW_VIRTUAL_TODAY", "true").strip().lower() in ("1", "true", "yes", "on")
+
+
 def evidence_dir() -> Path:
     """증빙 사진을 저장할 폴더 (FR-029). 기본은 backend/data/evidence (git 제외). 출시 때는 암호화 저장소로 (출시 준비)."""
     return Path(os.environ.get("EVIDENCE_DIR", REPO_ROOT / "backend" / "data" / "evidence"))
+
+
+def cors_origins() -> list[str]:
+    """브라우저에서 API를 부를 수 있는 웹 주소 (CORS). 웹은 개발 편의용이라(시연·제공은 휴대폰 앱) 기본은 끔.
+
+    웹으로 개발할 때만 Expo 웹 개발 서버 주소를 쉼표로 넣는다 (http://localhost:8081,http://127.0.0.1:8081).
+    휴대폰 앱(Expo Go)은 브라우저가 아니라 CORS와 상관없다.
+    """
+    raw = os.environ.get("CORS_ORIGINS", "")
+    return [o.strip().rstrip("/") for o in raw.split(",") if o.strip()]
 
 
 def app_link_base() -> str:

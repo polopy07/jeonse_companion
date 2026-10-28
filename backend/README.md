@@ -29,6 +29,7 @@ uvicorn app.main:app --reload
 
 - 금액(원) 칸은 `BigInteger`로 둔다. PostgreSQL `integer`는 최대 2,147,483,647원(약 21.4억)이라 공시가격 15.3억이 넘으면 추정 주택가격(×1.4)부터 저장되지 않는다. SQLite는 정수 크기를 가리지 않아 테스트에서 드러나지 않으니 `tests/test_money_columns.py`가 칸 형식을 따로 검사한다.
 - 배포 서버에서는 `DATABASE_URL`만 그 서버의 PostgreSQL 주소로 바꾸면 된다.
+- 웹(`npx expo start --web`)은 개발 편의용이다. 브라우저가 API를 부르려면 `.env`에 `CORS_ORIGINS=http://localhost:8081,http://127.0.0.1:8081`(Expo 웹 개발 서버, 쉼표로 더함)을 넣는다. 기본은 빈 값이라 꺼져 있다(배포 서버는 비워 둠). 서버 오류(500)에도 허용한 주소면 CORS 헤더를 붙인다. 휴대폰 앱(Expo Go)은 CORS와 상관없다. 쿠키는 쓰지 않고 계약 토큰은 헤더(`X-Contract-Token`)로 보낸다
 - 환경 변수는 `.env.example`을 `backend/.env`로 복사해 채운다(`.env`는 git에 올리지 않음). 서버는 `.env`를 자동으로 읽지 않으므로 `uvicorn app.main:app --host 0.0.0.0 --env-file .env`로 띄운다. 실거래가 조회(2주차)에는 공공데이터포털 일반 인증키가 필요하다 (Encoding·Decoding 키 아무거나, 활용신청할 API 목록은 `.env.example`).
 - 테이블은 서버가 시작할 때 `create_all`로 만들기 때문에 **이미 있는 테이블에는 새 칸이 생기지 않는다**. 모델(`app/models.py`)이 바뀐 브랜치를 받으면 로컬 DB를 다시 만든다: `docker compose down -v && docker compose up -d` (SQLite는 파일을 지운다). 배포 전까지는 이렇게 하고, 배포 서버에 데이터가 쌓이기 시작하면 Alembic을 들인다
 
@@ -60,6 +61,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/engine/check.py` | 계약 전 확인: 입력 → 비율 → 판정 |
 | `app/engine/todos.py` | 할 일 9종 생성: 기한·선행 조건·순서 (todos.yaml, guarantors.yaml, linkage.yaml) |
 | `app/engine/alert.py` | 경보 단계 (alert.yaml) |
+| `app/engine/move.py` | 갈아타기: 자금 틈·대출 순서·전입 순서 경고 (정답표 S10) |
 | `app/engine/market.py` | 같은 단지·비슷한 면적의 최근 매매가, 주변 전세 시세 중앙값 (alert.yaml) |
 | `app/trades/client.py` | 공공데이터포털 실거래가 API 4종 호출·응답 해석 |
 | `app/trades/collect.py` | 실거래 수집·저장 (같은 거래는 한 번만) |
@@ -67,8 +69,11 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/engine/special_terms.py` | 판정에 맞는 특약 예시와 넣음/거절당함 결과 (special_terms.yaml, linkage.yaml) |
 | `app/api/checks.py` | `POST /api/checks`, `GET /api/checks/{id}`, `GET /api/checks/{id}/special-terms` |
 | `app/api/contracts.py` | `POST /api/contracts`, `GET /api/contracts/{id}` |
+| `app/api/moves.py` | `POST`·`GET /api/contracts/{id}/move` 갈아타기 |
 | `app/api/todos.py` | `PATCH /api/todos/{id}` 할 일 끝내기·나중에 올리기·되돌리기, `POST`·`GET`·`DELETE /api/todos/{id}/evidence` 증빙 |
 | `app/evidence.py` | 증빙 파일 저장·삭제 (`EVIDENCE_DIR`, 기본 `backend/data/evidence`, git 제외) |
+| `app/api/alerts.py` | `GET /api/contracts/{id}/alerts/latest` 경보 리포트 |
+| `app/alerts.py` | 역전세 경보 재계산 (`POST /api/admin/alerts/recalculate`): 계약 중 비율·단계 다시 계산, 할 일·알림 |
 | `app/registry/pdf.py` | 등기부 PDF → 요약 페이지 글자 ("부동산정보요약" 또는 증명서의 "주요 등기사항 요약", pdfplumber) |
 | `app/registry/parser.py` | 요약 글자 → 소유자, 근저당 채권최고액, 압류 등, 신탁 (규칙 파서) |
 | `app/api/registry.py` | `POST /api/registry/parse` |
@@ -129,7 +134,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 }
 ```
 
-- `payment_id`: 이 판정의 결제(`paid`)이거나 무산된 계약에서 풀린 결제(`released`)여야 한다. 아니면 402 `PAYMENT_REQUIRED`. 풀린 결제가 할 일 관리만(4,900원)인데 이 집이 패키지면 402(다시 결제), 반대는 그대로 쓴다. 서버 설정 `REQUIRE_CONTRACT_AUTH`가 false(기본, 앱 연결 전)면 `payment_id` 없이도 만든다
+- `payment_id`: 이 판정의 결제(`paid`)이거나 무산된 계약에서 풀린 결제(`released`)여야 한다. 아니면 402 `PAYMENT_REQUIRED`. 풀린 결제는 무산된 계약의 접근 토큰을 본문 `released_contract_token`으로 함께 보내야 다시 쓴다(없으면 402와 "접근 링크 다시 받기" 안내, 틀리면 402). 지금 만드는 계약의 토큰이 아니라서 `X-Contract-Token` 헤더로 받지 않는다. 풀린 결제가 할 일 관리만(4,900원)인데 이 집이 패키지면 402(다시 결제), 반대는 그대로 쓴다. 서버 설정 `REQUIRE_CONTRACT_AUTH`가 false(기본, 앱 연결 전)면 `payment_id` 없이도 만든다
 - 응답의 `access_token`(계약 접근 토큰)은 **이 응답에서 한 번만** 준다. 서버에는 SHA-256 해시만 남는다. 앱은 계약 id와 함께 저장해 두고 계약 아래 요청에 `X-Contract-Token` 헤더로 보낸다
 - 주택 유형·보증금·공시가격·전용면적은 `check_id` 판정의 입력을 그대로 쓴다. 보증금이 바뀌었으면 계약 전 확인을 다시 한다
 - 선택 입력과 기본값: `monthly_rent` 0, `loan` false, `guarantor` `none`(HUG / HF / SGI / none), `brokered` true(직거래면 false), `renewal_right_used` false, `co_tenant` false, `email`, `special_term_result`(키는 `special_terms.yaml`의 id, 값은 `inserted` / `rejected`)
@@ -162,7 +167,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 
 ### 가상 날짜와 알림 실행 (FR-040·041·044)
 
-- 계약 응답(`POST`·`GET`·`PATCH /api/contracts`, `/cancel`)에 `today`, 할 일마다 `state`(`done` / `upcoming` 시작 전 / `in_progress` / `overdue` 기한 지남)와 `days_left`. 헤더 `X-Virtual-Today: 2027-11-08`을 보내면 그날 기준 (`app/clock.py`, `app/engine/schedule.py`)
+- 계약 응답(`POST`·`GET`·`PATCH /api/contracts`, `/cancel`)에 `today`, 할 일마다 `state`(`done` / `upcoming` 시작 전 / `in_progress` / `overdue` 기한 지남)와 `days_left`. 헤더 `X-Virtual-Today: 2027-11-08`을 보내면 그날 기준 (`app/clock.py`, `app/engine/schedule.py`). 헤더가 없으면 한국 시간 오늘. 배포 서버는 `ALLOW_VIRTUAL_TODAY=false`로 헤더를 무시한다. 할 일 `status`가 `skipped`면 `state`는 `done`
 - `POST /api/admin/notifications/run` (관리자, `X-Admin-Token`): 본문 `{"date": "2027-11-08"}`(없으면 `X-Virtual-Today`, 그것도 없으면 오늘)을 오늘로 보고 그날 보낼 알림을 만들어 `notifications` 표에 남긴다
   - 언제: 할 일 시작일(재알림 T6·T8은 알림일), 기한 7일 전·1일 전 (`rules/todos.yaml` `notifications`, 팀 제안 값)
   - 건너뛴 날: 알림일이 지났어도 7일 안이면 보낸다. 가상 날짜로 몇 달을 건너뛰어도 지난 알림이 쏟아지지 않는다
@@ -192,7 +197,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 {"email": "tenant@example.com"}
 ```
 
-- 그 이메일로 만든 진행 중 계약마다 새 접근 토큰을 만들어 계약 이메일로 보낸다. 처음 토큰은 그대로 둬서, 남이 이 요청을 보내도 원래 휴대폰은 계속 쓸 수 있다 (새 토큰은 `contract_tokens`에 해시로)
+- 그 이메일로 만든 진행 중 계약마다 새 접근 토큰을 만들어 계약 이메일로 보낸다. 무산된 계약도 풀린 결제가 남아 있으면 보낸다(앱을 다시 설치해도 그 결제를 다음 집 계약에 쓸 수 있게). 처음 토큰은 그대로 둬서, 남이 이 요청을 보내도 원래 휴대폰은 계속 쓸 수 있다 (새 토큰은 `contract_tokens`에 해시로)
 - 이메일이 없어도 같은 202 `{"message": ...}`. 계약마다 한 시간에 3번까지, 메일을 보내지 못하면 토큰을 남기지 않는다
 - 메일 본문: `APP_LINK_BASE`가 있으면 `{APP_LINK_BASE}?contract={id}&token=...` 링크, 없으면 계약 번호와 접근 코드. 앱은 이 둘을 받아 저장하고 `X-Contract-Token`으로 쓴다
 
@@ -201,6 +206,17 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - `GET`·`PATCH /api/contracts/{id}`, `POST /api/contracts/{id}/cancel`은 헤더 `X-Contract-Token`이 계약을 만들 때 받은 `access_token`과 맞아야 한다. 틀리면 계약이 없을 때와 같은 404 `NOT_FOUND` (번호를 바꿔 가며 계약이 있는지 알아내지 못하게). `REQUIRE_CONTRACT_AUTH`가 false면 헤더를 보내지 않은 요청은 통과시킨다
 - `POST /api/contracts/{id}/cancel` (본문 없음): 계약 `status: "cancelled"`, 쓴 결제는 `released`. 할 일은 지우지 않고 기록으로 남긴다. 무산된 계약은 `GET`만 되고 `PATCH`·다시 무산은 409 `CONTRACT_CANCELLED`
 - `contracts`에 `access_token_hash`·`payment_id`·`status`·`cancelled_at` 칸, `payments` 테이블을 넣었다. 예전 DB는 서버를 켤 때 새 칸을 자동으로 더한다(`init_db`). 예전 계약은 토큰이 없어 `REQUIRE_CONTRACT_AUTH=true`면 열 수 없으니 시연 전에는 `python reset_demo_db.py`
+
+### `POST /api/contracts/{id}/move` 갈아타기 (FR-025~027)
+
+- 만기 6개월 전 할 일(7번)에서 "이사할게요"를 고르면 다음 집 계약일·잔금일·만기일·보증금·계약금(과 대출·보증기관·전입 예정일)을 보낸다. `X-Contract-Token` 확인, 무산된 계약은 409
+- 다음 집 입력만 `moves` 표에 저장하고(계약마다 1개, 다시 보내면 바꿈), 계산은 `GET`할 때마다 지금 계약 상태로 다시 한다 (지금 계약의 날짜를 바꾸거나 반환 확인을 끝내도 맞게)
+- 다음 집 계약일·잔금일이 지금 계약일보다 앞서면 422, 대출 실행일은 다음 집 계약일과 잔금일 사이(아니면 422). 두 번 눌러 동시에 저장해도 먼저 저장한 행을 고친다. 저장한 입력이 나중에 바뀐 입력 규칙과 맞지 않으면 `GET`이 409 `MOVE_INPUT_OUTDATED`
+- 반환 예정일 = 지금 계약 9번 할 일 기한(없으면 만기일). 9번을 끝냈으면(나중에 올리기 포함) 끝낸 날이 반환일이고, 이미 돌려받았으니 자금 틈은 0, 대출 순서·전입 순서 경고는 내지 않는다. 자금 틈 `gap_days` = 반환 예정일 − 다음 집 잔금일(늦지 않으면 0), `gap_amount` = min(지금 집 보증금, 다음 집 잔금 = 보증금 − 계약금) (PO 결정 Q5)
+- 대출 순서 `loan_order`: 두 집 모두 전세대출일 때 새 대출 실행일(모르면 잔금일)이 반환 예정일보다 앞서면 `new_loan_first`, 아니면 `old_repayment_first`. 은행 확인 안내를 같이
+- 전입 순서 `move_in_warning`: 다음 집 전입 예정일(없으면 잔금일)이 반환 예정일과 같거나 앞서면 true, 9번 할 일을 끝냈으면 false (FR-027). 앞서면 날짜를 다시 보라는 경고, 같은 날이면 "보증금 먼저 받고 전입신고" 순서 안내 (PO 결정 Q12)
+- `next_todos`: 다음 집 날짜로 계산한 할 일 9종 (연동 규칙·특약은 다음 집 계약 전 확인 뒤 계약을 만들 때). `todos`: 지금 집 + 다음 집 할 일을 날짜순으로 묶은 목록 (FR-025)
+- 정답표 S10·S10-b와의 대조는 `tests/test_move.py`
 
 ### `POST /api/admin/trades` 실거래가 수집 (FR-046)
 
