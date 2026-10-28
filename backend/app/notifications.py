@@ -49,7 +49,7 @@ def run(db: Session, day: date, rules: dict) -> list[Notification]:
             if key in made:
                 continue
             made.add(key)
-            status = "sent" if channel == "app" else ("pending" if c.email else "skipped")
+            status = "sent" if channel == "app" else ("pending" if recipient(c, channel) else "skipped")
             row = Notification(contract_id=c.id, todo_rule_id=t.rule_id, kind=n.kind, notify_date=n.notify_date,
                                channel=channel, status=status, title=_title(t, n))
             db.add(row)
@@ -69,7 +69,8 @@ def run(db: Session, day: date, rules: dict) -> list[Notification]:
                 continue
             for n in notices(t.start_date, t.due_date, t.remind_date, cfg):
                 if due_on(n, day, catch_up):
-                    add(c, t, n, ["app"] + (["email"] if t.rule_id in email_todos else []))
+                    emails = ["email"] + (["email_co"] if c.co_tenant_email else [])   # 공동 계약자도 따로 (FR-043)
+                    add(c, t, n, ["app"] + (emails if t.rule_id in email_todos else []))
     db.commit()
     return created
 
@@ -89,6 +90,11 @@ def _email_body(todo: Todo, n: Notification, rules: dict) -> str:
     return "\n".join(lines)
 
 
+def recipient(c: Contract, channel: str) -> str | None:
+    """이메일 경로의 받는 주소: email은 계약 이메일, email_co는 공동 계약자 이메일 (FR-043)."""
+    return c.co_tenant_email if channel == "email_co" else c.email
+
+
 def deliver(db: Session, day: date, rules: dict) -> tuple[int, int]:
     """보내지 않은 이메일 알림(pending, 다시 보낼 failed)을 보낸다. (보냄, 실패) 수를 돌려준다.
 
@@ -97,7 +103,7 @@ def deliver(db: Session, day: date, rules: dict) -> tuple[int, int]:
     """
     since = day - timedelta(days=rules["todos"]["notifications"].get("catch_up_days", 1))
     rows = db.scalars(select(Notification).where(
-        Notification.channel == "email",
+        Notification.channel.in_(("email", "email_co")),
         or_(Notification.status == "pending",
             (Notification.status == "failed") & (Notification.attempts < MAX_ATTEMPTS)),
     ).order_by(Notification.id)).all()
@@ -105,14 +111,15 @@ def deliver(db: Session, day: date, rules: dict) -> tuple[int, int]:
     for n in rows:
         contract = db.get(Contract, n.contract_id)
         todo = next((t for t in contract.todos if t.rule_id == n.todo_rule_id), None) if contract else None
-        if (contract is None or contract.status == "cancelled" or not contract.email or todo is None
+        to = recipient(contract, n.channel) if contract else None
+        if (contract is None or contract.status == "cancelled" or not to or todo is None
                 or todo.status in DONE or n.notify_date <= since):
             n.status = "skipped"   # 그사이 무산·완료·이메일 삭제, 또는 너무 지난 알림
             db.commit()
             continue
         n.attempts = (n.attempts or 0) + 1
         try:
-            mailer.send(mailer.Mail(contract.email, f"[전동기] {n.title}", _email_body(todo, n, rules)))
+            mailer.send(mailer.Mail(to, f"[전동기] {n.title}", _email_body(todo, n, rules)))
         except mailer.MailError as e:
             n.status, n.last_error = "failed", str(e)[:200]
             failed += 1

@@ -254,6 +254,10 @@ class ContractInput(BaseModel):
     renewal_right_used: bool = Field(False, description="계약갱신요구권을 써서 갱신한 계약인지")
     co_tenant: bool = Field(False, description="공동 계약자(부부) 여부")
     email: str | None = Field(None, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", description="알림 이메일")
+    co_tenant_email: str | None = Field(
+        None, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+        description="공동 계약자 알림 이메일 (FR-043). co_tenant가 true일 때만, 알림 이메일과 다른 주소. 같은 알림 이메일을 "
+                    "따로 받고, 이 주소로 접근 링크를 다시 받아 자기 휴대폰에서 같은 계약을 볼 수 있다")
     special_term_result: dict[str, SpecialTermResult] = Field(
         default_factory=dict, description="특약별 넣음/거절당함 (special_terms.yaml의 id가 키)")
     payment_id: int | None = Field(
@@ -272,6 +276,11 @@ class ContractInput(BaseModel):
             raise ValueError("만기일은 잔금일보다 뒤여야 합니다")
         if self.loan_execution_date is not None and not self.loan:
             raise ValueError("전세대출이 없으면 대출 실행일을 비워 두세요")
+        if self.co_tenant_email is not None:
+            if not self.co_tenant:
+                raise ValueError("공동 계약이 아니면 공동 계약자 이메일을 비워 두세요")
+            if self.email and self.co_tenant_email.strip().lower() == self.email.strip().lower():
+                raise ValueError("공동 계약자 이메일은 알림 이메일과 다른 주소여야 합니다")
         return self
 
 
@@ -293,13 +302,15 @@ class ContractPatch(BaseModel):
     co_tenant: bool | None = Field(None, description="공동 계약자 여부")
     email: str | None = Field(None, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
                               description="알림 이메일. null을 보내면 지운다")
+    co_tenant_email: str | None = Field(None, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+                                        description="공동 계약자 알림 이메일. null을 보내면 지운다 (공동 계약을 끄려면 함께 지움)")
     special_term_result: dict[str, SpecialTermResult] | None = Field(
         None, description="바꿀 특약만 보낸다 (보내지 않은 특약의 결과는 그대로). 그 판정에서 안내한 특약만 받는다")
 
     @model_validator(mode="after")
     def no_null_for_required(self):
         # 값이 꼭 있어야 하는 칸에 null을 보내면 막는다 (보내지 않은 칸은 그대로 둔다)
-        nullable = {"loan_execution_date", "email"}
+        nullable = {"loan_execution_date", "email", "co_tenant_email"}
         for name in self.model_fields_set - nullable:
             if getattr(self, name) is None:
                 raise ValueError(f"{name}은(는) 비워 둘 수 없습니다")
@@ -352,6 +363,7 @@ class ContractOut(BaseModel):
     renewal_right_used: bool
     co_tenant: bool
     email: str | None
+    co_tenant_email: str | None = Field(description="공동 계약자 알림 이메일 (FR-043)")
     special_term_result: dict[str, SpecialTermResult]
     report_required: bool = Field(description="임대차 신고 대상인지 (FR-015). 비대상이면 T1 없이 T4에서 확정일자를 함께 받는다")
     alert_level: str | None = Field(
@@ -432,7 +444,8 @@ class DemoHousesResult(BaseModel):
 
 
 class AccessLinkInput(BaseModel):
-    email: str = Field(max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", description="계약을 만들 때 넣은 알림 이메일")
+    email: str = Field(max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+                       description="계약을 만들 때 넣은 알림 이메일 또는 공동 계약자 이메일")
 
 
 class AccessLinkResult(BaseModel):
@@ -452,7 +465,7 @@ class NotificationOut(BaseModel):
     kind: Literal["start", "due_before", "remind", "evidence"] = Field(
         description="start 시작일 / due_before 기한 며칠 전 / remind 재알림 / evidence 나중에 올리기 한 증빙을 올리라는 알림")
     notify_date: date_
-    channel: Literal["app", "email"]
+    channel: Literal["app", "email", "email_co"] = Field(description="app / email(계약 이메일) / email_co(공동 계약자 이메일)")
     status: Literal["sent", "pending", "failed", "skipped"] = Field(
         description="app은 sent. email은 sent(보냄) / failed(못 보냄, 다음 실행에서 다시) / skipped(알림 이메일 없음·그사이 무산·완료)")
     title: str

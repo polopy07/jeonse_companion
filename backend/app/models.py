@@ -39,6 +39,7 @@ class Contract(Base):
     renewal_right_used: Mapped[bool] = mapped_column(Boolean, default=False)
     co_tenant: Mapped[bool] = mapped_column(Boolean, default=False)
     email: Mapped[str | None] = mapped_column(String(254))   # 알림 이메일 (FR-014, NFR-011 회원 식별도 이메일만)
+    co_tenant_email: Mapped[str | None] = mapped_column(String(254))   # 공동 계약자(부부) 알림 이메일 (FR-043)
 
     # 특약별 넣음/거절당함 {"S-NO-MORTGAGE": "rejected", ...} (FR-049)
     special_term_result: Mapped[dict] = mapped_column(JSONType, default=dict)
@@ -138,7 +139,8 @@ class Payment(Base):
 class Notification(Base):
     """보낸 알림 기록 (FR-040, FR-041). 같은 할 일·종류·알림일은 한 번만 만든다 (알림 실행을 여러 번 불러도).
 
-    channel: app(앱 안 기한표) / email. status: sent / pending(이메일 발송 전) / failed / skipped(이메일 주소 없음)
+    channel: app(앱 안 기한표) / email(계약 이메일) / email_co(공동 계약자 이메일, FR-043).
+    status: sent / pending(이메일 발송 전) / failed / skipped(이메일 주소 없음)
     """
 
     __tablename__ = "notifications"
@@ -150,7 +152,7 @@ class Notification(Base):
     todo_rule_id: Mapped[str] = mapped_column(String(32))
     kind: Mapped[str] = mapped_column(String(16))          # start / due_before / remind / evidence(나중에 올리기)
     notify_date: Mapped[date] = mapped_column(Date)
-    channel: Mapped[str] = mapped_column(String(8))         # app / email
+    channel: Mapped[str] = mapped_column(String(8))         # app / email / email_co
     status: Mapped[str] = mapped_column(String(16))
     title: Mapped[str] = mapped_column(String(200))         # 보낸 문구 (할 일 제목 + 남은 날)
     attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")   # 이메일 보내기 시도 횟수 (NFR-008 재시도)

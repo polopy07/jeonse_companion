@@ -171,7 +171,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - `POST /api/admin/notifications/run` (관리자, `X-Admin-Token`): 본문 `{"date": "2027-11-08"}`(없으면 `X-Virtual-Today`, 그것도 없으면 오늘)을 오늘로 보고 그날 보낼 알림을 만들어 `notifications` 표에 남긴다
   - 언제: 할 일 시작일(재알림 T6·T8은 알림일), 기한 7일 전·1일 전 (`rules/todos.yaml` `notifications`, 팀 제안 값)
   - 건너뛴 날: 알림일이 지났어도 7일 안이면 보낸다. 가상 날짜로 몇 달을 건너뛰어도 지난 알림이 쏟아지지 않는다
-  - 경로: 앱 안 알림은 `sent`. 이메일은 MVP 1종(반환보증 가입 T5·마감 30일 전 재알림 T6)만 보낸다. 못 보내면 `failed`로 남겨 다음 실행에서 3번까지 다시 보낸다(NFR-008). 알림 이메일이 없거나 그사이 무산·완료면 `skipped`
+  - 경로: 앱 안 알림은 `sent`. 이메일은 MVP 1종(반환보증 가입 T5·마감 30일 전 재알림 T6)만 보낸다. 공동 계약자 이메일(`co_tenant_email`, FR-043)이 있으면 `email_co` 경로로 따로 보낸다(주소마다 기록·재시도). 못 보내면 `failed`로 남겨 다음 실행에서 3번까지 다시 보낸다(NFR-008). 알림 이메일이 없거나 그사이 무산·완료면 `skipped`
   - 같은 할 일·종류·알림일·경로는 한 번만 만든다. 무산된 계약·끝낸 할 일은 알리지 않는다
 - 시연: 가상 날짜를 반환보증 가입 기한 7일 전으로 두고 알림 실행 → 반환보증 이메일이 나감 (AC-010)
 - 이메일 보내는 방법은 `EMAIL_BACKEND` (`app/mailer.py`): `console`(기본, 보내지 않고 서버 로그에만), `smtp`(실제 발송, `SMTP_HOST`·`SMTP_PORT`·`SMTP_USER`·`SMTP_PASSWORD`·`SMTP_FROM`, Gmail은 앱 비밀번호), `memory`(테스트). `.env.example` 참고
@@ -197,7 +197,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 {"email": "tenant@example.com"}
 ```
 
-- 그 이메일로 만든 진행 중 계약마다 새 접근 토큰을 만들어 계약 이메일로 보낸다. 무산된 계약도 풀린 결제가 남아 있으면 보낸다(앱을 다시 설치해도 그 결제를 다음 집 계약에 쓸 수 있게). 처음 토큰은 그대로 둬서, 남이 이 요청을 보내도 원래 휴대폰은 계속 쓸 수 있다 (새 토큰은 `contract_tokens`에 해시로)
+- 그 이메일(계약 이메일 또는 공동 계약자 이메일)로 만든 진행 중 계약마다 새 접근 토큰을 만들어 그 주소로 보낸다. 부부가 각자 휴대폰에서 같은 계약을 볼 수 있다(FR-043). 무산된 계약도 풀린 결제가 남아 있으면 보낸다(앱을 다시 설치해도 그 결제를 다음 집 계약에 쓸 수 있게). 처음 토큰은 그대로 둬서, 남이 이 요청을 보내도 원래 휴대폰은 계속 쓸 수 있다 (새 토큰은 `contract_tokens`에 해시로)
 - 이메일이 없어도 같은 202 `{"message": ...}`. 계약마다 한 시간에 3번까지, 메일을 보내지 못하면 토큰을 남기지 않는다
 - 메일 본문: `APP_LINK_BASE`가 있으면 `{APP_LINK_BASE}?contract={id}&token=...` 링크, 없으면 계약 번호와 접근 코드. 앱은 이 둘을 받아 저장하고 `X-Contract-Token`으로 쓴다
 

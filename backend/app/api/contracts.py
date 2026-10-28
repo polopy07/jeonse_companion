@@ -240,6 +240,7 @@ def _to_out(row: Contract, db: Session, rules: dict, today: date) -> ContractOut
         renewal_right_used=row.renewal_right_used,
         co_tenant=row.co_tenant,
         email=row.email,
+        co_tenant_email=row.co_tenant_email,
         special_term_result=row.special_term_result,
         report_required=row.report_required,
         alert_level=row.alert_level,
@@ -316,14 +317,16 @@ def create_contract(inp: ContractInput, db: Session = Depends(get_db), rules: di
 def send_access_link(inp: AccessLinkInput, db: Session = Depends(get_db)):
     """접근 링크 이메일로 다시 받기 (#39, 휴대폰을 바꾸거나 앱을 지웠을 때).
 
-    그 이메일로 만든 진행 중 계약마다 새 접근 토큰을 만들어 계약 이메일로 보낸다. 처음 토큰은 그대로 둔다
+    그 이메일(계약 이메일 또는 공동 계약자 이메일, FR-043)로 만든 진행 중 계약마다 새 접근 토큰을 만들어 그 주소로 보낸다.
+    처음 토큰은 그대로 둔다
     (남이 다시 받기를 눌러도 원래 휴대폰이 쫓겨나지 않게). 이메일이 없어도 같은 202를 돌려준다.
     무산된 계약도 풀린 결제(released)가 남아 있으면 보낸다: 그 토큰이 있어야 다음 집 계약에 결제를 다시 쓴다(FR-016).
     """
     now = datetime.now(timezone.utc)
     released = select(Payment.id).where(Payment.contract_id == Contract.id, Payment.status == "released").exists()
+    wanted = inp.email.strip().lower()
     rows = db.scalars(select(Contract).where(
-        func.lower(Contract.email) == inp.email.strip().lower(),
+        or_(func.lower(Contract.email) == wanted, func.lower(Contract.co_tenant_email) == wanted),
         or_(Contract.status == "active", Contract.status.is_(None), (Contract.status == "cancelled") & released),
     ).order_by(Contract.id)).all()
     issued = []
@@ -337,7 +340,9 @@ def send_access_link(inp: AccessLinkInput, db: Session = Depends(get_db)):
         issued.append((row, token))
     if issued:
         try:
-            mailer.send(mailer.Mail(issued[0][0].email, "[전동기] 계약 접근 링크", _access_link_body(issued)))
+            first = issued[0][0]   # 요청한 주소로 보낸다 (공동 계약자면 공동 계약자 이메일)
+            to = first.email if (first.email or "").lower() == wanted else first.co_tenant_email
+            mailer.send(mailer.Mail(to, "[전동기] 계약 접근 링크", _access_link_body(issued)))
         except mailer.MailError as e:
             db.rollback()   # 보내지 못한 토큰은 남기지 않는다. 응답은 같게
             logger.warning("접근 링크 이메일 실패 (계약 %s): %s", [r.id for r, _ in issued], e)
