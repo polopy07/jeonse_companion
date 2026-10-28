@@ -1,5 +1,9 @@
 """등기부 재비교 (POST·GET /api/contracts/{id}/registry-compare, FR-023, FR-048, UC-006)."""
+from datetime import date
+
+from app.alerts import senior_debt
 from app.engine.registry_compare import compare_registry
+from app.models import Contract, Verdict
 from tests.test_contracts import DATES, EOK, VILLA, _check, _detail
 
 BEFORE = {"registry.seizure": False, "registry.mortgage": True, "registry.mortgage_amount": 120_000_000,
@@ -47,8 +51,8 @@ def test_missing_baseline_treats_present_items_as_risk():
 
 # ---- API ----
 
-def _contract(client, body=VILLA) -> dict:
-    r = client.post("/api/contracts", json={"check_id": _check(client, body)["id"], **DATES})
+def _contract(client, body=VILLA, **extra) -> dict:
+    r = client.post("/api/contracts", json={"check_id": _check(client, body)["id"], **DATES, **extra})
     assert r.status_code == 201, r.text
     return r.json()
 
@@ -109,6 +113,65 @@ def test_latest_registry_feeds_alert_recalculation(client, monkeypatch):
     assert r.status_code == 200, r.text
     latest = client.get(f"/api/contracts/{c['id']}/alerts/latest", headers={"X-Contract-Token": c["access_token"]})
     assert latest.json()["basis"]["senior_debt"] == 150_000_000
+
+
+def _get(client, c) -> dict:
+    return client.get(f"/api/contracts/{c['id']}", headers={"X-Contract-Token": c["access_token"]}).json()
+
+
+def test_new_linkages_change_todos_and_alert_right_away(client):
+    # 계약 전에는 근저당 없음(비율 48%). 계약 당일 등기부에 근저당 2억이 새로 생기면 비율 95% (PO 2026-10-28)
+    c = _contract(client, APT_NO_REGISTRY, guarantor="HUG")
+    assert c["alert_level"] is None
+    out = _compare(client, c, {"mortgage": True, "mortgage_amount": 2 * EOK}, day="2026-11-02").json()
+    assert out["hold"] is True and out["deposit_ratio_after"] > 0.9
+    got = _get(client, c)
+    todos = {t["rule_id"]: t for t in got["todos"]}
+    assert got["alert_level"] == "warning" and todos["T5"]["moved_to_top"]      # 경보 바로 다시 계산
+    assert any("근저당 금액" in x for x in todos["T3"]["required_checks"])        # L-MORTGAGE
+    assert todos["T2"]["due_date"] == DATES["contract_date"]                       # L-RATIO90
+    latest = client.get(f"/api/contracts/{c['id']}/alerts/latest", headers={"X-Contract-Token": c["access_token"]})
+    assert latest.json()["as_of"] == "2026-11-02" and latest.json()["basis"]["senior_debt"] == 2 * EOK
+
+    # 근저당이 말소된 등기부를 다시 올려도 할 일의 연동은 빼지 않는다. 경보는 다시 내려감
+    _compare(client, c, {"mortgage": False, "mortgage_amount": 0}, day="2026-12-01")
+    got = _get(client, c)
+    todos = {t["rule_id"]: t for t in got["todos"]}
+    assert got["alert_level"] is None
+    assert any("근저당 금액" in x for x in todos["T3"]["required_checks"])
+
+
+def test_level_change_is_from_registry_only(client, monkeypatch):
+    # 경보 재계산으로 계약의 공시가격이 내려가도, 재비교 판정은 계약 전 확인 때 값으로 해 등기부가 같으면 그대로
+    monkeypatch.setenv("ADMIN_TOKEN", "t")
+    c = _contract(client)
+    r = client.post("/api/admin/alerts/recalculate",
+                    json={"date": "2026-11-20", "official_prices": {str(c["id"]): 150_000_000}},
+                    headers={"X-Admin-Token": "t"})
+    assert r.status_code == 200, r.text
+    out = _compare(client, c, SAME, day="2026-12-01").json()
+    assert out["changed"] is False
+    assert (out["level_after"], out["deposit_ratio_after"]) == (out["level_before"], out["deposit_ratio_before"])
+
+
+def test_stage_after_contract_date_is_balance_day(client):
+    # 계약한 다음 날부터 잔금일 전까지 올린 등기부는 "잔금 보류" (이미 계약했으니 "계약 보류"가 아님)
+    c = _contract(client)
+    out = _compare(client, c, {**SAME, "seizure": True}, day="2026-11-10").json()
+    assert (out["stage"], out["advice"]) == ("balance_day", "잔금 보류 후 상담")
+
+
+def test_latest_registry_is_by_compared_date():
+    # 가상 날짜를 되돌려 앞선 날로 다시 비교해도(id는 더 큼) 최근 등기부는 비교한 날로 고른다. as_of 뒤 것은 안 씀
+    def verdict(id_, amount, on=None):
+        return Verdict(id=id_, inputs={"registry.mortgage_amount": amount, "registry.lease_amount": 0},
+                       comparison={"compared_on": on} if on else None, stage="balance_day" if on else None)
+
+    row = Contract(verdicts=[verdict(1, 120_000_000), verdict(2, 150_000_000, "2026-12-01"),
+                             verdict(3, 130_000_000, "2026-11-02")])
+    assert senior_debt(row) == 150_000_000
+    assert senior_debt(row, date(2026, 11, 5)) == 130_000_000
+    assert senior_debt(row, date(2026, 10, 30)) == 120_000_000   # 재비교 전이면 계약 전 확인 등기부
 
 
 def test_access_and_cancelled(client):

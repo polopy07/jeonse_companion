@@ -101,7 +101,7 @@ class RegistryCompareInput(BaseModel):
 
     registry: RegistryInput
     stage: RegistryStage | None = Field(
-        None, description="contract_day 계약 당일 / balance_day 잔금일. 비우면 오늘(가상 날짜)이 잔금일 전이면 계약 당일, 잔금일부터는 잔금일")
+        None, description="contract_day 계약 당일 / balance_day 잔금일. 비우면 오늘(가상 날짜)이 계약일까지면 계약 당일, 계약 다음 날부터는 잔금일")
 
 
 class RegistryCompareItemOut(BaseModel):
@@ -129,10 +129,11 @@ class RegistryCompareOut(BaseModel):
     mortgage_check: RegistryCompareItemOut | None = Field(description="mortgage_check_required면 채권최고액 비교 항목")
     baseline_missing: bool = Field(description="계약 전 확인에서 등기부를 올리지 않아 다시 올린 등기부에 있는 것을 모두 위험으로 봄")
     level_before: str = Field(description="계약 전 확인 판정 단계 (verdict.yaml levels[].id)")
-    level_after: str = Field(description="다시 올린 등기부로 다시 판정한 단계")
+    level_after: str = Field(description="계약 전 확인 입력에 등기부만 바꿔 다시 판정한 단계 (달라지면 등기부 때문)")
     level_after_label: str
     deposit_ratio_before: float | None
-    deposit_ratio_after: float | None
+    deposit_ratio_after: float | None = Field(
+        description="다시 판정한 내 보증금 비율. 계약 전 확인 때 보증금·공시가격 기준이고, 계약의 지금 값은 경보(alert_level)에 반영")
 
 
 class ComplexInput(BaseModel):

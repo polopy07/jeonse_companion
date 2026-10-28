@@ -61,7 +61,7 @@
                 }
               }
             },
-            "description": "Unprocessable Content"
+            "description": "Unprocessable Entity"
           }
         }
       }
@@ -123,7 +123,7 @@
                 }
               }
             },
-            "description": "Unprocessable Content"
+            "description": "Unprocessable Entity"
           }
         }
       }
@@ -185,7 +185,7 @@
                 }
               }
             },
-            "description": "Unprocessable Content"
+            "description": "Unprocessable Entity"
           }
         }
       }
@@ -248,7 +248,7 @@
                 }
               }
             },
-            "description": "Unprocessable Content"
+            "description": "Unprocessable Entity"
           }
         }
       }
@@ -339,7 +339,7 @@
                 }
               }
             },
-            "description": "Unprocessable Content"
+            "description": "Unprocessable Entity"
           }
         }
       }
@@ -374,7 +374,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Content",
+            "description": "Unprocessable Entity",
             "content": {
               "application/json": {
                 "schema": {
@@ -470,7 +470,7 @@
                 }
               }
             },
-            "description": "Unprocessable Content"
+            "description": "Unprocessable Entity"
           }
         }
       },
@@ -577,7 +577,7 @@
                 }
               }
             },
-            "description": "Unprocessable Content"
+            "description": "Unprocessable Entity"
           }
         }
       }
@@ -676,7 +676,7 @@
                 }
               }
             },
-            "description": "Unprocessable Content"
+            "description": "Unprocessable Entity"
           }
         }
       }
@@ -785,7 +785,7 @@
                 }
               }
             },
-            "description": "Unprocessable Content"
+            "description": "Unprocessable Entity"
           }
         }
       },
@@ -893,7 +893,7 @@
           "등기부 재비교"
         ],
         "summary": "Compare",
-        "description": "다시 올린 등기부 요약(POST /api/registry/parse 결과를 확인한 fields)을 계약 전 확인 때와 비교한다.\n\n- 항목별 변동(same / risk / eased). 새로 생기거나 늘어난 항목이 있으면 hold와 \"계약 보류 후 상담\"(계약 당일) /\n  \"잔금 보류 후 상담\"(잔금일) 안내. 근저당이 말소되거나 줄어든 것은 변동으로만 보여 준다\n- 계약 전에 근저당이 있었으면 근저당 금액 비교를 필수 확인으로 돌려준다 (mortgage_check, FR-023)\n- 다시 판정한 결과를 계약의 판정 기록으로 남긴다 (경보 재계산은 이 등기부의 선순위 채권을 씀)\n무산된 계약은 409 CONTRACT_CANCELLED, 없는 계약이나 토큰이 틀리면 404.",
+        "description": "다시 올린 등기부 요약(POST /api/registry/parse 결과를 확인한 fields)을 계약 전 확인 때와 비교한다.\n\n- 항목별 변동(same / risk / eased). 새로 생기거나 늘어난 항목이 있으면 hold와 \"계약 보류 후 상담\"(계약 당일) /\n  \"잔금 보류 후 상담\"(잔금일) 안내. 근저당이 말소되거나 줄어든 것은 변동으로만 보여 준다\n- 계약 전에 근저당이 있었으면 근저당 금액 비교를 필수 확인으로 돌려준다 (mortgage_check, FR-023)\n- 다시 판정한 결과를 계약의 판정 기록으로 남긴다 (경보 재계산은 이 등기부의 선순위 채권을 씀)\n- 새로 걸린 연동 규칙은 할 일에 더하고(근저당 → 3번 근저당 금액 비교, 비율 90% 이상 → 2번 기한 계약일,\n  신탁 → 신탁사 동의서), 경보는 오늘 기준으로 이 계약만 바로 다시 계산한다 (계약의 alert_level·경보 이력)\n무산된 계약은 409 CONTRACT_CANCELLED, 없는 계약이나 토큰이 틀리면 404.",
         "operationId": "compare_api_contracts__contract_id__registry_compare_post",
         "parameters": [
           {
@@ -991,7 +991,7 @@
                 }
               }
             },
-            "description": "Unprocessable Content"
+            "description": "Unprocessable Entity"
           }
         }
       },
@@ -1173,7 +1173,7 @@
                 }
               }
             },
-            "description": "Unprocessable Content"
+            "description": "Unprocessable Entity"
           }
         }
       }
@@ -1282,7 +1282,7 @@
                 }
               }
             },
-            "description": "Content Too Large"
+            "description": "Request Entity Too Large"
           },
           "422": {
             "content": {
@@ -1292,7 +1292,7 @@
                 }
               }
             },
-            "description": "Unprocessable Content"
+            "description": "Unprocessable Entity"
           }
         }
       },
@@ -1546,7 +1546,7 @@
             }
           },
           "413": {
-            "description": "Content Too Large",
+            "description": "Request Entity Too Large",
             "content": {
               "application/json": {
                 "schema": {
@@ -1556,7 +1556,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Content",
+            "description": "Unprocessable Entity",
             "content": {
               "application/json": {
                 "schema": {
@@ -1675,7 +1675,7 @@
                 }
               }
             },
-            "description": "Unprocessable Content"
+            "description": "Unprocessable Entity"
           },
           "502": {
             "content": {
@@ -1802,7 +1802,7 @@
                 }
               }
             },
-            "description": "Unprocessable Content"
+            "description": "Unprocessable Entity"
           }
         }
       }
@@ -1909,7 +1909,7 @@
                 }
               }
             },
-            "description": "Unprocessable Content"
+            "description": "Unprocessable Entity"
           }
         }
       }
@@ -4341,7 +4341,7 @@
               }
             ],
             "title": "Stage",
-            "description": "contract_day 계약 당일 / balance_day 잔금일. 비우면 오늘(가상 날짜)이 잔금일 전이면 계약 당일, 잔금일부터는 잔금일"
+            "description": "contract_day 계약 당일 / balance_day 잔금일. 비우면 오늘(가상 날짜)이 계약일까지면 계약 당일, 계약 다음 날부터는 잔금일"
           }
         },
         "type": "object",
@@ -4510,7 +4510,7 @@
           "level_after": {
             "type": "string",
             "title": "Level After",
-            "description": "다시 올린 등기부로 다시 판정한 단계"
+            "description": "계약 전 확인 입력에 등기부만 바꿔 다시 판정한 단계 (달라지면 등기부 때문)"
           },
           "level_after_label": {
             "type": "string",
@@ -4536,7 +4536,8 @@
                 "type": "null"
               }
             ],
-            "title": "Deposit Ratio After"
+            "title": "Deposit Ratio After",
+            "description": "다시 판정한 내 보증금 비율. 계약 전 확인 때 보증금·공시가격 기준이고, 계약의 지금 값은 경보(alert_level)에 반영"
           }
         },
         "type": "object",
