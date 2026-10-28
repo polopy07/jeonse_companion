@@ -392,6 +392,20 @@ export async function uploadEvidence(todoId: number, token: string | null, file:
   );
 }
 
+/**
+ * 올린 증빙 파일 주소와 헤더 (기록함 보기, UI-05). 휴대폰은 Image source에 그대로 넣고, 웹은 헤더를 붙일 수 없어
+ * 이 값으로 fetch한다. v는 다시 올린 뒤 앞 사진이 캐시에서 보이지 않게 바꾸는 값(서버는 무시). 서버 주소가 없으면 null
+ */
+export function evidenceSource(todoId: number, token: string | null, v: string | number = 0) {
+  if (!API_URL) return null;
+  return { uri: `${API_URL}/api/todos/${todoId}/evidence?v=${encodeURIComponent(String(v))}`, headers: contractHeaders(token) };
+}
+
+/** 증빙 삭제 (FR-033). 완료했던 할 일은 "나중에 올리기"로 바뀌고(완료는 그대로) 기록함은 빈칸. 무산된 계약도 지울 수 있다 */
+export function deleteEvidence(todoId: number, token: string | null) {
+  return request<ApiContract>(`/api/todos/${todoId}/evidence`, { method: 'DELETE', headers: contractHeaders(token) });
+}
+
 // ---- GET /api/demo-houses ----
 
 export type ApiDemoHouse = {
