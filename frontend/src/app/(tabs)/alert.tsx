@@ -122,9 +122,9 @@ function reportFromCheck(view: CheckView, level: AlertLevel | null): AlertReport
 const demoReport: AlertReport = {
   ...alertReport,
   ...stageOf(levelFromRatio(alertReport.ratio)),
-  reason: `같은 단지 실거래가가 추정 집값보다 낮게 신고돼 다시 계산했어요. ${reasonOf(alertReport.ratio)}`,
+  reason: `${alertReport.reason} ${reasonOf(alertReport.ratio)}`,
   nearby: null,
-  disclaimer: '시연용 가상 데이터 · 정보 제공이며 보증하지 않습니다.',
+  disclaimer: '시연용 가상 데이터 (근저당·2027년 공시가격) · 정보 제공이며 보증하지 않습니다.',
 };
 
 /** UI-09 역전세 경보 리포트: 마지막 판정 결과로 그리고, 없으면 시연 리포트 */
