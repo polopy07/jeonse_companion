@@ -2,7 +2,8 @@
 PR 제목: <종류>: <한국어 한 줄 요약>
   종류: feat(기능) / fix(버그) / docs(문서) / refactor(구조 정리) / test(테스트) / chore(설정·기타)
   예: feat: 등기부 요약 파서 뼈대 추가
-병합: 팀원 승인(Approve)과 CI(test) 통과 후 PR을 올린 사람이 직접 병합합니다.
+병합: 팀원 승인(Approve)과 CI(test) 통과 후 PR을 올린 사람이 병합합니다(자동 병합을 걸어 두면 그 순간 병합). base는 항상 main.
+규칙 전체: CONTRIBUTING.md
 이 주석은 지우지 않아도 PR 화면에 보이지 않습니다.
 -->
 
