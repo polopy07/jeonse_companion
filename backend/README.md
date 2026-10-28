@@ -71,6 +71,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/api/contracts.py` | `POST /api/contracts`, `GET /api/contracts/{id}` |
 | `app/api/moves.py` | `POST`·`GET /api/contracts/{id}/move` 갈아타기 |
 | `app/api/todos.py` | `PATCH /api/todos/{id}` 할 일 끝내기·나중에 올리기·되돌리기, `POST`·`GET`·`DELETE /api/todos/{id}/evidence` 증빙 |
+| `app/api/timeline.py` | `GET /api/contracts/{id}/timeline` 계약 타임라인 |
 | `app/evidence.py` | 증빙 파일 저장·삭제 (`EVIDENCE_DIR`, 기본 `backend/data/evidence`, git 제외) |
 | `app/api/alerts.py` | `GET /api/contracts/{id}/alerts/latest` 경보 리포트 |
 | `app/alerts.py` | 역전세 경보 재계산 (`POST /api/admin/alerts/recalculate`): 계약 중 비율·단계 다시 계산, 할 일·알림 |
@@ -190,6 +191,11 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - `DELETE /api/todos/{id}/evidence`: 언제든(무산된 계약도) 지움. 완료했던 할 일은 `skipped`(완료 그대로, 기록함만 빈칸)
 - 파일은 `EVIDENCE_DIR`(기본 `backend/data/evidence/<계약 id>/`, git 제외)에 저장, DB에는 상대 경로만. `reset_demo_db.py`가 계약별 폴더(숫자 이름)만 같이 지움. 다시 열린 뒤 조건이 바뀌어 지워지는 할 일의 파일도 지움. 암호화 저장은 출시 준비
 - 나중에 올리기 한 할 일은 나중에 올리기로 바꾼 날(증빙을 지운 날) 7일 뒤 "증빙을 아직 안 올렸어요" 앱 안 알림 (`todos.yaml` `notifications.evidence_after_days`, FR-030)
+
+### `GET /api/contracts/{id}/timeline` 계약 타임라인 (FR-032, #51)
+
+- 계약 2년 기록을 날짜순으로 한 목록에: 계약 전 확인(판정·비율, 기준일은 판정의 실거래 기준일) → 계약 당일 체크(시작 경보) → 특약 넣음/거절당함 → 끝낸 할 일(증빙 여부) → 경보 재계산(단계 변화) → 갈아타기 시작 → 계약 무산
+- 앱(#112)이 계약 응답으로 그리던 타임라인에 경보 재계산 이력·갈아타기가 더해진다. 등기부 재비교(#115)·반환 대응·첫 계약 서류가 병합되면 그 기록도 더할 것
 
 ### `POST /api/contracts/access-link` 접근 링크 이메일로 다시 받기 (#39)
 
