@@ -47,6 +47,19 @@ def app_link_base() -> str:
     return os.environ.get("APP_LINK_BASE", "").strip()
 
 
+def llm_explain_enabled() -> bool:
+    """등기 항목 쉬운 말 설명에 LLM을 쓸지 (FR-007). ANTHROPIC_API_KEY가 있을 때만 켜고, LLM_EXPLAIN=false면 끈다.
+    꺼져 있으면 rules/explain.yaml 템플릿 설명만 쓴다 (테스트·CI·키 없는 개발 환경)."""
+    if os.environ.get("LLM_EXPLAIN", "true").strip().lower() in ("0", "false", "no", "off"):
+        return False
+    return bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
+
+
+def llm_model(default: str) -> str:
+    """설명에 쓸 모델. 기본은 rules/explain.yaml llm.model, LLM_MODEL로 바꾼다."""
+    return os.environ.get("LLM_MODEL", "").strip() or default
+
+
 def data_go_kr_service_key() -> str:
     """공공데이터포털 일반 인증키를 Decoding 키로. 없으면 빈 문자열.
 

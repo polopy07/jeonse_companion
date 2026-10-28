@@ -71,7 +71,8 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/evidence.py` | 증빙 파일 저장·삭제 (`EVIDENCE_DIR`, 기본 `backend/data/evidence`, git 제외) |
 | `app/registry/pdf.py` | 등기부 PDF → 요약 페이지 글자 ("부동산정보요약" 또는 증명서의 "주요 등기사항 요약", pdfplumber) |
 | `app/registry/parser.py` | 요약 글자 → 소유자, 근저당 채권최고액, 압류 등, 신탁 (규칙 파서) |
-| `app/api/registry.py` | `POST /api/registry/parse` |
+| `app/api/registry.py` | `POST /api/registry/parse`, `POST /api/registry/explain` |
+| `app/explain.py` | 등기 항목 쉬운 말 설명: Claude API 호출, 금지 표현·숫자 검사, 템플릿 대체 (rules/explain.yaml) |
 | `app/api/demo.py` | `GET /api/demo-houses` 시연 집 2채 (`docs/validation/demo_houses.yaml`) |
 | `load_demo_trades.py` | 시연 집 정답표의 실거래 저장본을 DB에 넣기 |
 | `reset_demo_db.py` | 시연 전 DB 초기화 (모든 표를 다시 만들고 실거래 저장본 넣기) |
@@ -276,6 +277,20 @@ python load_demo_trades.py   # DATABASE_URL을 서버와 같게. 여러 번 실�
 - 걸린 항목이 없으면(문제 항목 없음, 대상 아님) `terms`가 빈 목록
 - "문제 항목"(결제 전 멈춤) 판정이면 409 `CHECK_BLOCKED`, 판정 단계가 지금 규칙에 없으면 409 `CHECK_OUTDATED`
 - 판정의 `linkages`는 만들 때 저장한 값이고, 특약 예시·경고는 지금 규칙 파일로 만든다. `rules_version`은 `special_terms.yaml` 버전이다 (`warnings`·`checks`는 `linkage.yaml`에서 오지만 지금은 두 파일 버전이 같이 움직인다)
+
+### `POST /api/registry/explain` 등기 항목 쉬운 말 설명 (FR-007, 명세서 8장)
+
+```json
+{"items": [{"id": "을1", "kind": "mortgage", "purpose": "근저당권설정", "amount": 120000000},
+           {"id": "갑4", "kind": "trust", "purpose": "신탁"}]}
+```
+
+- 응답: 보낸 순서대로 `{"id", "kind", "text", "source"}`. `source`는 `llm`(LLM이 쓰고 검사 통과) / `template`(`rules/explain.yaml`)
+- 흐름: 사용자가 확인한 항목(종류·등기 목적·금액)만 LLM에 보낸다. 항목마다 템플릿 설명을 사실 근거로 함께 보내고, 돌아온 설명은 금지 표현(`verdict.yaml` 안전 단정 + `explain.yaml` 법률 판단·상품 추천)과 숫자(템플릿에 없는 금액이면 탈락)·길이를 검사한다. 걸린 항목만 템플릿으로 바꾼다
+- LLM은 `ANTHROPIC_API_KEY`가 있을 때만 켜진다(`LLM_EXPLAIN=false`로 끔, 모델은 `LLM_MODEL`, 기본 `explain.yaml` `llm.model`). 8초 넘거나 실패하면 템플릿, 재시도 없음. 안전 분류기가 거절하면 서버가 다른 모델로 다시 시도(`fallbacks: "default"`)하고, 그래도 거절이면 템플릿
+- 같은 항목 묶음의 LLM 설명은 서버 메모리에 저장해 다시 부르지 않는다(시연에서 같은 등기부를 여러 번 올려도 대기·비용 없이). 서버를 다시 띄우면 지워짐
+- 판정·비율은 이 API와 관계없다 (AI-REQ-02). LLM이 안 돼도 판정·할 일은 그대로 (AC-013)
+- 테스트는 실제 LLM을 부르지 않는다 (`call_llm`을 바꿔 끼움)
 
 ### `POST /api/registry/parse` 등기부 요약 추출 (FR-005·006)
 

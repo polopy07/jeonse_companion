@@ -6,7 +6,7 @@ import yaml
 
 from app.config import rules_dir
 
-RULE_FILES = ("fields", "verdict", "alert", "linkage", "special_terms", "todos", "guarantors")
+RULE_FILES = ("fields", "verdict", "alert", "linkage", "special_terms", "todos", "guarantors", "explain")
 
 
 def load_rules(directory: Path) -> dict[str, dict]:

@@ -93,6 +93,43 @@ class RegistryParseResult(BaseModel):
     warnings: list[str]
 
 
+RegistryItemKind = Literal["mortgage", "lease", "seizure", "trust", "other"]
+
+
+class ExplainItemInput(BaseModel):
+    """설명할 등기 항목 1개. 이름·원문 글자·주소는 받지 않는다 (LLM에 보내지 않게, AI-REQ-05)."""
+
+    id: str = Field(min_length=1, max_length=40, description="화면에서 항목을 찾는 값 (예: 순위번호). 응답에 그대로 돌려준다")
+    kind: RegistryItemKind = Field(description="mortgages→mortgage, leases→lease, seizures→seizure, trusts→trust, others→other")
+    purpose: str = Field(min_length=1, max_length=30, description="등기 목적 (예: 근저당권설정, 주택임차권). 권리자 이름은 넣지 않는다")
+    amount: int | None = Field(None, ge=0, description="채권최고액·보증금 (원). 사용자가 확인한 값")
+
+
+class ExplainInput(BaseModel):
+    """등기 항목 쉬운 말 설명 요청 (FR-007). POST /api/registry/parse 결과를 사용자가 확인한 뒤 보낸다."""
+
+    items: list[ExplainItemInput] = Field(min_length=1, max_length=20)
+
+    @model_validator(mode="after")
+    def unique_ids(self):
+        if len({i.id for i in self.items}) != len(self.items):
+            raise ValueError("항목 id가 겹칩니다")
+        return self
+
+
+class ExplanationOut(BaseModel):
+    id: str
+    kind: RegistryItemKind
+    text: str = Field(description="쉬운 말 설명")
+    source: Literal["llm", "template"] = Field(
+        description="llm(LLM이 쓰고 금지 표현·숫자 검사를 통과) / template(LLM 꺼짐·실패·검사 탈락, rules/explain.yaml)")
+
+
+class ExplainResult(BaseModel):
+    explanations: list[ExplanationOut] = Field(description="보낸 순서대로")
+    disclaimer: str = Field(description="결과 화면 공통 문구 (verdict.yaml display.disclaimer)")
+
+
 class ComplexInput(BaseModel):
     """실거래를 찾을 단지 (공공데이터포털 실거래가의 이름 그대로). 시연 집은 미리 매칭해 둔다."""
 

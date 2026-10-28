@@ -173,6 +173,7 @@ A = 개발 A(백엔드·규칙), B = 개발 B(화면). 주차는 노션 "할 일
 | `POST /api/admin/notifications/run` | 알림 실행 (관리자, 시연용): 날짜(본문 `date` → `X-Virtual-Today` → 실제 오늘)를 오늘로 보고 그날 보낼 알림을 만든다. 할 일 시작일·기한 7일 전·1일 전·재알림일(`todos.yaml` `notifications`), 건너뛴 날의 알림은 7일 안의 것만. 나중에 올리기(`skipped`)한 증빙이 필요한 할 일은 나중에 올리기로 바꾼 날(증빙을 지운 날) 7일 뒤 `kind: "evidence"` 앱 안 알림(`evidence_after_days`, FR-030). 앱 안 알림은 `sent`, 이메일은 반환보증(T5·T6)만 보내고(`EMAIL_BACKEND`), 못 보내면 `failed`로 남겨 다음 실행에서 3번까지 다시 보냄(NFR-008). 알림 이메일이 없거나 그사이 무산·완료, 또는 알림일이 7일보다 지났으면(남은 날 문구가 틀려서) `skipped`. 응답에 `email_sent`·`email_failed`. 같은 알림은 한 번만 | FR-040, 041, 044 | |
 | `POST /api/contracts/access-link` | 접근 링크 이메일로 다시 받기: 본문 `{"email"}`. 그 이메일로 만든 진행 중 계약(무산된 계약도 풀린 결제가 남아 있으면)마다 새 접근 토큰을 만들어 계약 이메일로 보냄(처음 토큰은 그대로, 계약마다 한 시간에 3번). 이메일이 없어도 같은 202 (계약이 있는지 알아내지 못하게). 링크는 `APP_LINK_BASE`가 있으면 `{APP_LINK_BASE}?contract={id}&token=...`, 없으면 접근 코드 | NFR-011 | UI-04 |
 | `PATCH /api/contracts/{id}` | 계약 조건(날짜·월세·대출·보증기관·중개·갱신·공동 계약·이메일)과 특약 넣음/거절당함을 바꾸고 할 일을 다시 계산. 보낸 칸만 바꾸고, 특약은 보낸 특약만 바꾼다(그 판정에서 안내한 특약만). 바꾼 뒤 조건이 계약 생성 규칙(날짜 순서·대출 실행일)을 어기거나 꼭 있어야 하는 칸에 null이면 422(아무것도 안 바뀜). 계약일을 뒤로 바꿔 목록에 있는 끝낸 할 일의 끝낸 날이 새 계약일보다 앞서게 되면 422 `contract_date`(그 할 일을 되돌리거나 끝낸 날을 고친 뒤 바꿈), 없는 계약이면 404. 같은 할 일은 `id`·상태·완료일을 유지하고, 끝낸 할 일의 완료일을 뒤 할 일의 기준일로 쓴다. 더는 해당하지 않는 할 일은 지우되 끝낸 것은 맨 뒤에 남긴다. 잔금일이 미뤄져 끝낸 T3·T4의 완료일이 새 잔금일보다 앞서면 다시 할 일로 돌린다. 주택 유형·보증금·`alert_level`은 바꾸지 않는다 `X-Contract-Token` 확인, 무산된 계약이면 409 `CONTRACT_CANCELLED` | FR-021, 049~050 | UI-03, UI-04 |
+| `POST /api/registry/explain` | 등기 항목 쉬운 말 설명 (저장 안 함): 본문 `items`(1~20개, 항목마다 `id`·`kind` mortgage/lease/seizure/trust/other·등기 목적 `purpose` 30자까지·금액 `amount`) → 보낸 순서대로 `explanations`(`id`·`kind`·`text`·`source`)와 `disclaimer`. `POST /api/registry/parse` 결과를 사용자가 확인한 뒤 따로 부른다(추출 결과를 먼저 보여 주고 설명은 뒤에, NFR-001). 이름·원문 글자·주소는 받지 않음(AI-REQ-05). LLM(`ANTHROPIC_API_KEY`가 있고 `LLM_EXPLAIN`이 false가 아닐 때)이 쓰고 금지 표현·숫자 검사를 통과하면 `source: "llm"`, LLM이 꺼짐·실패·8초 초과·검사 탈락이면 `rules/explain.yaml` 템플릿(`"template"`). 어느 쪽이든 200. id 겹침·없는 종류·20개 초과는 422 | FR-007 | UI-01, UI-02 |
 | `GET /api/demo-houses` | 시연 집 2채(해운대구 아파트·수영구 빌라, `docs/validation/demo_houses.yaml`): 계약 전 확인 입력값(`input`, 단지·공시가격·전용면적·등기부 확인값 포함. 그대로 `POST /api/checks`로), 시연 등기부를 읽은 결과(`registry`, `POST /api/registry/parse`와 같은 형식, 이름·주소는 가린 값), 시연용 가상 값(`virtual`, 화면에 "시연용 가상" 표시), 계약 당일 장면(`contract_day`, 날짜·특약 결과. 그대로 `POST /api/contracts`로). 정답표와 같은 결과를 보려면 기준일(`as_of`)의 실거래 저장본을 넣고(`cd backend && python load_demo_trades.py`) `X-Virtual-Today`에 그 날짜를 보낸다. `tests/test_demo_houses.py`가 정답표 기대값과 자동 대조 | FR-001, 046 | UI-01, UI-03 |
 
 입출력 예시는 `backend/README.md`, 전체 형식은 `openapi.json`.
@@ -201,7 +202,6 @@ GitHub 이슈와 마일스톤(2주차·3주차·4주차)으로 진행을 관리�
 | 메서드·주소 | 하는 일 | FR | 이슈 |
 | --- | --- | --- | --- |
 | `GET /api/checks/{id}/todo-preview` | 결제 전에 생길 할 일 종류 미리보기. 화면이 규칙 파일로 그리면 생략 | FR-012 | #56 |
-| (`POST /api/registry/parse` 응답) | 등기 항목 쉬운 말 설명 (LLM) | FR-007 | #57 |
 | (`POST /api/contracts` 입력) | 공동 계약자 이메일, 같은 알림 발송 | FR-043 | #58 |
 
 이미 있는 API로 되는 것: 다음 집 계약 전 확인(FR-028)은 `POST /api/checks`, 위반건축물 확인(FR-008)은 `POST /api/checks` 입력, 규칙 데이터 관리(FR-045)는 `rules/*.yaml`과 `/health`.
