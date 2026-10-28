@@ -2,10 +2,11 @@
 from dataclasses import asdict
 from datetime import date
 
-from fastapi import APIRouter, Depends, Header, Response
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.clock import today as today_dep
 from app.db import get_db
 from app.engine.check import MissingInputError, run_check
 from app.engine.market import ComplexKey, nearby_jeonse, pick_trade_price
@@ -61,11 +62,11 @@ def _market(inp: CheckInput, db: Session, rules: dict, as_of: date):
 
 @router.post("", response_model=CheckResult, status_code=201, responses=responses(422))
 def create_check(inp: CheckInput, db: Session = Depends(get_db), rules: dict = Depends(get_rules),
-                 x_virtual_today: date | None = Header(None, description="시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7)")):
+                 today: date = Depends(today_dep)):
     market: dict = {}
     pick = nearby = None
     if inp.complex is not None:
-        as_of = x_virtual_today or date.today()
+        as_of = today
         pick, nearby = _market(inp, db, rules, as_of)
         market["as_of"] = as_of.isoformat()
         if pick is not None and inp.trade_price is None:
