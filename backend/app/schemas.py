@@ -724,6 +724,27 @@ class MoveOut(BaseModel):
     todos: list[MoveTodoOut] = Field(description="지금 집 + 다음 집 할 일을 날짜순으로 묶은 목록 (FR-025)")
 
 
+class TimelineEventOut(BaseModel):
+    date: date_
+    kind: Literal["check", "contract", "special_term", "todo", "alert", "move", "cancel"] = Field(
+        description="check 계약 전 확인 / contract 계약 당일 체크 / special_term 특약 넣음·거절당함 / todo 끝낸 할 일 / "
+                    "alert 경보 재계산 / move 갈아타기 시작 / cancel 계약 무산")
+    title: str = Field(description="화면에 그대로 보여 줄 제목")
+    detail: str | None = Field(description="한 줄 설명 (비율, 특약 결과 안내, 증빙 등)")
+    rule_id: str | None = Field(description="할 일 rule_id(todo) 또는 특약 id(special_term)")
+    todo_id: int | None = Field(description="끝낸 할 일 id. 증빙 보기는 GET /api/todos/{id}/evidence")
+    evidence_uploaded: bool | None = Field(description="끝낸 할 일의 증빙을 올렸는지 (todo만)")
+    level: str | None = Field(description="판정 단계(check) 또는 경보 단계(alert)")
+
+
+class TimelineOut(BaseModel):
+    """계약 타임라인 (FR-032, UI-06). 지난 기록만 날짜순으로, 같은 날이면 kind 순서."""
+
+    contract_id: int
+    today: date_
+    events: list[TimelineEventOut]
+
+
 class CalendarLinkOut(BaseModel):
     """캘린더 구독 주소 (FR-042, #47). 이 응답에서 한 번만 준다 (서버에는 토큰 해시만)."""
 
