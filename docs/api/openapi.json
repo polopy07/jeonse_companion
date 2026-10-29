@@ -6834,6 +6834,11 @@
             "title": "Done Date",
             "description": "끝낸 날 (done·skipped). 뒤 할 일의 기준일"
           },
+          "archived": {
+            "type": "boolean",
+            "title": "Archived",
+            "description": "계약 조건이 바뀌어 지금 계획에는 없고 끝낸 기록으로만 남은 할 일 (목록 맨 뒤). 되돌리기는 409 TODO_NOT_PLANNED라 앱은 버튼을 숨긴다"
+          },
           "rules_version": {
             "type": "string",
             "title": "Rules Version"
@@ -6880,6 +6885,7 @@
           "sort_order",
           "status",
           "done_date",
+          "archived",
           "rules_version",
           "state",
           "days_left"

@@ -416,6 +416,8 @@ class TodoOut(BaseModel):
     sort_order: int
     status: str = Field(description="todo / done / skipped")
     done_date: date | None = Field(description="끝낸 날 (done·skipped). 뒤 할 일의 기준일")
+    archived: bool = Field(description="계약 조건이 바뀌어 지금 계획에는 없고 끝낸 기록으로만 남은 할 일 (목록 맨 뒤). "
+                                       "되돌리기는 409 TODO_NOT_PLANNED라 앱은 버튼을 숨긴다")
     rules_version: str
     state: Literal["done", "upcoming", "in_progress", "overdue"] = Field(
         description="오늘(가상 날짜면 그날) 기준: done 끝냄(status skipped 포함) / upcoming 시작 전 / in_progress 할 때 / "

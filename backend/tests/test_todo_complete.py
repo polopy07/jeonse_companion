@@ -134,6 +134,8 @@ def test_finished_todo_out_of_plan_cannot_be_reopened(client):
     r = client.patch(f"/api/contracts/{c['id']}", json={"guarantor": "none"},
                      headers={"X-Contract-Token": c["access_token"]})
     assert _todo(r.json(), "T5")["status"] == "skipped"   # 보증 미가입이라 계획에는 없지만 기록으로 남음
+    # 앱이 "되돌리기"를 숨기도록 응답에 archived (#111 리뷰 1번)
+    assert _todo(r.json(), "T5")["archived"] is True and _todo(r.json(), "T4")["archived"] is False
 
     r = _set(client, c, "T5", {"status": "todo"}, day="2026-12-05")
     assert r.status_code == 409 and _detail(r)["code"] == "TODO_NOT_PLANNED"
