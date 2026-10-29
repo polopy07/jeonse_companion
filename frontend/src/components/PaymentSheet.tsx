@@ -8,7 +8,7 @@ import { Colors, Gutter, MaxAppWidth, Radius } from '@/constants/theme';
 import { ApiError, apiEnabled, getCheck, getContract, postPayment } from '@/lib/api';
 import { contractToken, setLatestContract } from '@/lib/contract';
 import { formatWon } from '@/lib/format';
-import { products, setLatestPayment, useLatestPayment } from '@/lib/payment';
+import { products, releasedFor, setLatestPayment, useLatestPayment, useReleasedPayment } from '@/lib/payment';
 
 type Props = {
   visible: boolean;
@@ -31,6 +31,9 @@ export function PaymentSheet({ visible, product, checkId, onClose, onPaid }: Pro
   const p = products[product];
   // 같은 판정에 이미 결제했으면 다시 눌러도 결제 1건 (서버도 앞서 한 결제를 돌려준다)
   const paid = checkId !== null && payment?.check_id === checkId && payment.status === 'paid';
+  // 무산된 계약에서 풀린 결제가 이 상품을 덮으면 새로 결제하지 않고 계약을 만들 때 그 결제를 쓴다 (FR-016)
+  const released = releasedFor(product, useReleasedPayment());
+  const reuse = !paid && released !== null && apiEnabled && checkId !== null;
   const amount = paid ? payment.amount : p.amount;
 
   const close = () => {
@@ -41,7 +44,7 @@ export function PaymentSheet({ visible, product, checkId, onClose, onPaid }: Pro
 
   const confirm = async () => {
     if (paying) return;
-    if (!apiEnabled || checkId === null) {
+    if (!apiEnabled || checkId === null || reuse) {
       onPaid();
       return;
     }
@@ -101,7 +104,7 @@ export function PaymentSheet({ visible, product, checkId, onClose, onPaid }: Pro
 
         <View style={styles.testNotice}>
           <AppText size={13} weight="semibold" color={Colors.primarySoftText}>
-            테스트 결제라 돈이 나가지 않아요
+            {reuse ? '무산된 계약의 결제를 이 계약에 다시 써요. 새로 결제하지 않아요' : '테스트 결제라 돈이 나가지 않아요'}
           </AppText>
         </View>
 
@@ -112,7 +115,15 @@ export function PaymentSheet({ visible, product, checkId, onClose, onPaid }: Pro
         ) : null}
 
         <Button
-          label={paying ? '확인하는 중…' : paid ? '결제했어요 · 계속하기' : `${formatWon(amount)}원 결제 확인`}
+          label={
+            paying
+              ? '확인하는 중…'
+              : paid
+                ? '결제했어요 · 계속하기'
+                : reuse
+                  ? '앞 계약 결제로 계속하기'
+                  : `${formatWon(amount)}원 결제 확인`
+          }
           onPress={confirm}
           style={{ marginTop: 16, opacity: paying ? 0.6 : 1 }}
         />

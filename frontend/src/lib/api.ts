@@ -143,6 +143,73 @@ export async function parseRegistry(file: PickedFile) {
   );
 }
 
+// ---- POST·GET /api/contracts/{id}/registry-compare ----
+
+/** 다시 올린 등기부 요약 (POST /api/registry/parse 결과를 확인·수정한 값) */
+export type ApiRegistryFields = {
+  seizure: boolean;
+  mortgage: boolean;
+  mortgage_amount: number;
+  lease_amount: number;
+  trust: boolean;
+};
+
+export type ApiRegistryCompareItem = {
+  /** registry.seizure 등 */
+  field: string;
+  label: string;
+  /** 계약 전 확인 때 값. 그때 등기부를 올리지 않았으면 null */
+  before: boolean | number | null;
+  after: boolean | number;
+  /** same 그대로 / risk 새로 생기거나 늘어남 / eased 없어지거나 줄어듦 */
+  change: 'same' | 'risk' | 'eased';
+};
+
+export type ApiRegistryCompare = {
+  id: number;
+  contract_id: number;
+  /** contract_day 계약 당일 / balance_day 잔금일 */
+  stage: 'contract_day' | 'balance_day';
+  compared_on: string;
+  items: ApiRegistryCompareItem[];
+  changed: boolean;
+  /** 새로 생기거나 늘어난 항목이 있어 보류를 안내하는지 */
+  hold: boolean;
+  /** "계약 보류 후 상담" / "잔금 보류 후 상담" */
+  advice: string | null;
+  hint: string | null;
+  /** 계약 전에 근저당이 있었으면 채권최고액 비교가 필수 확인 (FR-023) */
+  mortgage_check_required: boolean;
+  mortgage_check: ApiRegistryCompareItem | null;
+  /** 계약 전 확인에서 등기부를 올리지 않아 다시 올린 등기부에 있는 것을 모두 위험으로 봄 */
+  baseline_missing: boolean;
+  level_before: string;
+  level_after: string;
+  level_after_label: string;
+  deposit_ratio_before: number | null;
+  deposit_ratio_after: number | null;
+};
+
+/**
+ * 계약 당일·잔금일 등기부 재비교 (FR-023·048). stage를 비우면 계약일까지 계약 당일, 그 뒤는 잔금일.
+ * 새로 걸린 연동 규칙은 할 일에 더해지고 경보도 다시 계산되므로, 응답 뒤 계약을 다시 불러온다. 무산된 계약이면 409
+ */
+export function postRegistryCompare(contractId: number, token: string | null, registry: ApiRegistryFields) {
+  return request<ApiRegistryCompare>(`/api/contracts/${contractId}/registry-compare`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...contractHeaders(token) },
+    body: JSON.stringify({ registry }),
+  });
+}
+
+/** 이 계약의 등기부 재비교 기록 (올린 순서) */
+export function getRegistryCompares(contractId: number, token: string | null) {
+  return request<ApiRegistryCompare[]>(`/api/contracts/${contractId}/registry-compare`, {
+    method: 'GET',
+    headers: contractHeaders(token),
+  });
+}
+
 // ---- POST /api/checks ----
 
 export type ApiCheckResult = {
@@ -264,6 +331,8 @@ export type ApiContractInput = {
   special_term_result?: Record<string, 'inserted' | 'rejected'>;
   /** 테스트 결제 (postPayment). 없거나 이 판정에 쓸 수 없으면 402 PAYMENT_REQUIRED (서버 설정에 따라 없어도 통과) */
   payment_id?: number | null;
+  /** 무산된 계약에서 풀린 결제를 payment_id로 다시 쓸 때만: 그 무산된 계약의 access_token (헤더가 아니라 본문) */
+  released_contract_token?: string | null;
 };
 
 export type ApiTodo = {
@@ -348,8 +417,16 @@ export function getContract(contractId: number, token: string | null) {
   return request<ApiContract>(`/api/contracts/${contractId}`, { method: 'GET', headers: contractHeaders(token) });
 }
 
+/**
+ * 계약 무산 (FR-016). 계약은 cancelled, 쓴 결제는 released로 풀려 다음 계약에 다시 쓴다(그 계약의 토큰과 함께).
+ * 할 일은 기록으로 남고 알림은 보내지 않는다. 이미 무산된 계약이면 409 CONTRACT_CANCELLED
+ */
+export function cancelContract(contractId: number, token: string | null) {
+  return request<ApiContract>(`/api/contracts/${contractId}/cancel`, { method: 'POST', headers: contractHeaders(token) });
+}
+
 /** PATCH로 바꿀 수 있는 칸. 보낸 칸만 바꾸고, 특약은 보낸 특약만 바꾼다 */
-export type ApiContractPatch = Partial<Omit<ApiContractInput, 'check_id' | 'payment_id'>>;
+export type ApiContractPatch = Partial<Omit<ApiContractInput, 'check_id' | 'payment_id' | 'released_contract_token'>>;
 
 /**
  * 계약 조건·특약 결과를 바꾸고 할 일을 다시 계산한다 (FR-021, FR-049·050).
@@ -360,6 +437,58 @@ export function patchContract(contractId: number, token: string | null, patch: A
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...contractHeaders(token) },
     body: JSON.stringify(patch),
+  });
+}
+
+// ---- GET /api/contracts/{id}/alerts/latest ----
+
+export type ApiAlertLevel = 'caution' | 'warning' | 'danger';
+
+export type ApiAlertPoint = {
+  as_of: string;
+  /** 정상이면 null */
+  level: ApiAlertLevel | null;
+  estimated_price: number;
+  deposit_ratio: number;
+};
+
+export type ApiAlertReport = ApiAlertPoint & {
+  contract_id: number;
+  /** 주의 / 경고 / 위험, 정상이면 null */
+  label: string | null;
+  /** 계약 중 재계산한 값인지. false면 계약을 시작할 때(계약 전 확인)의 값 */
+  recalculated: boolean;
+  previous_level: ApiAlertLevel | null;
+  previous_ratio: number | null;
+  basis: {
+    as_of: string;
+    official_price: number;
+    official_estimate: number;
+    multiplier: number;
+    trade: ApiCheckResult['trade_basis'];
+    /** 계약 전 확인 때 직접 넣은 매매 실거래가. 있으면 단지 실거래 대신 이 값 */
+    trade_price_input: number | null;
+    nearby_jeonse: ApiCheckResult['nearby_jeonse'];
+    /** 마지막으로 올린 등기부의 근저당 채권최고액 + 임차권·전세권 보증금 */
+    senior_debt: number;
+    ratio_is_minimum: boolean;
+    complex_known: boolean;
+    rules_version: string | null;
+  };
+  /** 계약 시작부터의 계산 이력 (기준일 순서, 마지막이 이 값) */
+  history: ApiAlertPoint[];
+  /** 데이터 한계 안내 (alert.yaml), 화면에 그대로 */
+  data_limits: string[];
+};
+
+/**
+ * 최근 역전세 경보 (FR-036~038, UI-09). 재계산한 적이 없으면 계약을 시작할 때의 값.
+ * 다가구·단독처럼 경보를 계산하지 않는 계약은 404 NOT_FOUND
+ */
+export function getAlertReport(contractId: number, token: string | null) {
+  return request<ApiAlertReport>(`/api/contracts/${contractId}/alerts/latest`, {
+    method: 'GET',
+    headers: contractHeaders(token),
   });
 }
 
@@ -392,6 +521,20 @@ export async function uploadEvidence(todoId: number, token: string | null, file:
   );
 }
 
+/**
+ * 올린 증빙 파일 주소와 헤더 (기록함 보기, UI-05). 휴대폰은 Image source에 그대로 넣고, 웹은 헤더를 붙일 수 없어
+ * 이 값으로 fetch한다. v는 다시 올린 뒤 앞 사진이 캐시에서 보이지 않게 바꾸는 값(서버는 무시). 서버 주소가 없으면 null
+ */
+export function evidenceSource(todoId: number, token: string | null, v: string | number = 0) {
+  if (!API_URL) return null;
+  return { uri: `${API_URL}/api/todos/${todoId}/evidence?v=${encodeURIComponent(String(v))}`, headers: contractHeaders(token) };
+}
+
+/** 증빙 삭제 (FR-033). 완료했던 할 일은 "나중에 올리기"로 바뀌고(완료는 그대로) 기록함은 빈칸. 무산된 계약도 지울 수 있다 */
+export function deleteEvidence(todoId: number, token: string | null) {
+  return request<ApiContract>(`/api/todos/${todoId}/evidence`, { method: 'DELETE', headers: contractHeaders(token) });
+}
+
 // ---- GET /api/demo-houses ----
 
 export type ApiDemoHouse = {
@@ -417,4 +560,72 @@ export type ApiDemoHouse = {
 /** 시연 집 2채 (docs/validation/demo_houses.yaml, 경보 계산 정답표) */
 export function getDemoHouses() {
   return request<{ as_of: string; houses: ApiDemoHouse[] }>('/api/demo-houses', { method: 'GET' });
+}
+
+// ---- POST·GET /api/contracts/{id}/move ----
+
+/** 갈아타기: 다음 집 계약 조건 (FR-025, UI-07) */
+export type ApiMoveInput = {
+  contract_date: string;
+  balance_date: string;
+  end_date: string;
+  deposit: number;
+  /** 잔금 = 보증금 − 계약금 */
+  down_payment: number;
+  loan?: boolean;
+  guarantor?: Guarantor;
+};
+
+/** 지금 집과 다음 집 할 일을 묶은 목록의 한 줄 */
+export type ApiMoveTodo = {
+  house: 'current' | 'next';
+  rule_id: string;
+  title: string;
+  start_date: string | null;
+  due_date: string | null;
+  remind_date: string | null;
+  state: ApiTodo['state'];
+  days_left: number | null;
+};
+
+export type ApiMove = {
+  contract_id: number;
+  today: string;
+  /** 갈아타기를 처음 저장한 날 */
+  decided_on: string;
+  next: ApiMoveInput & { loan: boolean; guarantor: Guarantor };
+  current_deposit: number;
+  /** 지금 집 보증금 반환 예정일 (반환 확인을 끝냈으면 돌려받은 날) */
+  return_date: string;
+  /** 지금 집 반환 확인(9번 할 일)을 끝냈는지. 끝냈으면 경고를 내지 않는다 */
+  returned: boolean;
+  next_balance: number;
+  /** 반환 예정일이 다음 집 잔금일보다 늦은 일수, 늦지 않으면 0 */
+  gap_days: number;
+  /** 그동안 비는 금액 = min(지금 집 보증금, 다음 집 잔금) (정답표 Q5) */
+  gap_amount: number;
+  move_in_date: string;
+  /** 전입 예정일이 반환 예정일과 같거나 앞섬 (FR-027) */
+  move_in_warning: boolean;
+  /** 자금 틈·대출 순서·전입 순서 안내, 화면에 그대로 */
+  warnings: string[];
+  /** 지금 집 + 다음 집 할 일, 날짜순 */
+  todos: ApiMoveTodo[];
+};
+
+/**
+ * 갈아타기 저장 (FR-025~027). 다시 보내면 다음 집 입력을 바꾼다.
+ * 날짜 순서가 틀리면 422, 무산된 계약이면 409 CONTRACT_CANCELLED
+ */
+export function postMove(contractId: number, token: string | null, input: ApiMoveInput) {
+  return request<ApiMove>(`/api/contracts/${contractId}/move`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...contractHeaders(token) },
+    body: JSON.stringify(input),
+  });
+}
+
+/** 저장한 갈아타기를 지금 계약 상태로 다시 계산 (반환 확인을 끝냈으면 돌려받은 날 기준). 시작 전이면 404 */
+export function getMove(contractId: number, token: string | null) {
+  return request<ApiMove>(`/api/contracts/${contractId}/move`, { method: 'GET', headers: contractHeaders(token) });
 }
