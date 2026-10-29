@@ -264,6 +264,8 @@ export type ApiContractInput = {
   special_term_result?: Record<string, 'inserted' | 'rejected'>;
   /** 테스트 결제 (postPayment). 없거나 이 판정에 쓸 수 없으면 402 PAYMENT_REQUIRED (서버 설정에 따라 없어도 통과) */
   payment_id?: number | null;
+  /** 무산된 계약에서 풀린 결제를 payment_id로 다시 쓸 때만: 그 무산된 계약의 access_token (헤더가 아니라 본문) */
+  released_contract_token?: string | null;
 };
 
 export type ApiTodo = {
@@ -348,8 +350,16 @@ export function getContract(contractId: number, token: string | null) {
   return request<ApiContract>(`/api/contracts/${contractId}`, { method: 'GET', headers: contractHeaders(token) });
 }
 
+/**
+ * 계약 무산 (FR-016). 계약은 cancelled, 쓴 결제는 released로 풀려 다음 계약에 다시 쓴다(그 계약의 토큰과 함께).
+ * 할 일은 기록으로 남고 알림은 보내지 않는다. 이미 무산된 계약이면 409 CONTRACT_CANCELLED
+ */
+export function cancelContract(contractId: number, token: string | null) {
+  return request<ApiContract>(`/api/contracts/${contractId}/cancel`, { method: 'POST', headers: contractHeaders(token) });
+}
+
 /** PATCH로 바꿀 수 있는 칸. 보낸 칸만 바꾸고, 특약은 보낸 특약만 바꾼다 */
-export type ApiContractPatch = Partial<Omit<ApiContractInput, 'check_id' | 'payment_id'>>;
+export type ApiContractPatch = Partial<Omit<ApiContractInput, 'check_id' | 'payment_id' | 'released_contract_token'>>;
 
 /**
  * 계약 조건·특약 결과를 바꾸고 할 일을 다시 계산한다 (FR-021, FR-049·050).
