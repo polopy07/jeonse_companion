@@ -107,6 +107,10 @@ def test_timeline_registry_documents_and_return(client):
     kinds = [e["kind"] for e in events if e["date"] == "2026-11-02"]
     assert kinds == sorted(kinds, key=["check", "contract", "registry", "special_term", "document"].index)
 
+    # 가상 날짜가 계약일 전이면 계약 당일 체크와 함께 첫 계약 서류도 아직 없다
+    r = client.get(f"/api/contracts/{c['id']}/timeline", headers={**h, "X-Virtual-Today": "2026-11-01"})
+    assert [e["kind"] for e in r.json()["events"]] == ["check"]
+
 
 def test_timeline_only_up_to_today(client):
     # 가상 날짜를 되돌리면 그 뒤에 끝낸 할 일·재계산은 아직 일어나지 않은 것으로 뺀다

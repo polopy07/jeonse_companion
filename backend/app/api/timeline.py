@@ -99,9 +99,11 @@ def timeline(contract_id: int, db: Session = Depends(get_db), rules: dict = Depe
         events.append(_Event(row.contract_date, "special_term", f"{e.label} 특약 {RESULT_LABEL[e.result]}", detail,
                              rule_id=e.term_id))
 
-    # 첫 계약 서류는 올린 시각(실제 시각)만 있어, 가상 날짜 시연에서 계약일 전·오늘 뒤로 가지 않게 그 사이로
+    # 첫 계약 서류는 올린 시각(실제 시각)만 있어, 가상 날짜 시연에서 계약일 전·오늘 뒤로 가지 않게 그 사이로.
+    # 오늘이 계약일 전이면 계약 당일 체크처럼 아직 없는 기록으로 본다
     doc_labels = {k["id"]: k["label"] for k in rules["todos"]["first_documents"]}
-    for d in sorted(row.documents, key=lambda d: d.kind):
+    for d in sorted(row.documents if not row.contract_date or today >= row.contract_date else [],
+                    key=lambda d: d.kind):
         on = min(max(_kst_date(d.uploaded_at), row.contract_date or date.min), today)
         events.append(_Event(on, "document", f"첫 계약 서류: {doc_labels.get(d.kind, d.kind)}", rule_id=d.kind))
 
