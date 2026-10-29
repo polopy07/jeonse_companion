@@ -143,6 +143,73 @@ export async function parseRegistry(file: PickedFile) {
   );
 }
 
+// ---- POST·GET /api/contracts/{id}/registry-compare ----
+
+/** 다시 올린 등기부 요약 (POST /api/registry/parse 결과를 확인·수정한 값) */
+export type ApiRegistryFields = {
+  seizure: boolean;
+  mortgage: boolean;
+  mortgage_amount: number;
+  lease_amount: number;
+  trust: boolean;
+};
+
+export type ApiRegistryCompareItem = {
+  /** registry.seizure 등 */
+  field: string;
+  label: string;
+  /** 계약 전 확인 때 값. 그때 등기부를 올리지 않았으면 null */
+  before: boolean | number | null;
+  after: boolean | number;
+  /** same 그대로 / risk 새로 생기거나 늘어남 / eased 없어지거나 줄어듦 */
+  change: 'same' | 'risk' | 'eased';
+};
+
+export type ApiRegistryCompare = {
+  id: number;
+  contract_id: number;
+  /** contract_day 계약 당일 / balance_day 잔금일 */
+  stage: 'contract_day' | 'balance_day';
+  compared_on: string;
+  items: ApiRegistryCompareItem[];
+  changed: boolean;
+  /** 새로 생기거나 늘어난 항목이 있어 보류를 안내하는지 */
+  hold: boolean;
+  /** "계약 보류 후 상담" / "잔금 보류 후 상담" */
+  advice: string | null;
+  hint: string | null;
+  /** 계약 전에 근저당이 있었으면 채권최고액 비교가 필수 확인 (FR-023) */
+  mortgage_check_required: boolean;
+  mortgage_check: ApiRegistryCompareItem | null;
+  /** 계약 전 확인에서 등기부를 올리지 않아 다시 올린 등기부에 있는 것을 모두 위험으로 봄 */
+  baseline_missing: boolean;
+  level_before: string;
+  level_after: string;
+  level_after_label: string;
+  deposit_ratio_before: number | null;
+  deposit_ratio_after: number | null;
+};
+
+/**
+ * 계약 당일·잔금일 등기부 재비교 (FR-023·048). stage를 비우면 계약일까지 계약 당일, 그 뒤는 잔금일.
+ * 새로 걸린 연동 규칙은 할 일에 더해지고 경보도 다시 계산되므로, 응답 뒤 계약을 다시 불러온다. 무산된 계약이면 409
+ */
+export function postRegistryCompare(contractId: number, token: string | null, registry: ApiRegistryFields) {
+  return request<ApiRegistryCompare>(`/api/contracts/${contractId}/registry-compare`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...contractHeaders(token) },
+    body: JSON.stringify({ registry }),
+  });
+}
+
+/** 이 계약의 등기부 재비교 기록 (올린 순서) */
+export function getRegistryCompares(contractId: number, token: string | null) {
+  return request<ApiRegistryCompare[]>(`/api/contracts/${contractId}/registry-compare`, {
+    method: 'GET',
+    headers: contractHeaders(token),
+  });
+}
+
 // ---- POST /api/checks ----
 
 export type ApiCheckResult = {
