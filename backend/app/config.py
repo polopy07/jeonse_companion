@@ -70,6 +70,12 @@ def llm_model(default: str) -> str:
     return os.environ.get("LLM_MODEL", "").strip() or default
 
 
+def public_base_url() -> str:
+    """밖에서 서버에 들어오는 주소 (예: https://jeonse.example.ac.kr). 캘린더 구독 주소를 만들 때 쓴다.
+    비우면 요청이 들어온 주소를 쓴다 (프록시 뒤라 주소가 달라지면 배포 서버에서 채운다)."""
+    return os.environ.get("PUBLIC_BASE_URL", "").strip().rstrip("/")
+
+
 def data_go_kr_service_key() -> str:
     """공공데이터포털 일반 인증키를 Decoding 키로. 없으면 빈 문자열.
 
