@@ -77,7 +77,7 @@ def test_contract_uses_payment(client):
     check = _check(client)
     pay = _pay(client, check["id"])
     c = _contract(client, check["id"], pay["payment_id"])
-    assert c["payment_id"] == pay["payment_id"] and c["status"] == "active"
+    assert c["payment_id"] == pay["payment_id"] and c["status"] == "active" and c["payment_product"] == "package"
     assert len(c["access_token"]) >= 40
     # 쓴 결제는 다른 판정에 쓸 수 없다
     other = _check(client)
@@ -97,7 +97,7 @@ def test_payment_of_other_check_is_402(client):
 def test_without_payment_passes_until_required(client):
     # 앱 연결 전(기본): 결제 없이도 계약을 만든다
     c = _contract(client, _check(client)["id"])
-    assert c["payment_id"] is None
+    assert c["payment_id"] is None and c["payment_product"] is None
 
 
 def test_without_payment_is_402_when_required(client, strict):
@@ -175,11 +175,14 @@ def test_released_payment_product_rules(client):
     client.post(f"/api/contracts/{c['id']}/cancel", headers=_auth(c))
     reused = _contract(client, _check(client, HOUSE)["id"], pay["payment_id"], released_from=c)
     assert reused["payment_id"] == pay["payment_id"]
+    # 다가구 계약이어도 결제 상품은 패키지 그대로: 앱이 판정으로 추정하지 않고 이 값으로 다시 쓸 수 있는지 본다 (#123 리뷰)
+    assert (reused["level"], reused["payment_product"]) == ("not_applicable", "package")
 
     # 할 일 관리만 결제 → 패키지 집: 다시 결제 (402)
     house = _check(client, HOUSE)
     small = _pay(client, house["id"])
     c = _contract(client, house["id"], small["payment_id"])
+    assert c["payment_product"] == "todo_only"
     client.post(f"/api/contracts/{c['id']}/cancel", headers=_auth(c))
     r = client.post("/api/contracts", json={"check_id": _check(client)["id"], **DATES, "payment_id": small["payment_id"],
                                             "released_contract_token": c["access_token"]})

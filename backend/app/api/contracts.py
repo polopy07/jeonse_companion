@@ -262,6 +262,7 @@ def _to_out(row: Contract, db: Session, rules: dict, today: date) -> ContractOut
         status=row.status or "active",
         not_returned_date=row.not_returned_date,
         payment_id=row.payment_id,
+        payment_product=db.get(Payment, row.payment_id).product if row.payment_id is not None else None,
         special_term_effects=[
             SpecialTermEffectOut(term_id=e.term_id, label=e.label, result=e.result, **asdict(e.outcome))
             for e in term_effects(row.special_term_result or {}, rules)

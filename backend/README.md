@@ -150,7 +150,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - 선택 입력과 기본값: `monthly_rent` 0, `loan` false, `guarantor` `none`(HUG / HF / SGI / none), `brokered` true(직거래면 false), `renewal_right_used` false, `co_tenant` false, `email`, `special_term_result`(키는 `special_terms.yaml`의 id, 값은 `inserted` / `rejected`)
 - 날짜: 잔금일 ≥ 계약일, 만기일 > 잔금일. 대출이 없으면 `loan_execution_date`를 비워 둔다
 - "문제 항목" 판정이면 409 `CHECK_BLOCKED`, 한 판정으로 계약을 두 번 만들면 409 `CHECK_ALREADY_USED`(만든 계약 id는 `GET /api/checks/{id}`의 `contract_id`)
-- 응답: 입력한 계약 조건 + `id`, `check_id`, `level`(시작할 때의 판정 단계), 판정에서 가져온 주택 정보, `report_required`(임대차 신고 대상), `alert_level`(판정 때 비율로 정한 경보 단계, 정상이면 null), `status`(`active` / `cancelled`), `payment_id`, `access_token`, `special_term_effects`, `todos`(할 일 목록)
+- 응답: 입력한 계약 조건 + `id`, `check_id`, `level`(시작할 때의 판정 단계), 판정에서 가져온 주택 정보, `report_required`(임대차 신고 대상), `alert_level`(판정 때 비율로 정한 경보 단계, 정상이면 null), `status`(`active` / `cancelled`), `payment_id`, `payment_product`(그 결제의 상품 `package` / `todo_only`, 결제 없으면 null), `access_token`, `special_term_effects`, `todos`(할 일 목록)
 - `special_term_effects`: 기록한 특약마다 `{term_id, label, result, warnings, documents, moves_to_top, adds_todos, link_counsel}` (명세서 부속표 E, `special_terms.yaml`의 `on_inserted`·`on_rejected`). 넣음이면 기록함에 남길 서류(특약이 보이는 계약서 사진), 거절당함이면 위험 안내·맨 위로 올라간 할 일(담보 설정 금지 → T4, 보증 거절 시 해제 → T2)·공공 상담 창구. 할 일 순서 자체는 `todos.yaml` `move_to_top_when`이 바꾸고, 두 파일이 서로 맞는지는 `rules/check_rules.py`가 검사한다
 - `todos`는 `sort_order` 순서다: 맨 위 규칙(특약 거절·경보, `moved_to_top`) → 고정(T5~T9, `pinned`) → 기한 빠른 순. 재알림(T6·T8)은 `due_date` 대신 `remind_date`, HF·SGI 반환보증(T5)은 기관 기준이 없어 `due_date`가 null. 대출은 있는데 `loan_execution_date`를 비우면 T5 시작일은 전입신고(T4) 다음 날
 - 기한 계산은 `docs/validation/기한계산_정답표.md`의 계산 약속을 따르고, `tests/test_todos.py`가 정답표(`deadline_scenarios.yaml`) S1~S10·재계산 3개와 대조한다
@@ -261,7 +261,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - 계약 당일(점검한 날과 계약일이 다를 때, FR-048)·잔금일 아침(3번 할 일, FR-023)에 등기부 요약을 다시 올려(`POST /api/registry/parse` → 확인) 계약 전 확인 판정과 비교한다. `stage`를 비우면 오늘(가상 날짜)이 계약일까지면 계약 당일, 계약 다음 날부터는 잔금일
 - 항목별 `same` / `risk`(새로 생기거나 늘어남) / `eased`(없어지거나 줄어듦). `risk`가 있으면 `hold`와 "계약 보류 후 상담" / "잔금 보류 후 상담". 근저당 말소·감액은 변동으로만 보여 주고 보류는 안내하지 않는다 (잔금 때 말소하기로 한 근저당)
 - 계약 전에 근저당이 있었으면 `mortgage_check`(채권최고액 비교)를 필수 확인으로 (L-MORTGAGE)
-- 계약 전 확인과 같은 입력(보증금·공시가격도 그때 값)에 등기부만 바꿔 다시 판정해 계약의 판정 기록(`verdicts.stage`·`comparison`)으로 남긴다. 그래서 `level_after`·`deposit_ratio_after`가 달라지면 등기부 때문. `GET`은 재비교 기록
+- 계약 전 확인과 같은 입력(보증금·공시가격도 그때 값)에 등기부만 바꿔 다시 판정해 계약의 판정 기록(`verdicts.stage`·`comparison`)으로 남긴다. 그래서 `level_after`·`deposit_ratio_after`가 달라지면 등기부 때문. 단계 이름은 `level_before_label`·`level_after_label`(앱이 `verdict.yaml` 이름을 따로 갖지 않게). `GET`은 재비교 기록
 - 다시 판정해 새로 걸린 연동 규칙은 할 일에 더한다 (근저당 → 3번 근저당 금액 비교, 비율 90% 이상 → 2번 기한 계약일, 신탁 → 신탁사 동의서. PO 2026-10-28). 더하기만 하고, 근저당이 말소된 등기부를 올려도 빼지 않는다 (`contracts.todo_linkages`)
 - 경보는 재비교한 날 기준으로 이 계약만 바로 다시 계산한다 (계약의 지금 보증금·공시가격 + 이 등기부의 선순위 채권, `alert_level`·경보 이력·올라가면 앱 알림). 경보 재계산의 선순위 채권은 그날까지 비교한 날이 가장 늦은 등기부 (가상 날짜를 되돌려 다시 비교해도 날짜로 고름, `alerts.senior_debt`)
 - 3번 할 일 완료는 지금처럼 증빙(잔금일 등기부 열람본)으로 한다 (재비교가 할 일 상태를 바꾸지 않음)

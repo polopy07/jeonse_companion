@@ -3892,6 +3892,22 @@
             "title": "Payment Id",
             "description": "이 계약에 쓴 테스트 결제. 결제 없이 만든 계약이면 null"
           },
+          "payment_product": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "package",
+                  "todo_only"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Product",
+            "description": "payment_id 결제의 상품 (package / todo_only). 무산된 계약에서 풀린 결제를 다음 계약에 다시 쓸 수 있는지 볼 때. 결제가 없으면 null"
+          },
           "special_term_effects": {
             "items": {
               "$ref": "#/components/schemas/SpecialTermEffectOut"
@@ -3950,6 +3966,7 @@
           "status",
           "not_returned_date",
           "payment_id",
+          "payment_product",
           "special_term_effects",
           "todos",
           "documents",
@@ -4367,6 +4384,22 @@
             "title": "Payment Id",
             "description": "이 계약에 쓴 테스트 결제. 결제 없이 만든 계약이면 null"
           },
+          "payment_product": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "package",
+                  "todo_only"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Product",
+            "description": "payment_id 결제의 상품 (package / todo_only). 무산된 계약에서 풀린 결제를 다음 계약에 다시 쓸 수 있는지 볼 때. 결제가 없으면 null"
+          },
           "special_term_effects": {
             "items": {
               "$ref": "#/components/schemas/SpecialTermEffectOut"
@@ -4420,6 +4453,7 @@
           "status",
           "not_returned_date",
           "payment_id",
+          "payment_product",
           "special_term_effects",
           "todos",
           "documents"
@@ -5815,6 +5849,11 @@
             "title": "Level Before",
             "description": "계약 전 확인 판정 단계 (verdict.yaml levels[].id)"
           },
+          "level_before_label": {
+            "type": "string",
+            "title": "Level Before Label",
+            "description": "level_before의 화면 이름 (verdict.yaml levels[].label)"
+          },
           "level_after": {
             "type": "string",
             "title": "Level After",
@@ -5864,6 +5903,7 @@
           "mortgage_check",
           "baseline_missing",
           "level_before",
+          "level_before_label",
           "level_after",
           "level_after_label",
           "deposit_ratio_before",

@@ -55,7 +55,8 @@ def _out(v: Verdict, row: Contract, check: Verdict, rules: dict) -> RegistryComp
         baseline_check_id=check.id, items=items, changed=c["changed"], hold=c["hold"], advice=c["advice"],
         hint=c["hint"], mortgage_check_required=c["mortgage_check_required"],
         mortgage_check=mortgage if c["mortgage_check_required"] else None, baseline_missing=c["baseline_missing"],
-        level_before=check.level, level_after=v.level, level_after_label=_level_label(v.level, rules),
+        level_before=check.level, level_before_label=_level_label(check.level, rules),
+        level_after=v.level, level_after_label=_level_label(v.level, rules),
         deposit_ratio_before=check.deposit_ratio, deposit_ratio_after=v.deposit_ratio,
     )
 
