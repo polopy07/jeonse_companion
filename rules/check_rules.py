@@ -14,7 +14,7 @@ from pathlib import Path
 import yaml
 
 RULES_DIR = Path(__file__).resolve().parent
-FILES = ["fields", "verdict", "alert", "linkage", "special_terms", "todos", "guarantors"]
+FILES = ["fields", "verdict", "alert", "linkage", "special_terms", "todos", "guarantors", "explain"]
 OPS = {"==", "!=", ">=", ">", "<=", "<", "in"}
 ACTIONS = {
     "show_special_term", "show_warning", "require_check", "require_document", "add_todo",
@@ -172,6 +172,20 @@ def main():
             for phrase in forbidden:
                 if phrase in text:
                     errors.append(f"{name}.yaml:{path}: 쓰지 않는 표현 '{phrase}'")
+
+    # 등기 항목 설명 템플릿 (FR-007): 종류마다 있어야 하고, 화면 문구라 금지 표현도 검사한다 (AI-REQ-03)
+    templates = data["explain"]["templates"]
+    for kind in ("mortgage", "mortgage_no_amount", "lease", "lease_no_amount", "seizure", "trust", "other"):
+        if not templates.get(kind):
+            errors.append(f"explain.yaml: templates.{kind} 없음")
+    for kind in ("mortgage", "lease"):
+        if "{amount}" not in templates.get(kind, ""):
+            errors.append(f"explain.yaml: templates.{kind}에 {{amount}} 없음")
+    banned = forbidden + data["explain"]["forbidden_phrases"]
+    for kind, text in templates.items():
+        for phrase in banned:
+            if phrase in text:
+                errors.append(f"explain.yaml: templates.{kind}: 쓰지 않는 표현 '{phrase}'")
 
     # 특약 결과로 맨 위로 올리는 할 일은 두 곳에 적는다: 화면 안내(special_terms.yaml on_*)와 할 일 엔진(todos.yaml move_to_top_when)
     by_terms = {

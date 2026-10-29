@@ -18,6 +18,7 @@
 | `special_terms.yaml` | 특약 예시 3개와 넣음/거절당함 분기 | 부속표 E, FR-039, 050 |
 | `todos.yaml` | 할 일 9종(시점·기한·선행 조건·증빙·맨 위로 올리는 조건), 임대차 신고 대상 기준, 계약 당일 첫 계약 서류 종류(`first_documents`), 반환 대응 단계·단계별 청구 서류(`return_response`) | 부속표 A, FR-015, 017~021, 024, 034~035, 051 |
 | `guarantors.yaml` | 보증기관(HUG·HF·SGI·미가입)별 기준 | FR-018 |
+| `explain.yaml` | 등기 항목 쉬운 말 설명: 종류별 템플릿(LLM이 꺼지거나 실패할 때), LLM 설정·지시문, 법률 판단·상품 추천 금지 표현 | FR-007, 8장 AI-REQ-01~05 |
 | `check_rules.py` | 위 파일들의 형식과 서로 참조하는 ID, 판정 설명·안내 문구가 빠지지 않았는지, 화면에 나가는 문구(`label`·`explanation`·`guide`·`text`·`detail`·`title`·`disclaimer` 등, `check_rules.py`의 `DISPLAY_KEYS`)에 쓰지 않는 표현(`display.forbidden_phrases`)이 없는지 검사. `basis`·`note` 같은 내부 설명은 법령·공공 자료 인용이 있을 수 있어 보지 않는다. 이 검사는 규칙 파일만 보며, 서버 코드의 오류 문구(`hint` 등)와 화면(`frontend/`) 문구는 검사하지 않는다 | NFR-014 |
 
 ## 조건 쓰는 법

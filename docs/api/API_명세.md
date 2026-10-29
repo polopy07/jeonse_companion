@@ -196,6 +196,7 @@ A = 개발 A(백엔드·규칙), B = 개발 B(화면). 주차는 노션 "할 일
 | `POST /api/contracts/{id}/documents` | 계약 당일 첫 계약 서류 올리기 (기록함의 첫 서류, 할 일과 별개): multipart `kind`(`contract` 계약서 / `down_payment` 계약금 이체 내역, `todos.yaml` `first_documents`)와 `file`. 종류마다 1장, 다시 올리면 바꿈. 형식·화질 제한 없이 20MB까지(넘으면 413 `FILE_TOO_LARGE`), 빈 파일·없는 종류 422. 계약 전체를 돌려줌(`documents`: 종류마다 `label`·`detail`·`uploaded`·`uploaded_at`, `GET`·`PATCH` 응답에도). `X-Contract-Token` 확인, 무산된 계약은 409 | FR-051 | UI-03, UI-05 |
 | `GET /api/contracts/{id}/documents/{kind}` | 올린 첫 계약 서류 파일 (기록함 보기). 사진·PDF는 `inline`, 다른 형식은 내려받기(증빙과 같음). 없으면 404. 무산된 계약도 볼 수 있음 | FR-051 | UI-05 |
 | `DELETE /api/contracts/{id}/documents/{kind}` | 첫 계약 서류 삭제 (언제든, 무산된 계약도). 계약 전체를 돌려줌. 올린 서류가 없으면 404 | FR-033 | UI-05 |
+| `POST /api/registry/explain` | 등기 항목 쉬운 말 설명 (저장 안 함): 본문 `items`(1~20개, 항목마다 `id`·`kind` mortgage/lease/seizure/trust/other·등기 목적 `purpose` 30자까지·금액 `amount`) → 보낸 순서대로 `explanations`(`id`·`kind`·`text`·`source`)와 `disclaimer`. `POST /api/registry/parse` 결과를 사용자가 확인한 뒤 따로 부른다(추출 결과를 먼저 보여 주고 설명은 뒤에, NFR-001). 이름·원문 글자·주소는 받지 않음(AI-REQ-05). LLM(`ANTHROPIC_API_KEY`가 있고 `LLM_EXPLAIN`이 false가 아닐 때)이 쓰고 금지 표현·숫자 검사를 통과하면 `source: "llm"`, LLM이 꺼짐·실패·8초 초과·검사 탈락이면 `rules/explain.yaml` 템플릿(`"template"`). 어느 쪽이든 200. id 겹침·없는 종류·20개 초과는 422 | FR-007 | UI-01, UI-02 |
 | `GET /api/demo-houses` | 시연 집 2채(해운대구 아파트·수영구 빌라, `docs/validation/demo_houses.yaml`): 계약 전 확인 입력값(`input`, 단지·공시가격·전용면적·등기부 확인값 포함. 그대로 `POST /api/checks`로), 시연 등기부를 읽은 결과(`registry`, `POST /api/registry/parse`와 같은 형식, 이름·주소는 가린 값), 시연용 가상 값(`virtual`, 화면에 "시연용 가상" 표시), 계약 당일 장면(`contract_day`, 날짜·특약 결과. 그대로 `POST /api/contracts`로). 정답표와 같은 결과를 보려면 기준일(`as_of`)의 실거래 저장본을 넣고(`cd backend && python load_demo_trades.py`) `X-Virtual-Today`에 그 날짜를 보낸다. `tests/test_demo_houses.py`가 정답표 기대값과 자동 대조 | FR-001, 046 | UI-01, UI-03 |
 
 입출력 예시는 `backend/README.md`, 전체 형식은 `openapi.json`.
@@ -217,7 +218,6 @@ GitHub 이슈와 마일스톤(2주차·3주차·4주차)으로 진행을 관리�
 | 메서드·주소 | 하는 일 | FR | 이슈 |
 | --- | --- | --- | --- |
 | `GET /api/checks/{id}/todo-preview` | 결제 전에 생길 할 일 종류 미리보기. 화면이 규칙 파일로 그리면 생략 | FR-012 | #56 |
-| (`POST /api/registry/parse` 응답) | 등기 항목 쉬운 말 설명 (LLM) | FR-007 | #57 |
 
 이미 있는 API로 되는 것: 다음 집 계약 전 확인(FR-028)은 `POST /api/checks`, 위반건축물 확인(FR-008)은 `POST /api/checks` 입력, 규칙 데이터 관리(FR-045)는 `rules/*.yaml`과 `/health`.
 
