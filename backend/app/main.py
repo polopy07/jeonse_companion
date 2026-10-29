@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import errors
-from app.api import admin, alerts, checks, contracts, demo, documents, moves, recompare, registry, todos
+from app.api import admin, alerts, calendar, checks, contracts, demo, documents, moves, recompare, registry, todos
 from app.config import cors_origins
 from app.db import init_db
 from app.rules.loader import get_rules
@@ -32,7 +32,7 @@ def create_app() -> FastAPI:
         # 웹(expo start --web)으로 개발할 때 브라우저가 API를 부르게. 쿠키는 쓰지 않고 계약 토큰은 헤더로 보낸다
         app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=False, allow_methods=["*"],
                            allow_headers=["Content-Type", "X-Contract-Token", "X-Virtual-Today", "X-Admin-Token"])
-    for module in (checks, contracts, moves, recompare, todos, documents, alerts, registry, demo, admin):
+    for module in (checks, contracts, moves, recompare, todos, documents, alerts, calendar, registry, demo, admin):
         app.include_router(module.router)
     app.get("/health")(health)
     return app

@@ -11,7 +11,7 @@ import { ApiError, apiEnabled, getCheck, getContract, postContract, type Guarant
 import { useLatestCheck } from '@/lib/check';
 import { dateOrderError, isDateText as isDate, parseManwon } from '@/lib/format';
 import { contractToken, setLatestContract } from '@/lib/contract';
-import { paymentIdFor, setLatestPayment } from '@/lib/payment';
+import { paymentIdFor, releasedFor, setLatestPayment, setReleasedPayment } from '@/lib/payment';
 import { useSpecialTermResults } from '@/lib/special-terms';
 
 /** 시연 데이터의 "2026.10.20" → 입력칸 "2026-10-20" */
@@ -53,6 +53,9 @@ export default function ContractDatesScreen() {
     }
     setSubmitting(true);
     setError(null);
+    // 이 판정에 한 결제가 없으면 무산된 계약에서 풀린 결제(그 계약의 토큰과 함께)를 쓴다 (FR-016)
+    const ownPayment = paymentIdFor(check.id);
+    const released = ownPayment === null ? releasedFor(check.level === 'na' ? 'todo_only' : 'package') : null;
     try {
       const contract = await postContract({
         check_id: check.id,
@@ -70,11 +73,13 @@ export default function ContractDatesScreen() {
         special_term_result: Object.fromEntries(
           Object.entries(termResults).filter((e): e is [string, 'inserted' | 'rejected'] => !!e[1]),
         ),
-        payment_id: paymentIdFor(check.id),
+        payment_id: ownPayment ?? released?.payment_id ?? null,
+        released_contract_token: released?.token ?? null,
       });
       // 접근 토큰은 이 응답에서 한 번만 온다. 휴대폰에 저장해 계약 아래 API에 붙인다
       setLatestContract(contract, contract.access_token);
       setLatestPayment(null); // 계약에 쓴 결제 (무산되면 서버가 풀어 준다)
+      if (released) setReleasedPayment(null);
       router.push('/todos');
     } catch (e) {
       // 이미 이 판정으로 계약을 만들었으면 그 계약의 할 일로 간다
@@ -90,6 +95,8 @@ export default function ContractDatesScreen() {
           return;
         }
       }
+      // 풀린 결제를 쓸 수 없으면(이미 다른 계약에 씀 등) 지워서 결과 화면에서 새로 결제하게 한다
+      if (released && e instanceof ApiError && e.status === 402) setReleasedPayment(null);
       // 402 PAYMENT_REQUIRED: 결과 화면의 결제 확인 창으로 돌아가라는 안내(hint)를 그대로 보여 준다
       setError(e instanceof ApiError ? [e.message, e.hint].filter(Boolean).join('. ') : '계약을 만들지 못했어요');
     } finally {
