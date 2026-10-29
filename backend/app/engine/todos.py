@@ -12,12 +12,14 @@
 연동 규칙은 MVP 규칙만 적용한다 (계약 당일 특약 예시와 같은 범위).
 
 날짜·조건·특약이 바뀌면 PATCH /api/contracts/{id}가 이 함수로 다시 계산한다 (끝낸 할 일의 완료일은 done_dates로).
+9번(반환 확인)에서 "못 받음"을 골랐으면 반환 대응 단계(R1~R4, todos.yaml return_response)를 맨 위에 붙인다.
 아직 하지 않는 것: 특약 반영 분기의 경고·서류(FR-050, 3주차), 추가 할 일 X-*(MVP 밖이거나 계약 중 경보 때 붙는 것).
 """
 import calendar
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
+from app.engine.return_response import confirm_todo_id, return_steps
 from app.rules.conditions import evaluate
 
 
@@ -58,8 +60,10 @@ def report_required(values: dict, todo_rules: dict) -> bool:
 
 class _Builder:
     def __init__(self, values: dict, linkages: list[str], special_terms: dict[str, str],
-                 alert_level: str | None, rules: dict, done_dates: dict[str, date]):
+                 alert_level: str | None, rules: dict, done_dates: dict[str, date], not_returned_date: date | None):
         self.values = values
+        self.rules = rules
+        self.not_returned_date = not_returned_date
         # MVP 연동 규칙만 적용한다. MVP 밖 규칙(위반건축물 등)은 계약 당일 화면에 안내하지 않으므로
         # 할 일도 바꾸지 않는다
         mvp = {rule["id"] for rule in rules["linkage"]["rules"] if rule.get("mvp")}
@@ -200,11 +204,20 @@ class _Builder:
             planned = self.plan(rule)
             if planned is not None:
                 self.plans[rule["id"]] = planned
+        # 반환 대응 중 늦게라도 돌려받아 9번을 끝내면 단계는 계획에서 뺀다 (끝낸 단계는 기록으로만 남는다, #124 리뷰)
+        if self.not_returned_date is not None and confirm_todo_id(self.rules) not in self.done_dates:
+            # 반환 대응 (FR-024, FR-034): 시작일은 "못 받음"을 고른 날, 기한은 없음. 가장 급한 일이라 맨 위로
+            for step in return_steps(self.values["guarantor"], self.rules):
+                self.plans[step.id] = PlannedTodo(
+                    rule_id=step.id, title=step.title, detail=step.detail, start_date=self.not_returned_date,
+                    due_date=None, remind_date=None, evidence=step.evidence, moved_to_top=True)
         return self.ordered()
 
     def ordered(self) -> list[PlannedTodo]:
         """C7: todos.yaml의 order 단계 순서로, 같은 단계 안에서는 번호순 (기한 단계는 기한 빠른 순 → 번호순)."""
         number = {r["id"]: i for i, r in enumerate(self.todo_rules["todos"])}
+        steps = self.todo_rules["return_response"]["steps"]   # 반환 대응 단계는 맨 위 단계 안에서도 먼저
+        number.update({s["id"]: i - len(steps) for i, s in enumerate(steps)})
         stages = self.todo_rules["order"]
 
         def stage(t: PlannedTodo) -> int:
@@ -226,7 +239,8 @@ class _Builder:
 
 
 def build_todos(values: dict, linkages: list[str], special_terms: dict[str, str], alert_level: str | None,
-                rules: dict, done_dates: dict[str, date] | None = None) -> list[PlannedTodo]:
+                rules: dict, done_dates: dict[str, date] | None = None,
+                not_returned_date: date | None = None) -> list[PlannedTodo]:
     """계약 조건으로 할 일 목록을 만든다.
 
     values: fields.yaml 이름의 계약 조건 (contract_date, balance_date, end_date, deposit, monthly_rent,
@@ -235,6 +249,7 @@ def build_todos(values: dict, linkages: list[str], special_terms: dict[str, str]
     special_terms: 특약별 넣음/거절당함 {"S-NO-MORTGAGE": "rejected"}
     alert_level: 경보 단계 (alert.yaml levels[].id), 해당 없으면 None
     done_dates: 이미 끝낸 할 일의 완료일 {"T4": date(...)} (재계산용)
+    not_returned_date: 9번(반환 확인)에서 "못 받음"을 고른 날. 있으면 반환 대응 단계(R1~R4)를 붙인다
     """
     values = {**values, "report_required": report_required(values, rules["todos"])}
-    return _Builder(values, linkages, special_terms, alert_level, rules, done_dates or {}).build()
+    return _Builder(values, linkages, special_terms, alert_level, rules, done_dates or {}, not_returned_date).build()

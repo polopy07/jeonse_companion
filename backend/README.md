@@ -62,6 +62,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/engine/verdict.py` | 판정 4단계 (verdict.yaml) |
 | `app/engine/check.py` | 계약 전 확인: 입력 → 비율 → 판정 |
 | `app/engine/todos.py` | 할 일 9종 생성: 기한·선행 조건·순서 (todos.yaml, guarantors.yaml, linkage.yaml) |
+| `app/engine/return_response.py` | 반환 대응 단계(보증기관별)와 청구 서류 대조 (todos.yaml `return_response`) |
 | `app/engine/alert.py` | 경보 단계 (alert.yaml) |
 | `app/engine/move.py` | 갈아타기: 자금 틈·대출 순서·전입 순서 경고 (정답표 S10) |
 | `app/engine/market.py` | 같은 단지·비슷한 면적의 최근 매매가, 주변 전세 시세 중앙값 (alert.yaml) |
@@ -75,6 +76,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/api/recompare.py` | `POST`·`GET /api/contracts/{id}/registry-compare` 등기부 재비교 |
 | `app/engine/registry_compare.py` | 등기부 재비교: 항목별 변동·보류 안내 |
 | `app/api/todos.py` | `PATCH /api/todos/{id}` 할 일 끝내기·나중에 올리기·되돌리기, `POST`·`GET`·`DELETE /api/todos/{id}/evidence` 증빙 |
+| `app/api/returns.py` | `POST`·`DELETE /api/contracts/{id}/return-response` "못 받음"·되돌리기, `GET /api/contracts/{id}/return-guide` 반환 대응 안내 |
 | `app/engine/calendar.py` | 할 일 → ICS (앱 내보내기와 같은 UID·알림) |
 | `app/api/calendar.py` | 캘린더 구독 주소 만들기·끊기(`/api/contracts/{id}/calendar-link`), 구독 파일(`/api/calendar/{token}.ics`) |
 | `app/api/documents.py` | `POST /api/contracts/{id}/documents`, `GET`·`DELETE /api/contracts/{id}/documents/{kind}` 첫 계약 서류 |
@@ -197,6 +199,15 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - `DELETE /api/todos/{id}/evidence`: 언제든(무산된 계약도) 지움. 완료했던 할 일은 `skipped`(완료 그대로, 기록함만 빈칸)
 - 파일은 `EVIDENCE_DIR`(기본 `backend/data/evidence/<계약 id>/`, git 제외)에 저장, DB에는 상대 경로만. `reset_demo_db.py`가 계약별 폴더(숫자 이름)만 같이 지움. 다시 열린 뒤 조건이 바뀌어 지워지는 할 일의 파일도 지움. 암호화 저장은 출시 준비
 - 나중에 올리기 한 할 일은 나중에 올리기로 바꾼 날(증빙을 지운 날) 7일 뒤 "증빙을 아직 안 올렸어요" 앱 안 알림 (`todos.yaml` `notifications.evidence_after_days`, FR-030)
+
+### 반환 대응 (FR-024·034·035, #52)
+
+- `POST /api/contracts/{id}/return-response`: 9번(반환 확인)에서 "못 받음". 오늘(가상 날짜)을 `not_returned_date`로 저장하고 반환 대응 단계 R1~R4를 기한 없는 할 일로 맨 위에 붙인다(`todos.yaml` `return_response`). 만기일 전이면 409 `RETURN_NOT_DUE`, 9번을 이미 끝냈으면 409 `ALREADY_RETURNED`, 다시 보내면 그대로
+- 단계는 할 일이라 끝내기·나중에 올리기·증빙(반환 요청 캡처, 내용증명 사본, 임차권등기가 된 등기부, 청구 접수 기록)은 `PATCH`·`POST /api/todos/{id}` 그대로. 시작일에 앱 안 알림. 나중에 돌려받으면 9번을 끝낸다(`return-guide`가 `ended`). 그러면 남은 단계는 할 일에서 빠지고 끝낸 단계는 맨 뒤 기록으로 남는다(맨 위·고정 표시도 풂). 9번을 되돌리면 단계가 다시 맨 위로
+- `DELETE /api/contracts/{id}/return-response`: 잘못 고른 "못 받음" 되돌리기. 끝낸 단계가 있으면 409 `RETURN_STEP_DONE`
+- `GET /api/contracts/{id}/return-guide`: 단계 진행(`state` done / current / todo), 단계별 창구 링크, 청구 서류 대조(단계마다 적은 할 일의 증빙을 기록함에 올렸는지, 이 계약에 없는 할 일의 서류는 뺌), 빠진 서류 수, 공공 상담 창구. "못 받음" 전에도 `preview`로 볼 수 있다(경보 위험일 때 미리 점검, 서류는 지금 준비할 수 있는 할 일(T) 서류만)
+- 4단계는 보증기관에 따라 HUG·HF·SGI 청구 창구, 미가입은 공공 상담(증빙 없음). 단계별 서류는 팀 제안(`hypothesis: true`), 출시 전 보증기관 청구 서류·법률 자문으로 확인
+- 반환 대응 중에는 만기일을 "못 받음"을 고른 날보다 뒤로 바꿀 수 없다 (`PATCH /api/contracts/{id}` 422 `end_date`)
 
 ### 캘린더 구독 (FR-042, #47)
 
