@@ -30,7 +30,7 @@ def test_contract_lists_document_kinds(client):
     c = _contract(client)
     docs = _docs(c)
     assert list(docs) == ["contract", "down_payment"]
-    assert docs["contract"]["label"] == "계약서" and docs["down_payment"]["label"] == "계약금 이체 내역"
+    assert docs["contract"]["label"] == "계약서 (계약 당일 사진)" and docs["down_payment"]["label"] == "계약금 이체 내역"
     assert not any(d["uploaded"] or d["uploaded_at"] for d in docs.values())
 
 
