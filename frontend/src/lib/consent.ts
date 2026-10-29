@@ -9,7 +9,7 @@ import { dateKey } from '@/lib/clock';
 import { createStore } from '@/lib/store';
 
 const CONSENT_KEY = 'jeonse.consent';
-export const CONSENT_VERSION = '2026-10-28';
+export const CONSENT_VERSION = '2026-10-29';
 
 export type Consent = { version: string; agreedOn: string };
 
