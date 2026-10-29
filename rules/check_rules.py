@@ -14,7 +14,7 @@ from pathlib import Path
 import yaml
 
 RULES_DIR = Path(__file__).resolve().parent
-FILES = ["fields", "verdict", "alert", "linkage", "special_terms", "todos", "guarantors"]
+FILES = ["fields", "verdict", "alert", "linkage", "special_terms", "todos", "guarantors", "explain"]
 OPS = {"==", "!=", ">=", ">", "<=", "<", "in"}
 ACTIONS = {
     "show_special_term", "show_warning", "require_check", "require_document", "add_todo",
@@ -132,6 +132,25 @@ def main():
             if p not in todo_ids:
                 errors.append(f"todos.yaml:{tid['id']}: 없는 선행 할 일 '{p}'")
 
+    # 반환 대응 단계(R1~R4)는 할 일로 붙으므로 할 일 id와 겹치면 안 되고, 서류는 할 일이나 앞 단계의 증빙이어야 한다
+    guarantors = set(data["guarantors"]["guarantors"])
+    seen_steps = set()
+    for step in data["todos"]["return_response"]["steps"]:
+        sid = step["id"]
+        if sid in todo_ids or sid in seen_steps:
+            errors.append(f"todos.yaml:return_response.{sid}: 할 일·단계 id 중복")
+        for doc in step.get("documents", []):
+            if doc not in todo_ids and doc not in seen_steps:
+                errors.append(f"todos.yaml:return_response.{sid}: 서류 '{doc}'는 할 일이나 앞 단계 id여야 함")
+        seen_steps.add(sid)
+        by_guarantor = step.get("by_guarantor")
+        if by_guarantor is not None and set(by_guarantor) != guarantors:
+            errors.append(f"todos.yaml:return_response.{sid}: by_guarantor는 guarantors.yaml의 기관 "
+                          f"{sorted(guarantors)}을 모두 적어야 함")
+        for variant in (by_guarantor.values() if by_guarantor else [step]):
+            if not variant.get("title") or not variant.get("detail"):
+                errors.append(f"todos.yaml:return_response.{sid}: title·detail 없음")
+
     first_docs = [d["id"] for d in data["todos"]["first_documents"]]
     if len(set(first_docs)) != len(first_docs):
         errors.append("todos.yaml: first_documents id 중복")
@@ -157,6 +176,20 @@ def main():
             for phrase in forbidden:
                 if phrase in text:
                     errors.append(f"{name}.yaml:{path}: 쓰지 않는 표현 '{phrase}'")
+
+    # 등기 항목 설명 템플릿 (FR-007): 종류마다 있어야 하고, 화면 문구라 금지 표현도 검사한다 (AI-REQ-03)
+    templates = data["explain"]["templates"]
+    for kind in ("mortgage", "mortgage_no_amount", "lease", "lease_no_amount", "seizure", "trust", "other"):
+        if not templates.get(kind):
+            errors.append(f"explain.yaml: templates.{kind} 없음")
+    for kind in ("mortgage", "lease"):
+        if "{amount}" not in templates.get(kind, ""):
+            errors.append(f"explain.yaml: templates.{kind}에 {{amount}} 없음")
+    banned = forbidden + data["explain"]["forbidden_phrases"]
+    for kind, text in templates.items():
+        for phrase in banned:
+            if phrase in text:
+                errors.append(f"explain.yaml: templates.{kind}: 쓰지 않는 표현 '{phrase}'")
 
     # 특약 결과로 맨 위로 올리는 할 일은 두 곳에 적는다: 화면 안내(special_terms.yaml on_*)와 할 일 엔진(todos.yaml move_to_top_when)
     by_terms = {

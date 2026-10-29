@@ -93,6 +93,43 @@ class RegistryParseResult(BaseModel):
     warnings: list[str]
 
 
+RegistryItemKind = Literal["mortgage", "lease", "seizure", "trust", "other"]
+
+
+class ExplainItemInput(BaseModel):
+    """설명할 등기 항목 1개. 이름·원문 글자·주소는 받지 않는다 (LLM에 보내지 않게, AI-REQ-05)."""
+
+    id: str = Field(min_length=1, max_length=40, description="화면에서 항목을 찾는 값 (예: 순위번호). 응답에 그대로 돌려준다")
+    kind: RegistryItemKind = Field(description="mortgages→mortgage, leases→lease, seizures→seizure, trusts→trust, others→other")
+    purpose: str = Field(min_length=1, max_length=30, description="등기 목적 (예: 근저당권설정, 주택임차권). 권리자 이름은 넣지 않는다")
+    amount: int | None = Field(None, ge=0, description="채권최고액·보증금 (원). 사용자가 확인한 값")
+
+
+class ExplainInput(BaseModel):
+    """등기 항목 쉬운 말 설명 요청 (FR-007). POST /api/registry/parse 결과를 사용자가 확인한 뒤 보낸다."""
+
+    items: list[ExplainItemInput] = Field(min_length=1, max_length=20)
+
+    @model_validator(mode="after")
+    def unique_ids(self):
+        if len({i.id for i in self.items}) != len(self.items):
+            raise ValueError("항목 id가 겹칩니다")
+        return self
+
+
+class ExplanationOut(BaseModel):
+    id: str
+    kind: RegistryItemKind
+    text: str = Field(description="쉬운 말 설명")
+    source: Literal["llm", "template"] = Field(
+        description="llm(LLM이 쓰고 금지 표현·숫자 검사를 통과) / template(LLM 꺼짐·실패·검사 탈락, rules/explain.yaml)")
+
+
+class ExplainResult(BaseModel):
+    explanations: list[ExplanationOut] = Field(description="보낸 순서대로")
+    disclaimer: str = Field(description="결과 화면 공통 문구 (verdict.yaml display.disclaimer)")
+
+
 RegistryStage = Literal["contract_day", "balance_day"]
 
 
@@ -422,6 +459,8 @@ class ContractOut(BaseModel):
     alert_level: str | None = Field(
         description="지금 경보 단계 (alert.yaml levels[].id), 정상이면 null. 계약을 시작할 때 정하고 경보 재계산(FR-037)으로 바뀐다")
     status: ContractStatus = Field(description="active / cancelled (계약 무산, FR-016)")
+    not_returned_date: date | None = Field(
+        description="9번(반환 확인)에서 \"못 받음\"을 고른 날 (FR-024). 반환 대응 중이면 날짜, 아니면 null")
     payment_id: int | None = Field(description="이 계약에 쓴 테스트 결제. 결제 없이 만든 계약이면 null")
     special_term_effects: list[SpecialTermEffectOut] = Field(
         description="기록한 특약 결과의 분기 (부속표 E): 넣음이면 기록함에 남길 서류, 거절당함이면 위험 안내·맨 위로 올라간 할 일·상담 창구")
@@ -431,6 +470,57 @@ class ContractOut(BaseModel):
 
 class ContractCreatedOut(ContractOut):
     access_token: str = Field(description="계약 접근 토큰. 이 응답에서 한 번만 준다. 계약 아래 API에 X-Contract-Token 헤더로 보낸다")
+
+
+class LinkOut(BaseModel):
+    label: str
+    url: str
+
+
+class ReturnStepOut(BaseModel):
+    """반환 대응 한 단계 (FR-034). 반환 대응을 시작하면 같은 rule_id의 할 일로 붙는다 (끝내기·증빙은 /api/todos/{todo_id})."""
+
+    rule_id: str = Field(description="todos.yaml return_response 단계 id (R1~R4)")
+    todo_id: int | None = Field(description="이 단계의 할 일 id. 반환 대응을 시작하기 전(preview)이면 null")
+    title: str
+    detail: str
+    link: LinkOut | None = Field(description="신청·청구 창구 (내용증명, 대법원 전자소송, 보증기관 등)")
+    evidence: str | None = Field(description="끝낼 때 올릴 증빙. 없으면 null (공공 상담)")
+    state: Literal["done", "current", "todo"] = Field(
+        description="done(끝냄, 나중에 올리기 포함) / current(지금 할 단계: 끝내지 않은 첫 단계) / todo")
+    done_date: date | None
+    evidence_uploaded: bool
+    documents: list[str] = Field(description="이 단계에 필요한 서류의 rule_id (documents에서 이름·대조 결과)")
+    missing_documents: list[str] = Field(description="이 단계에 필요한데 기록함에 없는 서류 이름 (FR-035)")
+
+
+class ReturnDocumentOut(BaseModel):
+    """청구 서류 대조 한 줄 (FR-035). 서류는 그 할 일의 증빙이다."""
+
+    rule_id: str = Field(description="서류를 올리는 할 일 (T1~T9, R1~R4)")
+    todo_id: int | None = Field(description="기록함에 올릴 할 일 id. 반환 대응 시작 전의 R 단계는 null")
+    name: str = Field(description="서류 이름 (그 할 일의 증빙)")
+    uploaded: bool = Field(description="기록함에 올렸는지. 나중에 올리기(skipped)는 false")
+    needed_by: list[str] = Field(description="이 서류가 필요한 단계 rule_id")
+
+
+class ReturnGuideOut(BaseModel):
+    """반환 대응 안내 (UI-08, FR-024·034·035). 일반 절차 안내이며 개별 법률 판단이 아니다."""
+
+    contract_id: int
+    today: date
+    status: Literal["preview", "in_progress", "ended"] = Field(
+        description="preview(아직 \"못 받음\"을 고르지 않음, 미리 점검) / in_progress(반환 대응 중) / "
+                    "ended(반환 대응 중 9번 반환 확인을 끝냄)")
+    end_date: date
+    not_returned_date: date | None = Field(description="\"못 받음\"을 고른 날. preview면 null")
+    guarantor: Guarantor
+    steps: list[ReturnStepOut] = Field(description="단계 순서대로 (반환 요청 기록 → 내용증명 → 임차권등기명령 → 청구·상담)")
+    documents: list[ReturnDocumentOut] = Field(description="청구 서류 대조. 이 계약에 없는 할 일의 서류는 빠진다")
+    missing_count: int = Field(description="기록함에 없는 서류 수")
+    help_desks: list[LinkOut] = Field(description="공공 상담 창구")
+    disclaimer: str
+    rules_version: str = Field(description="todos.yaml version")
 
 
 PaymentProduct = Literal["package", "todo_only"]

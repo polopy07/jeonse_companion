@@ -188,7 +188,7 @@ def _sync_todos(row: Contract, check: Verdict, rules: dict) -> None:
 
     def plan():
         return build_todos(_todo_values(row), linkages, row.special_term_result, row.alert_level, rules,
-                           done_dates=done_dates)
+                           done_dates=done_dates, not_returned_date=row.not_returned_date)
 
     planned = plan()
     reopenable = {t["id"] for t in rules["todos"]["todos"] if t.get("reopen_if_done_before_start")}
@@ -213,6 +213,7 @@ def _sync_todos(row: Contract, check: Verdict, rules: dict) -> None:
     for t in sorted(existing.values(), key=lambda t: t.sort_order):
         if t.status in FINISHED:
             t.sort_order, t.archived = len(todos) + 1, True
+            t.pinned = t.moved_to_top = False   # 기록은 맨 뒤라 맨 위·고정 표시도 푼다
             todos.append(t)
         elif db is not None:   # 다시 연 뒤 지워지는 할 일의 증빙 파일도 (볼 수도 지울 수도 없게 남지 않게)
             evidence.remove_after_commit(db, t.evidence_path)
@@ -259,6 +260,7 @@ def _to_out(row: Contract, db: Session, rules: dict, today: date) -> ContractOut
         report_required=row.report_required,
         alert_level=row.alert_level,
         status=row.status or "active",
+        not_returned_date=row.not_returned_date,
         payment_id=row.payment_id,
         special_term_effects=[
             SpecialTermEffectOut(term_id=e.term_id, label=e.label, result=e.result, **asdict(e.outcome))
@@ -412,6 +414,14 @@ def update_contract(contract_id: int, inp: ContractPatch, db: Session = Depends(
         ContractInput(check_id=row.check_id, **{**current, **changes})
     except ValidationError as e:
         raise RequestValidationError(e.errors()) from None
+
+    # 반환 대응 중이면 만기일을 "못 받음"을 고른 날보다 뒤로 미룰 수 없다 (반환 대응 단계의 시작일이 만기일 앞이 되므로)
+    new_end = changes.get("end_date")
+    if new_end and row.not_returned_date and new_end > row.not_returned_date:
+        raise RequestValidationError([{
+            "type": "value_error", "loc": ("body", "end_date"), "input": new_end.isoformat(),
+            "msg": f"Value error, 반환 대응을 시작한 날({row.not_returned_date.isoformat()})보다 만기일이 뒤일 수 없습니다. "
+                   "\"못 받음\"을 잘못 골랐으면 반환 대응을 먼저 되돌리세요"}])
 
     for name, value in changes.items():
         setattr(row, name, value)
