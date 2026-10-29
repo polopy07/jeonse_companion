@@ -363,6 +363,58 @@ export function patchContract(contractId: number, token: string | null, patch: A
   });
 }
 
+// ---- GET /api/contracts/{id}/alerts/latest ----
+
+export type ApiAlertLevel = 'caution' | 'warning' | 'danger';
+
+export type ApiAlertPoint = {
+  as_of: string;
+  /** 정상이면 null */
+  level: ApiAlertLevel | null;
+  estimated_price: number;
+  deposit_ratio: number;
+};
+
+export type ApiAlertReport = ApiAlertPoint & {
+  contract_id: number;
+  /** 주의 / 경고 / 위험, 정상이면 null */
+  label: string | null;
+  /** 계약 중 재계산한 값인지. false면 계약을 시작할 때(계약 전 확인)의 값 */
+  recalculated: boolean;
+  previous_level: ApiAlertLevel | null;
+  previous_ratio: number | null;
+  basis: {
+    as_of: string;
+    official_price: number;
+    official_estimate: number;
+    multiplier: number;
+    trade: ApiCheckResult['trade_basis'];
+    /** 계약 전 확인 때 직접 넣은 매매 실거래가. 있으면 단지 실거래 대신 이 값 */
+    trade_price_input: number | null;
+    nearby_jeonse: ApiCheckResult['nearby_jeonse'];
+    /** 마지막으로 올린 등기부의 근저당 채권최고액 + 임차권·전세권 보증금 */
+    senior_debt: number;
+    ratio_is_minimum: boolean;
+    complex_known: boolean;
+    rules_version: string | null;
+  };
+  /** 계약 시작부터의 계산 이력 (기준일 순서, 마지막이 이 값) */
+  history: ApiAlertPoint[];
+  /** 데이터 한계 안내 (alert.yaml), 화면에 그대로 */
+  data_limits: string[];
+};
+
+/**
+ * 최근 역전세 경보 (FR-036~038, UI-09). 재계산한 적이 없으면 계약을 시작할 때의 값.
+ * 다가구·단독처럼 경보를 계산하지 않는 계약은 404 NOT_FOUND
+ */
+export function getAlertReport(contractId: number, token: string | null) {
+  return request<ApiAlertReport>(`/api/contracts/${contractId}/alerts/latest`, {
+    method: 'GET',
+    headers: contractHeaders(token),
+  });
+}
+
 // ---- PATCH /api/todos/{id}, POST /api/todos/{id}/evidence ----
 
 /**
