@@ -166,6 +166,7 @@ class RegistryCompareOut(BaseModel):
     mortgage_check: RegistryCompareItemOut | None = Field(description="mortgage_check_required면 채권최고액 비교 항목")
     baseline_missing: bool = Field(description="계약 전 확인에서 등기부를 올리지 않아 다시 올린 등기부에 있는 것을 모두 위험으로 봄")
     level_before: str = Field(description="계약 전 확인 판정 단계 (verdict.yaml levels[].id)")
+    level_before_label: str = Field(description="level_before의 화면 이름 (verdict.yaml levels[].label)")
     level_after: str = Field(description="계약 전 확인 입력에 등기부만 바꿔 다시 판정한 단계 (달라지면 등기부 때문)")
     level_after_label: str
     deposit_ratio_before: float | None
@@ -314,6 +315,7 @@ class SpecialTermsResult(BaseModel):
 Guarantor = Literal["HUG", "HF", "SGI", "none"]
 SpecialTermResult = Literal["inserted", "rejected"]
 ContractStatus = Literal["active", "cancelled"]
+PaymentProduct = Literal["package", "todo_only"]
 
 
 class ContractInput(BaseModel):
@@ -464,6 +466,8 @@ class ContractOut(BaseModel):
     not_returned_date: date | None = Field(
         description="9번(반환 확인)에서 \"못 받음\"을 고른 날 (FR-024). 반환 대응 중이면 날짜, 아니면 null")
     payment_id: int | None = Field(description="이 계약에 쓴 테스트 결제. 결제 없이 만든 계약이면 null")
+    payment_product: PaymentProduct | None = Field(
+        description="payment_id 결제의 상품 (package / todo_only). 무산된 계약에서 풀린 결제를 다음 계약에 다시 쓸 수 있는지 볼 때. 결제가 없으면 null")
     special_term_effects: list[SpecialTermEffectOut] = Field(
         description="기록한 특약 결과의 분기 (부속표 E): 넣음이면 기록함에 남길 서류, 거절당함이면 위험 안내·맨 위로 올라간 할 일·상담 창구")
     todos: list[TodoOut] = Field(description="할 일 목록 (sort_order 순서)")
@@ -524,8 +528,6 @@ class ReturnGuideOut(BaseModel):
     disclaimer: str
     rules_version: str = Field(description="todos.yaml version")
 
-
-PaymentProduct = Literal["package", "todo_only"]
 
 
 class TodoPreviewItem(BaseModel):
