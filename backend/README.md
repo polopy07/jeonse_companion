@@ -114,6 +114,12 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 
 응답: 판정 단계(`level`, `label`, `next_step`, `block_payment`), 추정 주택가격, 내 보증금 비율, 걸린 규칙(`matched`, 항목마다 쉬운 말 설명 `explanation`), 연동 규칙(`linkages`), 확인 못 한 항목(`unchecked`, 확인 방법 `guide`), 안내 문구(`disclaimer`), 규칙 버전. `explanation`·`guide`는 판정을 만들 때 저장한 문구를 그대로 돌려준다(사용자가 그때 본 문구를 남김). 계약의 신고 대상·경보 단계·할 일도 같은 원칙으로 만들 때 저장한다.
 
+### `GET /api/checks/{id}/todo-preview` 결제 전 할 일 미리보기 (FR-012, #56)
+
+- 판정 결과 화면(UI-02)에서 "패키지를 시작하면 이런 할 일을 챙겨 드려요"를 날짜 없이 보여 준다. 할 일마다 종류·시점(`todos.yaml` `timing`)·증빙·맨 위 여부·생기는 조건
+- 계약 엔진(`build_todos`)을 전세·HUG·대출 없음 가정과 자리 날짜로 돌려 같은 할 일 집합을 만들고, 날짜는 응답에서 뺀다. 연동 규칙이 기한을 당긴 할 일은 "계약 당일까지"처럼
+- 문구(`preview.assumption`·`package_note` 등)는 `todos.yaml`, `check_rules.py`가 시점이 빠진 할 일을 잡는다
+
 ### `POST /api/checks/{id}/payment` 테스트 결제 (FR-013)
 
 본문 없음. 실제 돈은 나가지 않는다.
