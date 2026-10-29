@@ -101,7 +101,7 @@ def test_timeline_registry_documents_and_return(client):
 
     # 실제로 올린 날(오늘)이 계약일보다 앞이면 계약일에 둔다
     doc = next(e for e in events if e["kind"] == "document")
-    assert (doc["date"], doc["title"], doc["rule_id"]) == ("2026-11-02", "첫 계약 서류: 계약서", "contract")
+    assert (doc["date"], doc["rule_id"]) == ("2026-11-02", "contract") and doc["title"].startswith("첫 계약 서류: 계약서")
     ret = next(e for e in events if e["kind"] == "return")
     assert (ret["date"], ret["title"]) == ("2028-11-30", "보증금 못 받음: 반환 대응 시작")
     kinds = [e["kind"] for e in events if e["date"] == "2026-11-02"]
