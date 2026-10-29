@@ -14,6 +14,7 @@ import { StyleSheet, View } from 'react-native';
 import { Colors, MaxAppWidth } from '@/constants/theme';
 import { restoreCheck } from '@/lib/check';
 import { restoreVirtualToday } from '@/lib/clock';
+import { restoreConsent } from '@/lib/consent';
 import { restoreContract } from '@/lib/contract';
 import { restorePayment } from '@/lib/payment';
 
@@ -35,6 +36,7 @@ export default function RootLayout() {
   useEffect(() => {
     restoreCheck();
     restorePayment();
+    restoreConsent();
     // 가상 날짜를 먼저 불러와야 계약의 할 일 상태를 그날 기준으로 받는다
     restoreVirtualToday().finally(restoreContract);
   }, []);

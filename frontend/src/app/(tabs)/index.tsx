@@ -254,6 +254,12 @@ export default function HomeScreen() {
         </Link>
       </View>
 
+      <Link href="/consent" style={[styles.textLink, { marginTop: 4 }]}>
+        <AppText size={12} color={Colors.textHint}>
+          서비스 안내·개인정보 수집·이용
+        </AppText>
+      </Link>
+
       <View style={{ flex: 1 }} />
       <Disclaimer>정보 제공이며 보증하지 않습니다 · 조회 {h.checkedAt}</Disclaimer>
     </Screen>
