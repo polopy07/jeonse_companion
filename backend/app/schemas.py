@@ -166,6 +166,7 @@ class RegistryCompareOut(BaseModel):
     mortgage_check: RegistryCompareItemOut | None = Field(description="mortgage_check_required면 채권최고액 비교 항목")
     baseline_missing: bool = Field(description="계약 전 확인에서 등기부를 올리지 않아 다시 올린 등기부에 있는 것을 모두 위험으로 봄")
     level_before: str = Field(description="계약 전 확인 판정 단계 (verdict.yaml levels[].id)")
+    level_before_label: str = Field(description="level_before의 화면 이름 (verdict.yaml levels[].label)")
     level_after: str = Field(description="계약 전 확인 입력에 등기부만 바꿔 다시 판정한 단계 (달라지면 등기부 때문)")
     level_after_label: str
     deposit_ratio_before: float | None
@@ -314,6 +315,7 @@ class SpecialTermsResult(BaseModel):
 Guarantor = Literal["HUG", "HF", "SGI", "none"]
 SpecialTermResult = Literal["inserted", "rejected"]
 ContractStatus = Literal["active", "cancelled"]
+PaymentProduct = Literal["package", "todo_only"]
 
 
 class ContractInput(BaseModel):
@@ -416,6 +418,8 @@ class TodoOut(BaseModel):
     sort_order: int
     status: str = Field(description="todo / done / skipped")
     done_date: date | None = Field(description="끝낸 날 (done·skipped). 뒤 할 일의 기준일")
+    archived: bool = Field(description="계약 조건이 바뀌어 지금 계획에는 없고 끝낸 기록으로만 남은 할 일 (목록 맨 뒤). "
+                                       "되돌리기는 409 TODO_NOT_PLANNED라 앱은 버튼을 숨긴다")
     rules_version: str
     state: Literal["done", "upcoming", "in_progress", "overdue"] = Field(
         description="오늘(가상 날짜면 그날) 기준: done 끝냄(status skipped 포함) / upcoming 시작 전 / in_progress 할 때 / "
@@ -462,6 +466,8 @@ class ContractOut(BaseModel):
     not_returned_date: date | None = Field(
         description="9번(반환 확인)에서 \"못 받음\"을 고른 날 (FR-024). 반환 대응 중이면 날짜, 아니면 null")
     payment_id: int | None = Field(description="이 계약에 쓴 테스트 결제. 결제 없이 만든 계약이면 null")
+    payment_product: PaymentProduct | None = Field(
+        description="payment_id 결제의 상품 (package / todo_only). 무산된 계약에서 풀린 결제를 다음 계약에 다시 쓸 수 있는지 볼 때. 결제가 없으면 null")
     special_term_effects: list[SpecialTermEffectOut] = Field(
         description="기록한 특약 결과의 분기 (부속표 E): 넣음이면 기록함에 남길 서류, 거절당함이면 위험 안내·맨 위로 올라간 할 일·상담 창구")
     todos: list[TodoOut] = Field(description="할 일 목록 (sort_order 순서)")
@@ -526,7 +532,28 @@ class ReturnGuideOut(BaseModel):
     rules_version: str = Field(description="todos.yaml version")
 
 
-PaymentProduct = Literal["package", "todo_only"]
+
+class TodoPreviewItem(BaseModel):
+    rule_id: str = Field(description="todos.yaml id (T1~T9)")
+    title: str
+    timing: str = Field(description="언제 하는 일인지 (날짜가 아니라 시점 설명, todos.yaml timing)")
+    evidence: str | None = Field(description="끝낼 때 기록함에 남길 증빙")
+    pinned: bool = Field(description="맨 위 고정 할 일 (반환보증·만기 통보·반환 확인)")
+    moved_to_top: bool = Field(description="이 판정의 경보 단계 때문에 맨 위로 올라가는 할 일 (예: 경보 주의 이상이면 반환보증)")
+    note: str | None = Field(description="생기는 조건 (반환보증 가입 시, 앞 할 일을 안 끝냈을 때)")
+
+
+class TodoPreviewOut(BaseModel):
+    """결제 전 할 일 종류 미리보기 (FR-012, UI-02). 날짜로 계산한 기한·알림·기록함은 패키지에서만."""
+
+    check_id: int
+    level: str
+    product: PaymentProduct = Field(description="시작할 상품 (package / todo_only)")
+    amount: int = Field(description="금액 (원)")
+    report_required: bool = Field(description="임대차 신고 대상 (보증금 기준, 전세 가정). 아니면 1번 대신 4번에서 확정일자")
+    todos: list[TodoPreviewItem] = Field(description="계약하면 생길 할 일. 맨 위로 올라가는 할 일 → 번호순 (계약 뒤 목록은 실제 날짜로 정렬)")
+    assumption: str = Field(description="미리보기의 가정 (전세·반환보증 가입), 화면에 그대로")
+    package_note: str = Field(description="결제 뒤에 받는 것 안내, 화면에 그대로")
 
 
 class PaymentOut(BaseModel):
@@ -698,6 +725,27 @@ class MoveOut(BaseModel):
     next_todos: list[MoveTodoOut] = Field(description="다음 집 할 일 9종 (다음 집 날짜로 계산, 할 일 순서대로). "
                                                        "다음 집 계약 전 확인의 연동 규칙·특약은 계약을 만들 때 반영된다")
     todos: list[MoveTodoOut] = Field(description="지금 집 + 다음 집 할 일을 날짜순으로 묶은 목록 (FR-025)")
+
+
+class TimelineEventOut(BaseModel):
+    date: date_
+    kind: Literal["check", "contract", "special_term", "todo", "alert", "move", "cancel"] = Field(
+        description="check 계약 전 확인 / contract 계약 당일 체크 / special_term 특약 넣음·거절당함 / todo 끝낸 할 일 / "
+                    "alert 경보 재계산 / move 갈아타기 시작 / cancel 계약 무산")
+    title: str = Field(description="화면에 그대로 보여 줄 제목")
+    detail: str | None = Field(description="한 줄 설명 (비율, 특약 결과 안내, 증빙 등)")
+    rule_id: str | None = Field(description="할 일 rule_id(todo) 또는 특약 id(special_term)")
+    todo_id: int | None = Field(description="끝낸 할 일 id. 증빙 보기는 GET /api/todos/{id}/evidence")
+    evidence_uploaded: bool | None = Field(description="끝낸 할 일의 증빙을 올렸는지 (todo만)")
+    level: str | None = Field(description="판정 단계(check) 또는 경보 단계(alert)")
+
+
+class TimelineOut(BaseModel):
+    """계약 타임라인 (FR-032, UI-06). 지난 기록만 날짜순으로, 같은 날이면 kind 순서."""
+
+    contract_id: int
+    today: date_
+    events: list[TimelineEventOut]
 
 
 class CalendarLinkOut(BaseModel):

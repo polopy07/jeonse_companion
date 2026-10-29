@@ -45,7 +45,8 @@ def walk(node, path=""):
 # 화면에 나가는 문구가 들어 있는 키. basis·note·rule 같은 내부 설명은 법령·공공 자료를 인용할 수 있어 검사하지 않는다
 DISPLAY_KEYS = {
     "label", "explanation", "guide", "text", "detail", "title", "disclaimer", "next_step", "before_contract",
-    "document", "check", "complete_with", "evidence", "low_sample_label", "consult",
+    "document", "check", "complete_with", "evidence", "low_sample_label", "consult", "timing", "assumption",
+    "package_note", "guarantee_note", "todo_not_done_note",
 }
 DISPLAY_PARENTS = {"detail_by_guarantor"}   # 이 키 아래의 값은 모두 화면 문구
 
@@ -123,6 +124,9 @@ def main():
     for tid in data["todos"]["pinned"]:
         if tid not in todo_ids:
             errors.append(f"todos.yaml: pinned에 없는 할 일 '{tid}'")
+    for t in data["todos"]["todos"] + data["todos"]["extra_todos"]:
+        if not t.get("timing"):
+            errors.append(f"todos.yaml:{t['id']}: timing(미리보기에 보여 줄 시점) 없음")
     for tid in data["todos"]["todos"]:
         for p in tid.get("prerequisites", []):
             if p not in todo_ids:

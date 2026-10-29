@@ -85,6 +85,8 @@ def test_contract_day_new_seizure_holds_and_rejudges(client):
     assert {i["field"]: i["change"] for i in out["items"] if i["change"] != "same"} == {
         "registry.seizure": "risk", "registry.mortgage_amount": "risk"}
     assert out["level_after"] == "problem" and out["deposit_ratio_after"] > out["deposit_ratio_before"]
+    # 앞 단계 이름도 서버가 내려 준다 (앱이 verdict.yaml 이름을 복사하지 않게, #128 리뷰)
+    assert (out["level_before"], out["level_before_label"], out["level_after_label"]) == ("check_needed", "확인 필요", "문제 항목")
 
 
 def test_history_and_stage_override(client):

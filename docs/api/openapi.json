@@ -190,6 +190,69 @@
         }
       }
     },
+    "/api/checks/{check_id}/todo-preview": {
+      "get": {
+        "tags": [
+          "계약 전 확인"
+        ],
+        "summary": "Todo Preview",
+        "description": "결제 전 할 일 종류 미리보기 (FR-012). 이 판정으로 패키지를 시작하면 생길 할 일의 종류·시점·증빙만, 날짜 없이.\n\n계약 조건을 아직 모르므로 전세(월세 없음)·반환보증 가입·대출 없음으로 가정하고, 판정의 연동 규칙과 경보 단계는\n계약을 만들 때와 같게 반영한다 (맨 위 할 일, 기한이 계약 당일로 당겨지는 할 일). 순서는 맨 위로 올라가는 할 일 →\n번호순 (날짜를 모르므로). \"문제 항목\"이면 409 CHECK_BLOCKED.",
+        "operationId": "todo_preview_api_checks__check_id__todo_preview_get",
+        "parameters": [
+          {
+            "name": "check_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Check Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodoPreviewOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
     "/api/checks/{check_id}/payment": {
       "post": {
         "tags": [
@@ -2391,6 +2454,95 @@
         }
       }
     },
+    "/api/contracts/{contract_id}/timeline": {
+      "get": {
+        "tags": [
+          "기록함"
+        ],
+        "summary": "Timeline",
+        "description": "계약 2년 기록을 날짜순으로 (FR-032). 무산된 계약도 기록으로 볼 수 있다.",
+        "operationId": "timeline_api_contracts__contract_id__timeline_get",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
+          },
+          {
+            "name": "x-virtual-today",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘",
+              "title": "X-Virtual-Today"
+            },
+            "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
     "/api/registry/parse": {
       "post": {
         "tags": [
@@ -3892,6 +4044,22 @@
             "title": "Payment Id",
             "description": "이 계약에 쓴 테스트 결제. 결제 없이 만든 계약이면 null"
           },
+          "payment_product": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "package",
+                  "todo_only"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Product",
+            "description": "payment_id 결제의 상품 (package / todo_only). 무산된 계약에서 풀린 결제를 다음 계약에 다시 쓸 수 있는지 볼 때. 결제가 없으면 null"
+          },
           "special_term_effects": {
             "items": {
               "$ref": "#/components/schemas/SpecialTermEffectOut"
@@ -3950,6 +4118,7 @@
           "status",
           "not_returned_date",
           "payment_id",
+          "payment_product",
           "special_term_effects",
           "todos",
           "documents",
@@ -4367,6 +4536,22 @@
             "title": "Payment Id",
             "description": "이 계약에 쓴 테스트 결제. 결제 없이 만든 계약이면 null"
           },
+          "payment_product": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "package",
+                  "todo_only"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Product",
+            "description": "payment_id 결제의 상품 (package / todo_only). 무산된 계약에서 풀린 결제를 다음 계약에 다시 쓸 수 있는지 볼 때. 결제가 없으면 null"
+          },
           "special_term_effects": {
             "items": {
               "$ref": "#/components/schemas/SpecialTermEffectOut"
@@ -4420,6 +4605,7 @@
           "status",
           "not_returned_date",
           "payment_id",
+          "payment_product",
           "special_term_effects",
           "todos",
           "documents"
@@ -5815,6 +6001,11 @@
             "title": "Level Before",
             "description": "계약 전 확인 판정 단계 (verdict.yaml levels[].id)"
           },
+          "level_before_label": {
+            "type": "string",
+            "title": "Level Before Label",
+            "description": "level_before의 화면 이름 (verdict.yaml levels[].label)"
+          },
           "level_after": {
             "type": "string",
             "title": "Level After",
@@ -5864,6 +6055,7 @@
           "mortgage_check",
           "baseline_missing",
           "level_before",
+          "level_before_label",
           "level_after",
           "level_after_label",
           "deposit_ratio_before",
@@ -6651,6 +6843,134 @@
         ],
         "title": "TermOutcomeOut"
       },
+      "TimelineEventOut": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "check",
+              "contract",
+              "special_term",
+              "todo",
+              "alert",
+              "move",
+              "cancel"
+            ],
+            "title": "Kind",
+            "description": "check 계약 전 확인 / contract 계약 당일 체크 / special_term 특약 넣음·거절당함 / todo 끝낸 할 일 / alert 경보 재계산 / move 갈아타기 시작 / cancel 계약 무산"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "화면에 그대로 보여 줄 제목"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail",
+            "description": "한 줄 설명 (비율, 특약 결과 안내, 증빙 등)"
+          },
+          "rule_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Id",
+            "description": "할 일 rule_id(todo) 또는 특약 id(special_term)"
+          },
+          "todo_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Todo Id",
+            "description": "끝낸 할 일 id. 증빙 보기는 GET /api/todos/{id}/evidence"
+          },
+          "evidence_uploaded": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Uploaded",
+            "description": "끝낸 할 일의 증빙을 올렸는지 (todo만)"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level",
+            "description": "판정 단계(check) 또는 경보 단계(alert)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "kind",
+          "title",
+          "detail",
+          "rule_id",
+          "todo_id",
+          "evidence_uploaded",
+          "level"
+        ],
+        "title": "TimelineEventOut"
+      },
+      "TimelineOut": {
+        "properties": {
+          "contract_id": {
+            "type": "integer",
+            "title": "Contract Id"
+          },
+          "today": {
+            "type": "string",
+            "format": "date",
+            "title": "Today"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineEventOut"
+            },
+            "type": "array",
+            "title": "Events"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contract_id",
+          "today",
+          "events"
+        ],
+        "title": "TimelineOut",
+        "description": "계약 타임라인 (FR-032, UI-06). 지난 기록만 날짜순으로, 같은 날이면 kind 순서."
+      },
       "TodoOut": {
         "properties": {
           "id": {
@@ -6781,6 +7101,11 @@
             "title": "Done Date",
             "description": "끝낸 날 (done·skipped). 뒤 할 일의 기준일"
           },
+          "archived": {
+            "type": "boolean",
+            "title": "Archived",
+            "description": "계약 조건이 바뀌어 지금 계획에는 없고 끝낸 기록으로만 남은 할 일 (목록 맨 뒤). 되돌리기는 409 TODO_NOT_PLANNED라 앱은 버튼을 숨긴다"
+          },
           "rules_version": {
             "type": "string",
             "title": "Rules Version"
@@ -6827,6 +7152,7 @@
           "sort_order",
           "status",
           "done_date",
+          "archived",
           "rules_version",
           "state",
           "days_left"
@@ -6872,6 +7198,131 @@
         ],
         "title": "TodoPatch",
         "description": "할 일 완료·나중에 올리기·되돌리기 (FR-020, FR-029·030, UI-04)."
+      },
+      "TodoPreviewItem": {
+        "properties": {
+          "rule_id": {
+            "type": "string",
+            "title": "Rule Id",
+            "description": "todos.yaml id (T1~T9)"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "timing": {
+            "type": "string",
+            "title": "Timing",
+            "description": "언제 하는 일인지 (날짜가 아니라 시점 설명, todos.yaml timing)"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence",
+            "description": "끝낼 때 기록함에 남길 증빙"
+          },
+          "pinned": {
+            "type": "boolean",
+            "title": "Pinned",
+            "description": "맨 위 고정 할 일 (반환보증·만기 통보·반환 확인)"
+          },
+          "moved_to_top": {
+            "type": "boolean",
+            "title": "Moved To Top",
+            "description": "이 판정의 경보 단계 때문에 맨 위로 올라가는 할 일 (예: 경보 주의 이상이면 반환보증)"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "생기는 조건 (반환보증 가입 시, 앞 할 일을 안 끝냈을 때)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rule_id",
+          "title",
+          "timing",
+          "evidence",
+          "pinned",
+          "moved_to_top",
+          "note"
+        ],
+        "title": "TodoPreviewItem"
+      },
+      "TodoPreviewOut": {
+        "properties": {
+          "check_id": {
+            "type": "integer",
+            "title": "Check Id"
+          },
+          "level": {
+            "type": "string",
+            "title": "Level"
+          },
+          "product": {
+            "type": "string",
+            "enum": [
+              "package",
+              "todo_only"
+            ],
+            "title": "Product",
+            "description": "시작할 상품 (package / todo_only)"
+          },
+          "amount": {
+            "type": "integer",
+            "title": "Amount",
+            "description": "금액 (원)"
+          },
+          "report_required": {
+            "type": "boolean",
+            "title": "Report Required",
+            "description": "임대차 신고 대상 (보증금 기준, 전세 가정). 아니면 1번 대신 4번에서 확정일자"
+          },
+          "todos": {
+            "items": {
+              "$ref": "#/components/schemas/TodoPreviewItem"
+            },
+            "type": "array",
+            "title": "Todos",
+            "description": "계약하면 생길 할 일. 맨 위로 올라가는 할 일 → 번호순 (계약 뒤 목록은 실제 날짜로 정렬)"
+          },
+          "assumption": {
+            "type": "string",
+            "title": "Assumption",
+            "description": "미리보기의 가정 (전세·반환보증 가입), 화면에 그대로"
+          },
+          "package_note": {
+            "type": "string",
+            "title": "Package Note",
+            "description": "결제 뒤에 받는 것 안내, 화면에 그대로"
+          }
+        },
+        "type": "object",
+        "required": [
+          "check_id",
+          "level",
+          "product",
+          "amount",
+          "report_required",
+          "todos",
+          "assumption",
+          "package_note"
+        ],
+        "title": "TodoPreviewOut",
+        "description": "결제 전 할 일 종류 미리보기 (FR-012, UI-02). 날짜로 계산한 기한·알림·기록함은 패키지에서만."
       },
       "TodoRefOut": {
         "properties": {

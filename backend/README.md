@@ -76,6 +76,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/api/recompare.py` | `POST`·`GET /api/contracts/{id}/registry-compare` 등기부 재비교 |
 | `app/engine/registry_compare.py` | 등기부 재비교: 항목별 변동·보류 안내 |
 | `app/api/todos.py` | `PATCH /api/todos/{id}` 할 일 끝내기·나중에 올리기·되돌리기, `POST`·`GET`·`DELETE /api/todos/{id}/evidence` 증빙 |
+| `app/api/timeline.py` | `GET /api/contracts/{id}/timeline` 계약 타임라인 |
 | `app/api/returns.py` | `POST`·`DELETE /api/contracts/{id}/return-response` "못 받음"·되돌리기, `GET /api/contracts/{id}/return-guide` 반환 대응 안내 |
 | `app/engine/calendar.py` | 할 일 → ICS (앱 내보내기와 같은 UID·알림) |
 | `app/api/calendar.py` | 캘린더 구독 주소 만들기·끊기(`/api/contracts/{id}/calendar-link`), 구독 파일(`/api/calendar/{token}.ics`) |
@@ -114,6 +115,12 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 
 응답: 판정 단계(`level`, `label`, `next_step`, `block_payment`), 추정 주택가격, 내 보증금 비율, 걸린 규칙(`matched`, 항목마다 쉬운 말 설명 `explanation`), 연동 규칙(`linkages`), 확인 못 한 항목(`unchecked`, 확인 방법 `guide`), 안내 문구(`disclaimer`), 규칙 버전. `explanation`·`guide`는 판정을 만들 때 저장한 문구를 그대로 돌려준다(사용자가 그때 본 문구를 남김). 계약의 신고 대상·경보 단계·할 일도 같은 원칙으로 만들 때 저장한다.
 
+### `GET /api/checks/{id}/todo-preview` 결제 전 할 일 미리보기 (FR-012, #56)
+
+- 판정 결과 화면(UI-02)에서 "패키지를 시작하면 이런 할 일을 챙겨 드려요"를 날짜 없이 보여 준다. 할 일마다 종류·시점(`todos.yaml` `timing`)·증빙·맨 위 여부·생기는 조건
+- 계약 엔진(`build_todos`)을 전세·HUG·대출 없음 가정과 자리 날짜로 돌려 같은 할 일 집합을 만들고, 날짜는 응답에서 뺀다. 연동 규칙이 기한을 당긴 할 일은 "계약 당일까지"처럼
+- 문구(`preview.assumption`·`package_note` 등)는 `todos.yaml`, `check_rules.py`가 시점이 빠진 할 일을 잡는다
+
 ### `POST /api/checks/{id}/payment` 테스트 결제 (FR-013)
 
 본문 없음. 실제 돈은 나가지 않는다.
@@ -150,7 +157,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - 선택 입력과 기본값: `monthly_rent` 0, `loan` false, `guarantor` `none`(HUG / HF / SGI / none), `brokered` true(직거래면 false), `renewal_right_used` false, `co_tenant` false, `email`, `special_term_result`(키는 `special_terms.yaml`의 id, 값은 `inserted` / `rejected`)
 - 날짜: 잔금일 ≥ 계약일, 만기일 > 잔금일. 대출이 없으면 `loan_execution_date`를 비워 둔다
 - "문제 항목" 판정이면 409 `CHECK_BLOCKED`, 한 판정으로 계약을 두 번 만들면 409 `CHECK_ALREADY_USED`(만든 계약 id는 `GET /api/checks/{id}`의 `contract_id`)
-- 응답: 입력한 계약 조건 + `id`, `check_id`, `level`(시작할 때의 판정 단계), 판정에서 가져온 주택 정보, `report_required`(임대차 신고 대상), `alert_level`(판정 때 비율로 정한 경보 단계, 정상이면 null), `status`(`active` / `cancelled`), `payment_id`, `access_token`, `special_term_effects`, `todos`(할 일 목록)
+- 응답: 입력한 계약 조건 + `id`, `check_id`, `level`(시작할 때의 판정 단계), 판정에서 가져온 주택 정보, `report_required`(임대차 신고 대상), `alert_level`(판정 때 비율로 정한 경보 단계, 정상이면 null), `status`(`active` / `cancelled`), `payment_id`, `payment_product`(그 결제의 상품 `package` / `todo_only`, 결제 없으면 null), `access_token`, `special_term_effects`, `todos`(할 일 목록)
 - `special_term_effects`: 기록한 특약마다 `{term_id, label, result, warnings, documents, moves_to_top, adds_todos, link_counsel}` (명세서 부속표 E, `special_terms.yaml`의 `on_inserted`·`on_rejected`). 넣음이면 기록함에 남길 서류(특약이 보이는 계약서 사진), 거절당함이면 위험 안내·맨 위로 올라간 할 일(담보 설정 금지 → T4, 보증 거절 시 해제 → T2)·공공 상담 창구. 할 일 순서 자체는 `todos.yaml` `move_to_top_when`이 바꾸고, 두 파일이 서로 맞는지는 `rules/check_rules.py`가 검사한다
 - `todos`는 `sort_order` 순서다: 맨 위 규칙(특약 거절·경보, `moved_to_top`) → 고정(T5~T9, `pinned`) → 기한 빠른 순. 재알림(T6·T8)은 `due_date` 대신 `remind_date`, HF·SGI 반환보증(T5)은 기관 기준이 없어 `due_date`가 null. 대출은 있는데 `loan_execution_date`를 비우면 T5 시작일은 전입신고(T4) 다음 날
 - 기한 계산은 `docs/validation/기한계산_정답표.md`의 계산 약속을 따르고, `tests/test_todos.py`가 정답표(`deadline_scenarios.yaml`) S1~S10·재계산 3개와 대조한다
@@ -200,6 +207,11 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - `DELETE /api/todos/{id}/evidence`: 언제든(무산된 계약도) 지움. 완료했던 할 일은 `skipped`(완료 그대로, 기록함만 빈칸)
 - 파일은 `EVIDENCE_DIR`(기본 `backend/data/evidence/<계약 id>/`, git 제외)에 저장, DB에는 상대 경로만. `reset_demo_db.py`가 계약별 폴더(숫자 이름)만 같이 지움. 다시 열린 뒤 조건이 바뀌어 지워지는 할 일의 파일도 지움. 암호화 저장은 출시 준비
 - 나중에 올리기 한 할 일은 나중에 올리기로 바꾼 날(증빙을 지운 날) 7일 뒤 "증빙을 아직 안 올렸어요" 앱 안 알림 (`todos.yaml` `notifications.evidence_after_days`, FR-030)
+
+### `GET /api/contracts/{id}/timeline` 계약 타임라인 (FR-032, #51)
+
+- 계약 2년 기록을 날짜순으로 한 목록에: 계약 전 확인(판정·비율, 기준일은 판정의 실거래 기준일) → 계약 당일 체크(시작 경보) → 특약 넣음/거절당함 → 끝낸 할 일(증빙 여부) → 경보 재계산(단계 변화) → 갈아타기 시작 → 계약 무산
+- 앱(#112)이 계약 응답으로 그리던 타임라인에 경보 재계산 이력·갈아타기가 더해진다. 등기부 재비교(#115)·반환 대응·첫 계약 서류가 병합되면 그 기록도 더할 것
 
 ### 반환 대응 (FR-024·034·035, #52)
 
@@ -261,7 +273,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - 계약 당일(점검한 날과 계약일이 다를 때, FR-048)·잔금일 아침(3번 할 일, FR-023)에 등기부 요약을 다시 올려(`POST /api/registry/parse` → 확인) 계약 전 확인 판정과 비교한다. `stage`를 비우면 오늘(가상 날짜)이 계약일까지면 계약 당일, 계약 다음 날부터는 잔금일
 - 항목별 `same` / `risk`(새로 생기거나 늘어남) / `eased`(없어지거나 줄어듦). `risk`가 있으면 `hold`와 "계약 보류 후 상담" / "잔금 보류 후 상담". 근저당 말소·감액은 변동으로만 보여 주고 보류는 안내하지 않는다 (잔금 때 말소하기로 한 근저당)
 - 계약 전에 근저당이 있었으면 `mortgage_check`(채권최고액 비교)를 필수 확인으로 (L-MORTGAGE)
-- 계약 전 확인과 같은 입력(보증금·공시가격도 그때 값)에 등기부만 바꿔 다시 판정해 계약의 판정 기록(`verdicts.stage`·`comparison`)으로 남긴다. 그래서 `level_after`·`deposit_ratio_after`가 달라지면 등기부 때문. `GET`은 재비교 기록
+- 계약 전 확인과 같은 입력(보증금·공시가격도 그때 값)에 등기부만 바꿔 다시 판정해 계약의 판정 기록(`verdicts.stage`·`comparison`)으로 남긴다. 그래서 `level_after`·`deposit_ratio_after`가 달라지면 등기부 때문. 단계 이름은 `level_before_label`·`level_after_label`(앱이 `verdict.yaml` 이름을 따로 갖지 않게). `GET`은 재비교 기록
 - 다시 판정해 새로 걸린 연동 규칙은 할 일에 더한다 (근저당 → 3번 근저당 금액 비교, 비율 90% 이상 → 2번 기한 계약일, 신탁 → 신탁사 동의서. PO 2026-10-28). 더하기만 하고, 근저당이 말소된 등기부를 올려도 빼지 않는다 (`contracts.todo_linkages`)
 - 경보는 재비교한 날 기준으로 이 계약만 바로 다시 계산한다 (계약의 지금 보증금·공시가격 + 이 등기부의 선순위 채권, `alert_level`·경보 이력·올라가면 앱 알림). 경보 재계산의 선순위 채권은 그날까지 비교한 날이 가장 늦은 등기부 (가상 날짜를 되돌려 다시 비교해도 날짜로 고름, `alerts.senior_debt`)
 - 3번 할 일 완료는 지금처럼 증빙(잔금일 등기부 열람본)으로 한다 (재비교가 할 일 상태를 바꾸지 않음)
