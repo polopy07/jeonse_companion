@@ -2108,7 +2108,7 @@
           "반환 대응"
         ],
         "summary": "Return Guide",
-        "description": "반환 대응 안내 (UI-08): 단계와 진행, 청구 서류 대조 (FR-034·035). 무산된 계약도 기록으로 볼 수 있다.\n\n\"못 받음\"을 고르기 전에도 볼 수 있다(preview): 경보가 위험일 때 청구 서류를 미리 점검하는 데 쓴다.\npreview에서는 지금 준비할 수 있는 할 일(T) 서류만 대조한다 (반환 대응 단계 서류는 \"못 받음\" 뒤에 생김).",
+        "description": "반환 대응 안내 (UI-08): 단계와 진행, 청구 서류 대조 (FR-034·035). 무산된 계약도 기록으로 볼 수 있다.\n\n\"못 받음\"을 고르기 전에도 볼 수 있다(preview): 경보가 위험일 때 청구 서류를 미리 점검하는 데 쓴다.\npreview에서는 지금 준비할 수 있는 할 일(T) 서류와 첫 계약 서류만 대조한다 (반환 대응 단계 서류는 \"못 받음\" 뒤에 생김).\n계약서·계약금 이체 내역은 첫 계약 서류(POST /api/contracts/{id}/documents)로 본다 (kind contract_document).",
         "operationId": "return_guide_api_contracts__contract_id__return_guide_get",
         "parameters": [
           {
@@ -6343,7 +6343,7 @@
           "rule_id": {
             "type": "string",
             "title": "Rule Id",
-            "description": "서류를 올리는 할 일 (T1~T9, R1~R4)"
+            "description": "서류를 올리는 할 일 (T1~T9, R1~R4) 또는 첫 계약 서류 kind (contract, down_payment)"
           },
           "todo_id": {
             "anyOf": [
@@ -6355,7 +6355,16 @@
               }
             ],
             "title": "Todo Id",
-            "description": "기록함에 올릴 할 일 id. 반환 대응 시작 전의 R 단계는 null"
+            "description": "기록함에 올릴 할 일 id. 반환 대응 시작 전의 R 단계와 첫 계약 서류는 null"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "todo",
+              "contract_document"
+            ],
+            "title": "Kind",
+            "description": "todo면 POST /api/todos/{todo_id}/evidence, contract_document면 POST /api/contracts/{id}/documents (kind = rule_id)로 올린다"
           },
           "name": {
             "type": "string",
@@ -6380,12 +6389,13 @@
         "required": [
           "rule_id",
           "todo_id",
+          "kind",
           "name",
           "uploaded",
           "needed_by"
         ],
         "title": "ReturnDocumentOut",
-        "description": "청구 서류 대조 한 줄 (FR-035). 서류는 그 할 일의 증빙이다."
+        "description": "청구 서류 대조 한 줄 (FR-035). 서류는 그 할 일의 증빙이거나 첫 계약 서류(계약서·계약금 이체 내역, FR-051)다."
       },
       "ReturnGuideOut": {
         "properties": {
@@ -6575,7 +6585,7 @@
             },
             "type": "array",
             "title": "Documents",
-            "description": "이 단계에 필요한 서류의 rule_id (documents에서 이름·대조 결과)"
+            "description": "이 단계에 필요한 서류의 rule_id (할 일 id 또는 첫 계약 서류 kind, documents에서 이름·대조 결과)"
           },
           "missing_documents": {
             "items": {

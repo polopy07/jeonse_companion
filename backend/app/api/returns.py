@@ -87,7 +87,8 @@ def return_guide(contract_id: int, db: Session = Depends(get_db), rules: dict = 
     """반환 대응 안내 (UI-08): 단계와 진행, 청구 서류 대조 (FR-034·035). 무산된 계약도 기록으로 볼 수 있다.
 
     "못 받음"을 고르기 전에도 볼 수 있다(preview): 경보가 위험일 때 청구 서류를 미리 점검하는 데 쓴다.
-    preview에서는 지금 준비할 수 있는 할 일(T) 서류만 대조한다 (반환 대응 단계 서류는 "못 받음" 뒤에 생김).
+    preview에서는 지금 준비할 수 있는 할 일(T) 서류와 첫 계약 서류만 대조한다 (반환 대응 단계 서류는 "못 받음" 뒤에 생김).
+    계약서·계약금 이체 내역은 첫 계약 서류(POST /api/contracts/{id}/documents)로 본다 (kind contract_document).
     """
     row = _contract_for(contract_id, x_contract_token, db)
     started = row.not_returned_date is not None
@@ -98,10 +99,11 @@ def return_guide(contract_id: int, db: Session = Depends(get_db), rules: dict = 
     confirm = by_rule.get(confirm_todo_id(rules))
     ended = started and confirm is not None and confirm.status in FINISHED
 
-    names = {rule_id: t.evidence for rule_id, t in by_rule.items()}
+    first_docs = {d["id"]: d["label"] for d in rules["todos"]["first_documents"]}
+    names = {rule_id: t.evidence for rule_id, t in by_rule.items()} | first_docs
     if started:
         names |= {s.id: s.evidence for s in steps}
-    uploaded = {rule_id for rule_id, t in by_rule.items() if t.evidence_path}
+    uploaded = {rule_id for rule_id, t in by_rule.items() if t.evidence_path} | {d.kind for d in row.documents}
     docs = check_documents(steps, names, uploaded)
     missing = {d.rule_id for d in docs if not d.uploaded}
 
@@ -130,6 +132,7 @@ def return_guide(contract_id: int, db: Session = Depends(get_db), rules: dict = 
         guarantor=row.guarantor,
         steps=out_steps,
         documents=[ReturnDocumentOut(rule_id=d.rule_id, todo_id=by_rule[d.rule_id].id if d.rule_id in by_rule else None,
+                                     kind="contract_document" if d.rule_id in first_docs else "todo",
                                      name=d.name, uploaded=d.uploaded, needed_by=d.needed_by) for d in docs],
         missing_count=len(missing),
         help_desks=[LinkOut(**h) for h in cfg["help_desks"]],

@@ -60,11 +60,15 @@ def test_preview_before_not_returned(client):
     assert r4["title"] == "반환보증 청구" and r4["link"]["url"] == "https://www.khug.or.kr"
     # 미리 점검은 지금 준비할 수 있는 할 일 서류만, 처음 나온 순서로: 계약서(T4) → 신고필증(T1) → 보증서(T5)
     # (반환 요청·내용증명·등기부는 "못 받음" 뒤 단계에서 생기는 서류라 세지 않음, #124 리뷰)
-    assert [d["rule_id"] for d in g["documents"]] == ["T4", "T1", "T5"]
+    assert [d["rule_id"] for d in g["documents"]] == ["T4", "contract", "T1", "T5", "down_payment"]
     assert next(d for d in g["documents"] if d["rule_id"] == "T4") == {
-        "rule_id": "T4", "todo_id": _todo(c, "T4")["id"], "name": "확정일자 받은 계약서", "uploaded": False,
-        "needed_by": STEPS}
-    assert g["missing_count"] == 3
+        "rule_id": "T4", "todo_id": _todo(c, "T4")["id"], "kind": "todo", "name": "확정일자 받은 계약서",
+        "uploaded": False, "needed_by": STEPS}
+    # 계약서·계약금 이체 내역은 할 일 증빙이 아니라 첫 계약 서류로 올린다 (FR-051)
+    assert next(d for d in g["documents"] if d["rule_id"] == "down_payment") == {
+        "rule_id": "down_payment", "todo_id": None, "kind": "contract_document", "name": "계약금 이체 내역",
+        "uploaded": False, "needed_by": ["R4"]}
+    assert g["missing_count"] == 5
     assert g["steps"][1]["missing_documents"] == ["확정일자 받은 계약서"]
     assert g["disclaimer"] and [h["label"] for h in g["help_desks"]] == ["대법원 전자소송", "대한법률구조공단 상담"]
 
@@ -105,8 +109,17 @@ def test_steps_and_documents_follow_records(client):
     assert _states(g) == ["done", "current", "todo", "todo"]
     assert g["steps"][0]["evidence_uploaded"] and g["steps"][0]["done_date"] == "2028-12-01"
     assert g["steps"][1]["missing_documents"] == []
-    assert {d["rule_id"] for d in g["documents"] if not d["uploaded"]} == {"T1", "R2", "T5", "R3"}
-    assert g["missing_count"] == 4
+    assert {d["rule_id"] for d in g["documents"] if not d["uploaded"]} == {
+        "T1", "R2", "T5", "R3", "contract", "down_payment"}
+    assert g["missing_count"] == 6
+
+    # 계약 당일 올린 첫 계약 서류도 기록함에 있는 서류로 본다
+    r = client.post(f"/api/contracts/{c['id']}/documents", data={"kind": "contract"},
+                    files={"file": ("p.jpg", PHOTO, "image/jpeg")}, headers=_h(c, "2028-12-01"))
+    assert r.status_code == 200, r.text
+    g = _guide(client, c, "2028-12-01")
+    assert next(d for d in g["documents"] if d["rule_id"] == "contract")["uploaded"] is True
+    assert "계약서" not in g["steps"][2]["missing_documents"] and g["missing_count"] == 5
 
     # 증빙이 필요한 단계는 증빙 없이 끝낼 수 없고, 나중에 올리기는 끝낸 것으로 치되 서류는 빠진 채로
     assert _set(client, c, "R2", {"status": "done"}, day="2028-12-02").json()["detail"]["code"] == "EVIDENCE_REQUIRED"
@@ -172,7 +185,7 @@ def test_no_guarantor_gets_public_counsel(client):
     g = _guide(client, c)
     r4 = g["steps"][3]
     assert (r4["title"], r4["evidence"], r4["link"]["url"]) == ("공공 상담 받기", None, "https://www.klac.or.kr")
-    assert "T5" not in [d["rule_id"] for d in g["documents"]] and g["missing_count"] == 5
+    assert "T5" not in [d["rule_id"] for d in g["documents"]] and g["missing_count"] == 7
     assert _set(client, c, "R4", {"status": "done"}, day=END).status_code == 200   # 증빙 없는 단계
 
 
