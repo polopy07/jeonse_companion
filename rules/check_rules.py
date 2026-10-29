@@ -132,7 +132,15 @@ def main():
             if p not in todo_ids:
                 errors.append(f"todos.yaml:{tid['id']}: 없는 선행 할 일 '{p}'")
 
-    # 반환 대응 단계(R1~R4)는 할 일로 붙으므로 할 일 id와 겹치면 안 되고, 서류는 할 일이나 앞 단계의 증빙이어야 한다
+    first_docs = [d["id"] for d in data["todos"]["first_documents"]]
+    if len(set(first_docs)) != len(first_docs):
+        errors.append("todos.yaml: first_documents id 중복")
+    for d in data["todos"]["first_documents"]:
+        if not re.fullmatch(r"[a-z_]+", d["id"]) or not d.get("label"):
+            errors.append(f"todos.yaml:first_documents.{d['id']}: id는 영문 소문자·밑줄(주소에 씀), label 필요")
+
+    # 반환 대응 단계(R1~R4)는 할 일로 붙으므로 할 일 id와 겹치면 안 되고, 서류는 할 일이나 앞 단계의 증빙,
+    # 또는 첫 계약 서류(first_documents)여야 한다
     guarantors = set(data["guarantors"]["guarantors"])
     seen_steps = set()
     for step in data["todos"]["return_response"]["steps"]:
@@ -140,8 +148,8 @@ def main():
         if sid in todo_ids or sid in seen_steps:
             errors.append(f"todos.yaml:return_response.{sid}: 할 일·단계 id 중복")
         for doc in step.get("documents", []):
-            if doc not in todo_ids and doc not in seen_steps:
-                errors.append(f"todos.yaml:return_response.{sid}: 서류 '{doc}'는 할 일이나 앞 단계 id여야 함")
+            if doc not in todo_ids and doc not in seen_steps and doc not in first_docs:
+                errors.append(f"todos.yaml:return_response.{sid}: 서류 '{doc}'는 할 일·앞 단계·첫 계약 서류 id여야 함")
         seen_steps.add(sid)
         by_guarantor = step.get("by_guarantor")
         if by_guarantor is not None and set(by_guarantor) != guarantors:
@@ -151,12 +159,6 @@ def main():
             if not variant.get("title") or not variant.get("detail"):
                 errors.append(f"todos.yaml:return_response.{sid}: title·detail 없음")
 
-    first_docs = [d["id"] for d in data["todos"]["first_documents"]]
-    if len(set(first_docs)) != len(first_docs):
-        errors.append("todos.yaml: first_documents id 중복")
-    for d in data["todos"]["first_documents"]:
-        if not re.fullmatch(r"[a-z_]+", d["id"]) or not d.get("label"):
-            errors.append(f"todos.yaml:first_documents.{d['id']}: id는 영문 소문자·밑줄(주소에 씀), label 필요")
 
     # 걸린 항목 설명·확인 못 한 항목 안내 (화면 문구)
     for lv in data["verdict"]["levels"]:

@@ -181,7 +181,7 @@ extra_todos:
 # 그 계약에 없는 할 일(신고 비대상의 T1, 보증 미가입의 T5)은 대조하지 않는다.
 # by_guarantor: 보증기관(계약의 guarantor)에 따라 바뀌는 제목·안내·창구. 기관 이름은 제도 안내로만 쓴다 (guarantors.yaml display_rule)
 return_response:
-  hypothesis: true   # 단계별 서류는 팀 제안. 출시 전 보증기관 청구 서류 목록·법률 자문으로 확인
+  hypothesis: true   # 단계별 서류(할 일 id, 첫 계약 서류는 first_documents id)는 팀 제안. 출시 전 보증기관 청구 서류 목록·법률 자문으로 확인
   disclaimer: 일반 절차 안내이며 개별 법률 판단이 아닙니다.
   help_desks:
     - {label: 대법원 전자소송, url: "https://ecfs.scourt.go.kr"}
@@ -203,9 +203,9 @@ return_response:
       detail: 대법원 전자소송에서 신청할 수 있어요. 등기 완료를 확인한 뒤에 이사해야 대항력·우선변제권이 유지돼요
       link: {label: 대법원 전자소송, url: "https://ecfs.scourt.go.kr"}
       evidence: 임차권등기가 된 등기부
-      documents: [T4, T1, R2]
+      documents: [contract, T4, T1, R2]
     - id: R4
-      documents: [T5, T4, R2, R3]
+      documents: [T5, contract, down_payment, T4, R2, R3]
       by_guarantor:
         HUG:
           title: 반환보증 청구

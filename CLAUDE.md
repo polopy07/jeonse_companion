@@ -1,6 +1,6 @@
 # Jeonse Safety Check — 프로젝트 메모
 
-마지막 업데이트: 2026-10-27
+마지막 업데이트: 2026-10-29
 
 2인 학과 프로젝트 "전동기"(전세동행기록). 기획서 v4.35 기준 메인 기능·계약 당일 체크·BM·부산 타깃·MVP 범위, SRS, 남은 할 일.
 
@@ -70,14 +70,14 @@
 - 검증 3개 (인터뷰는 2026-10-07에 뺌): 등기부 요약 추출 95% 이상, 기한 계산 시나리오 10개 전부 일치, 경보 계산 일치. 4주차 사용성 테스트 5명(10분 안)
 - 기술 스택: Expo(React Native, Expo Router. 시연·제공은 휴대폰 앱, 웹은 개발 편의용 — 2026-10-26 PO 결정), FastAPI + PostgreSQL, pdfplumber 규칙 기반 파서, 규칙 기반 할 일 엔진, APScheduler, LLM API는 쉬운 말 설명용
 
-## 다음 세션 시작점 (2026-10-28 기준)
+## 다음 세션 시작점 (2026-10-29 기준)
 
-- 지금: 4주차 첫날(10/28~11/3, 최종 시연 11/3). 중간 점검(10/20)은 등기부 추출 100%로 통과, 범위 축소 없음(10/22 기록, `docs/plan/4주_개발계획.md`). main에 기획서 v4.35·명세서 v0.5(FR-005 임차권·전세권), 규칙 파일 v1.1(todos.yaml v1.2·alert.yaml v1.2·fields.yaml v1.1), API 명세·오류 형식, CI, 기한 계산 정답표(S1-R4·Q10·Q11, #84)·시뮬레이터, 시연 집 2채·경보 정답표(`docs/validation/`), 로그인·테스트 결제 결정(#86)과 세부 규칙(#88: `REQUIRE_CONTRACT_AUTH`, 402, 계약 무산 `/cancel`, `docs/api/결정자료_로그인_테스트결제.md`)까지 됨
+- 지금: 4주차 둘째 날(10/28~11/3, 최종 시연 11/3). 중간 점검(10/20)은 등기부 추출 100%로 통과, 범위 축소 없음(10/22 기록, `docs/plan/4주_개발계획.md`). main에 기획서 v4.35·명세서 v0.5(FR-005 임차권·전세권), 규칙 파일 v1.1(todos.yaml v1.5·alert.yaml v1.2·fields.yaml v1.1), API 명세·오류 형식, CI, 기한 계산 정답표(S1-R4·Q10·Q11, #84)·시뮬레이터, 시연 집 2채·경보 정답표(`docs/validation/`), 로그인·테스트 결제 결정(#86)과 세부 규칙(#88: `REQUIRE_CONTRACT_AUTH`, 402, 계약 무산 `/cancel`, `docs/api/결정자료_로그인_테스트결제.md`)까지 됨
 - 백엔드(main): 계약 전 확인·판정 설명(`POST/GET /api/checks`), 특약 예시(`GET /api/checks/{id}/special-terms`), 테스트 결제(`POST /api/checks/{id}/payment`), 계약 생성·할 일 9종(`POST/GET /api/contracts`, 접근 토큰 `X-Contract-Token`, 특약 반영 분기 `special_term_effects`, 할 일 `state`·`days_left`), 계약 조건·특약 변경 → 할 일 재계산(`PATCH /api/contracts/{id}`, 잔금일이 미뤄지면 끝낸 T3·T4 되돌림), 계약 무산(`POST /api/contracts/{id}/cancel`), 접근 링크 다시 받기(`POST /api/contracts/access-link`), 알림 실행·반환보증 이메일(`POST /api/admin/notifications/run`, `EMAIL_BACKEND`), 등기부 요약 파서(`POST /api/registry/parse`), 실거래가 수집(`POST /api/admin/trades`), 시연 집(`GET /api/demo-houses`), 시연 전 DB 초기화 `reset_demo_db.py`. DB는 시연까지 SQLite (#89·#91·#92·#93은 10/26 병합)
 - 검증: 등기부 요약 추출 정확도 샘플 10건 112/112 = 100%. 파서를 만들며 맞춘 샘플이라 처음 보는 등기부 3~5건으로 다시 잴 예정(샘플 확보 필요)
-- 열린 PR (황웅재, 10/28 밤): #113·#114·#115(등기부 재비교, #41 닫힘)·#116·#117·#118(시연 흐름 테스트)은 10/28 병합. #115는 리뷰 반영(PO 10/28: 재비교로 새로 걸린 연동은 할 일에 더하기만, 경보는 재비교 직후 바로 재계산, 판정은 계약 전 값으로, 선순위 채권은 비교한 날 순서, `stage`는 계약일까지 계약 당일). **PR 9개를 main 기준으로 올려 배승환 리뷰 대기(자동 병합 안 걸음, PO 10/28: 8개 따로, 병합 때 충돌 정리)**: #124 반환 대응(#52) → #125 첫 계약 서류(#46, 증빙·서류 응답 `Cache-Control: private, no-store`) → #126 등기 항목 쉬운 말 설명(#57, Claude API 키 보류·템플릿) → #127 갈아타기 전입 경고(FR-027) → #129 캘린더 구독(#47) → #130 할 일 미리보기(#56) → #132 계약 타임라인(#51) → #133 공동 계약자 알림(#58), 그리고 #135 할 일 응답 `archived`(#111 리뷰). 서로 API 명세·openapi.json·`main.py`·`todos.yaml` 같은 자리만 충돌 → 승인된 순서대로 main을 합쳐 정리하고 병합(정리 푸시로 승인이 풀리면 재승인). #124 병합 커밋에 로컬 포스터 초안 pptx(4MB)가 잘못 들어갔다가 다음 커밋에서 뺌(이력에는 남음, squash 병합이면 안 남음). main 보호 규칙상 PR에 새로 푸시하거나 merge-base가 바뀌면 승인이 풀림(#115 10/28: 승인 2초 뒤 "The merge-base changed after approval")
-- 앱 PR (배승환): #111·#112 10/28 병합. #119(lock `libc` 14곳 되살리기)·#120(경보 탭을 서버 최근 경보로) 10/28 황웅재 승인, #121(갈아타기 화면 서버 연결)·#122(기록함을 할 일 증빙에 연결) 코멘트 리뷰(정리할 것만), #123(계약 무산 화면)·#128(등기부 재비교 화면)·#131(면책·개인정보 동의 화면) 리뷰 전. 병합은 배승환
-- 리뷰 남은 것: 접근 링크 메일을 백그라운드로(응답 시간, 배포 전, #93), 같은 판정 결제 동시 두 번(실제 결제 붙일 때, #89), 20MB 업로드는 배포 때 프록시에서 크기 제한(#103). 앱: 다음 집 계약을 만든 뒤 `move/next`로 연결·409면 경고 창 → `confirm_move_in`(#127 뒤), 반환 대응 화면을 `return-guide`로·청구 창구 문구는 서버 `by_guarantor`(#124 뒤), 기록함 특약 서류 칸을 첫 계약 서류 `contract`로(#125 뒤), `archived`면 되돌리기 숨기기(#135 뒤). 타임라인에 재비교·반환 대응·첫 계약 서류 항목 더하기(#124·#125·#132 뒤)
+- 열린 PR (황웅재, 10/29 밤): 10/28~29에 #113~#118·#124(반환 대응, squash)·#125~#127·#129·#130(할 일 미리보기)·#132(타임라인)·#133·#135(`archived`)·#136~#138(`level_before_label`·`payment_product`) 병합. **리뷰 대기(자동 병합 merge commit)**: #139 반환 대응 서류 대조에 계약서·계약금 이체 내역(`kind` todo/contract_document, #132 뒤 main 합침), #141 타임라인에 재비교·첫 계약 서류·반환 대응·오늘까지만(#132 리뷰 참고 2건), #142 시연 흐름 테스트에 재비교·첫 계약 서류·전입 경고·반환 대응 장면. 원격에 잘못 올린 `test/demo-flow-scenes` 브랜치가 남음(지울 것). main 보호 규칙상 PR에 새로 푸시하거나 merge-base가 바뀌면 승인이 풀림(#115 10/28: 승인 2초 뒤 "The merge-base changed after approval"). openapi.json을 다시 만들면 환경에 따라 422·413 문구(`Unprocessable Content`·`Content Too Large`)가 바뀌니 main 문구(`Unprocessable Entity`·`Request Entity Too Large`)로 맞춤
+- 앱 PR (배승환): #111·#112·#119~#123·#128·#134 병합. #131(면책·개인정보 동의 화면) 10/29 황웅재 승인, 병합은 배승환
+- 리뷰 남은 것: 접근 링크 메일을 백그라운드로(응답 시간, 배포 전, #93), 같은 판정 결제 동시 두 번(실제 결제 붙일 때, #89), 20MB 업로드는 배포 때 프록시에서 크기 제한(#103). 앱: 다음 집 계약을 만든 뒤 `move/next`로 연결·409면 경고 창 → `confirm_move_in`(#127 병합됨), 반환 대응 화면을 `return-guide`로·청구 창구 문구는 서버 `by_guarantor`(#124 병합됨), 기록함 특약 서류 칸을 첫 계약 서류 `contract`로(#125 병합됨), `archived`면 되돌리기 숨기기(#135 병합됨), 재비교 앞 단계 이름 `level_before_label`·풀린 결제 상품 `payment_product`(#138 병합됨), 반환 대응·기록함 청구 서류에 계약서·계약금 이체 내역(#139 뒤), 타임라인 화면을 서버 `GET .../timeline`으로 바꿀 때 새 `kind`(`registry`·`document`·`return`) 아이콘(#141 뒤)
 - 백엔드 테스트를 로컬에서 돌릴 때: 저장소에 가상환경이 없음 → `python3 -m venv <경로> && <경로>/bin/pip install -r backend/requirements.txt` 뒤 `cd backend && <경로>/bin/python -m pytest -q`
 - 시연 DB: #103·#104(`skipped_date`·`archived`)·#107(판정의 단지 정보 `market.complex`)·#41(판정 `stage`·`comparison`)이 새로 생겨 예전 계약·판정과 맞지 않으니 리허설 전에 `reset_demo_db.py`
 - 기한 정답표 PO 결정은 Q12까지(10/26 Q12: 같은 날 전입은 "보증금 먼저 받고 전입신고" 순서 안내, 앞서면 날짜 경고)

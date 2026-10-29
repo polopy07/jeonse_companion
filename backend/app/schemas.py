@@ -496,15 +496,18 @@ class ReturnStepOut(BaseModel):
         description="done(끝냄, 나중에 올리기 포함) / current(지금 할 단계: 끝내지 않은 첫 단계) / todo")
     done_date: date | None
     evidence_uploaded: bool
-    documents: list[str] = Field(description="이 단계에 필요한 서류의 rule_id (documents에서 이름·대조 결과)")
+    documents: list[str] = Field(description="이 단계에 필요한 서류의 rule_id (할 일 id 또는 첫 계약 서류 kind, documents에서 이름·대조 결과)")
     missing_documents: list[str] = Field(description="이 단계에 필요한데 기록함에 없는 서류 이름 (FR-035)")
 
 
 class ReturnDocumentOut(BaseModel):
-    """청구 서류 대조 한 줄 (FR-035). 서류는 그 할 일의 증빙이다."""
+    """청구 서류 대조 한 줄 (FR-035). 서류는 그 할 일의 증빙이거나 첫 계약 서류(계약서·계약금 이체 내역, FR-051)다."""
 
-    rule_id: str = Field(description="서류를 올리는 할 일 (T1~T9, R1~R4)")
-    todo_id: int | None = Field(description="기록함에 올릴 할 일 id. 반환 대응 시작 전의 R 단계는 null")
+    rule_id: str = Field(description="서류를 올리는 할 일 (T1~T9, R1~R4) 또는 첫 계약 서류 kind (contract, down_payment)")
+    todo_id: int | None = Field(description="기록함에 올릴 할 일 id. 반환 대응 시작 전의 R 단계와 첫 계약 서류는 null")
+    kind: Literal["todo", "contract_document"] = Field(
+        description="todo면 POST /api/todos/{todo_id}/evidence, contract_document면 POST /api/contracts/{id}/documents "
+                    "(kind = rule_id)로 올린다")
     name: str = Field(description="서류 이름 (그 할 일의 증빙)")
     uploaded: bool = Field(description="기록함에 올렸는지. 나중에 올리기(skipped)는 false")
     needed_by: list[str] = Field(description="이 서류가 필요한 단계 rule_id")
