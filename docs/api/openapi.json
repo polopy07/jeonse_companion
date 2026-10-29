@@ -350,7 +350,7 @@
           "계약"
         ],
         "summary": "Send Access Link",
-        "description": "접근 링크 이메일로 다시 받기 (#39, 휴대폰을 바꾸거나 앱을 지웠을 때).\n\n그 이메일로 만든 진행 중 계약마다 새 접근 토큰을 만들어 계약 이메일로 보낸다. 처음 토큰은 그대로 둔다\n(남이 다시 받기를 눌러도 원래 휴대폰이 쫓겨나지 않게). 이메일이 없어도 같은 202를 돌려준다.\n무산된 계약도 풀린 결제(released)가 남아 있으면 보낸다: 그 토큰이 있어야 다음 집 계약에 결제를 다시 쓴다(FR-016).",
+        "description": "접근 링크 이메일로 다시 받기 (#39, 휴대폰을 바꾸거나 앱을 지웠을 때).\n\n그 이메일(계약 이메일 또는 공동 계약자 이메일, FR-043)로 만든 진행 중 계약마다 새 접근 토큰을 만들어 그 주소로 보낸다.\n처음 토큰은 그대로 둔다\n(남이 다시 받기를 눌러도 원래 휴대폰이 쫓겨나지 않게). 이메일이 없어도 같은 202를 돌려준다.\n무산된 계약도 풀린 결제(released)가 남아 있으면 보낸다: 그 토큰이 있어야 다음 집 계약에 결제를 다시 쓴다(FR-016).",
         "operationId": "send_access_link_api_contracts_access_link_post",
         "requestBody": {
           "content": {
@@ -887,6 +887,115 @@
         }
       }
     },
+    "/api/contracts/{contract_id}/move/next": {
+      "post": {
+        "tags": [
+          "갈아타기"
+        ],
+        "summary": "Link Next Contract",
+        "description": "다음 집으로 만든 계약을 갈아타기에 연결한다 (FR-027). 다음 집 계약의 접근 토큰을 본문으로 함께 보낸다.\n\n갈아타기를 저장하지 않았거나 다음 집 계약이 없거나 토큰이 틀리면 404, 지금 계약과 같으면 422, 지금 계약이나\n다음 집 계약이 무산됐거나 다음 집 계약이 이미 다른 갈아타기에 연결돼 있으면 409. 다시 보내면 연결을 바꾼다.",
+        "operationId": "link_next_contract_api_contracts__contract_id__move_next_post",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
+          },
+          {
+            "name": "x-virtual-today",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘",
+              "title": "X-Virtual-Today"
+            },
+            "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveLinkInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoveOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
     "/api/contracts/{contract_id}/registry-compare": {
       "post": {
         "tags": [
@@ -1075,7 +1184,7 @@
           "할 일"
         ],
         "summary": "Update Todo",
-        "description": "할 일을 끝내거나(done·skipped) 되돌린다(todo). 할 일과 계약은 계약 접근 토큰으로 확인한다.\n\n- done: 증빙이 필요한 할 일은 증빙을 올려야 끝낼 수 있다 (FR-029). 아직이면 409 EVIDENCE_REQUIRED → \"나중에 올리기\"\n- skipped: 나중에 올리기. 완료로 치고 기록함은 빈칸 (FR-030)\n- 먼저 끝낼 할 일(prerequisites)이 남았으면 409 PREREQUISITE_NOT_DONE (FR-020)\n- 잔금일에 하는 할 일(T3·T4, reopen_if_done_before_start)은 시작일 전 날짜로 끝낼 수 없다 (409 TODO_NOT_STARTED)\n- 되돌리기는 이 할 일을 먼저 끝내야 하는 뒤 할 일이 끝나 있으면 409 DEPENDENT_DONE, 조건이 바뀌어 지금 계약에 없는\n  끝낸 할 일(기록으로만 남은 것)이면 409 TODO_NOT_PLANNED\n- 끝낸 날이 오늘보다 뒤이거나 계약일(계약 전날 하는 할 일은 시작일)보다 앞서면 422\n무산된 계약은 409 CONTRACT_CANCELLED, 없는 할 일이나 토큰이 틀리면 404.",
+        "description": "할 일을 끝내거나(done·skipped) 되돌린다(todo). 할 일과 계약은 계약 접근 토큰으로 확인한다.\n\n- done: 증빙이 필요한 할 일은 증빙을 올려야 끝낼 수 있다 (FR-029). 아직이면 409 EVIDENCE_REQUIRED → \"나중에 올리기\"\n- skipped: 나중에 올리기. 완료로 치고 기록함은 빈칸 (FR-030)\n- 먼저 끝낼 할 일(prerequisites)이 남았으면 409 PREREQUISITE_NOT_DONE (FR-020)\n- 잔금일에 하는 할 일(T3·T4, reopen_if_done_before_start)은 시작일 전 날짜로 끝낼 수 없다 (409 TODO_NOT_STARTED)\n- 되돌리기는 이 할 일을 먼저 끝내야 하는 뒤 할 일이 끝나 있으면 409 DEPENDENT_DONE, 조건이 바뀌어 지금 계약에 없는\n  끝낸 할 일(기록으로만 남은 것)이면 409 TODO_NOT_PLANNED\n- 끝낸 날이 오늘보다 뒤이거나 계약일(계약 전날 하는 할 일은 시작일)보다 앞서면 422\n- 갈아타기 다음 집의 전입신고(4번)를 지금 집 반환 확인(9번)·임차권등기 전에 끝내면 409 MOVE_IN_BEFORE_RETURN.\n  경고를 보고 그래도 끝내면 confirm_move_in: true (FR-027)\n무산된 계약은 409 CONTRACT_CANCELLED, 없는 할 일이나 토큰이 틀리면 404.",
         "operationId": "update_todo_api_todos__todo_id__patch",
         "parameters": [
           {
@@ -1446,6 +1555,579 @@
         }
       }
     },
+    "/api/contracts/{contract_id}/documents": {
+      "post": {
+        "tags": [
+          "첫 계약 서류"
+        ],
+        "summary": "Upload Document",
+        "description": "첫 계약 서류 1장 올리기 (FR-051). 형식·화질은 제한하지 않고 20MB까지 (넘으면 413), 빈 파일·없는 종류는 422.\n같은 종류를 다시 올리면 앞 파일을 바꾼다. 계약 전체를 돌려준다(documents). 무산된 계약이면 409.",
+        "operationId": "upload_document_api_contracts__contract_id__documents_post",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
+          },
+          {
+            "name": "x-virtual-today",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘",
+              "title": "X-Virtual-Today"
+            },
+            "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_document_api_contracts__contract_id__documents_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/api/contracts/{contract_id}/documents/{kind}": {
+      "get": {
+        "tags": [
+          "첫 계약 서류"
+        ],
+        "summary": "Get Document",
+        "description": "올린 첫 계약 서류 파일 (기록함 보기, UI-05). 사진·PDF는 화면에 바로, 다른 형식은 내려받기. 무산된 계약도 볼 수 있다.",
+        "operationId": "get_document_api_contracts__contract_id__documents__kind__get",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "첫 계약 서류"
+        ],
+        "summary": "Delete Document",
+        "description": "첫 계약 서류 삭제 (FR-033, 언제든 직접 지울 수 있음: 무산된 계약도). 올린 서류가 없으면 404.",
+        "operationId": "delete_document_api_contracts__contract_id__documents__kind__delete",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
+          },
+          {
+            "name": "x-virtual-today",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘",
+              "title": "X-Virtual-Today"
+            },
+            "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/contracts/{contract_id}/return-response": {
+      "post": {
+        "tags": [
+          "반환 대응"
+        ],
+        "summary": "Start Return Response",
+        "description": "9번(반환 확인)에서 \"못 받음\" (FR-024). 오늘을 시작일로 반환 대응 단계(R1~R4)를 맨 위 할 일로 붙인다.\n\n- 만기일 전이면 409 RETURN_NOT_DUE\n- 9번을 이미 끝냈으면(돌려받음) 409 ALREADY_RETURNED\n- 이미 시작했으면 바꾸지 않고 그대로 돌려준다 (다시 보내도 같음)\n무산된 계약은 409 CONTRACT_CANCELLED, 없는 계약이나 토큰이 틀리면 404.",
+        "operationId": "start_return_response_api_contracts__contract_id__return_response_post",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
+          },
+          {
+            "name": "x-virtual-today",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘",
+              "title": "X-Virtual-Today"
+            },
+            "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "반환 대응"
+        ],
+        "summary": "Undo Return Response",
+        "description": "\"못 받음\"을 잘못 골랐을 때 되돌린다. 반환 대응 단계 할 일을 지운다.\n\n시작하지 않았으면 409 RETURN_NOT_STARTED, 끝낸 단계(나중에 올리기 포함)가 있으면 409 RETURN_STEP_DONE\n(기록이 지워지지 않게: 단계를 먼저 되돌리거나, 돈을 돌려받았으면 9번을 끝낸다). 무산된 계약은 409.",
+        "operationId": "undo_return_response_api_contracts__contract_id__return_response_delete",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
+          },
+          {
+            "name": "x-virtual-today",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘",
+              "title": "X-Virtual-Today"
+            },
+            "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/api/contracts/{contract_id}/return-guide": {
+      "get": {
+        "tags": [
+          "반환 대응"
+        ],
+        "summary": "Return Guide",
+        "description": "반환 대응 안내 (UI-08): 단계와 진행, 청구 서류 대조 (FR-034·035). 무산된 계약도 기록으로 볼 수 있다.\n\n\"못 받음\"을 고르기 전에도 볼 수 있다(preview): 경보가 위험일 때 청구 서류를 미리 점검하는 데 쓴다.\npreview에서는 지금 준비할 수 있는 할 일(T) 서류만 대조한다 (반환 대응 단계 서류는 \"못 받음\" 뒤에 생김).",
+        "operationId": "return_guide_api_contracts__contract_id__return_guide_get",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
+          },
+          {
+            "name": "x-virtual-today",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘",
+              "title": "X-Virtual-Today"
+            },
+            "description": "시연용 가상 날짜 YYYY-MM-DD (API 명세 1.7). 없거나 서버가 끈 경우(ALLOW_VIRTUAL_TODAY=false) 실제 오늘"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReturnGuideOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
     "/api/contracts/{contract_id}/alerts/latest": {
       "get": {
         "tags": [
@@ -1517,6 +2199,198 @@
         }
       }
     },
+    "/api/contracts/{contract_id}/calendar-link": {
+      "post": {
+        "tags": [
+          "캘린더 구독"
+        ],
+        "summary": "Create Calendar Link",
+        "description": "캘린더 구독 주소를 만든다. 앞서 만든 주소는 끊는다(한 계약에 살아 있는 주소는 하나). 무산된 계약이면 409.",
+        "operationId": "create_calendar_link_api_contracts__contract_id__calendar_link_post",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarLinkOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "캘린더 구독"
+        ],
+        "summary": "Delete Calendar Link",
+        "description": "구독 주소를 끊는다 (주소가 샜거나 더 쓰지 않을 때). 그 뒤 캘린더 앱이 불러오면 404. 끊을 주소가 없으면 404.",
+        "operationId": "delete_calendar_link_api_contracts__contract_id__calendar_link_delete",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          },
+          {
+            "name": "x-contract-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)",
+              "title": "X-Contract-Token"
+            },
+            "description": "계약 접근 토큰 (계약을 만들 때 받은 access_token, API 명세 1.8)"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/calendar/{token}.ics": {
+      "get": {
+        "tags": [
+          "캘린더 구독"
+        ],
+        "summary": "Calendar Feed",
+        "description": "구독 파일 (캘린더 앱이 주기적으로 부른다). 끝나지 않은 할 일만, 앱 내보내기와 같은 UID.\n끊은 주소나 없는 주소는 404, 무산된 계약은 일정 없는 캘린더(구독한 일정이 지워진다).",
+        "operationId": "calendar_feed_api_calendar__token__ics_get",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ICS 본문",
+            "content": {
+              "text/calendar": {}
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/registry/parse": {
       "post": {
         "tags": [
@@ -1551,6 +2425,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/registry/explain": {
+      "post": {
+        "tags": [
+          "등기부 점검"
+        ],
+        "summary": "Explain Items",
+        "description": "확인한 등기 항목마다 쉬운 말 설명 (FR-007). 저장하지 않는다.\n\nLLM(ANTHROPIC_API_KEY가 있을 때)이 쓰고 금지 표현·숫자 검사를 통과한 설명은 source \"llm\", LLM이 꺼져 있거나\n실패·시간 초과(8초)·검사 탈락이면 rules/explain.yaml 템플릿 설명(source \"template\"). 어느 쪽이든 200이다.",
+        "operationId": "explain_items_api_registry_explain_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExplainInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExplainResult"
                 }
               }
             }
@@ -1940,7 +2856,7 @@
             "maxLength": 254,
             "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
             "title": "Email",
-            "description": "계약을 만들 때 넣은 알림 이메일"
+            "description": "계약을 만들 때 넣은 알림 이메일 또는 공동 계약자 이메일"
           }
         },
         "type": "object",
@@ -2384,6 +3300,26 @@
         ],
         "title": "Body_parse_registry_api_registry_parse_post"
       },
+      "Body_upload_document_api_contracts__contract_id__documents_post": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "서류 종류 (todos.yaml first_documents id)"
+          },
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "file"
+        ],
+        "title": "Body_upload_document_api_contracts__contract_id__documents_post"
+      },
       "Body_upload_evidence_api_todos__todo_id__evidence_post": {
         "properties": {
           "file": {
@@ -2402,6 +3338,12 @@
               }
             ],
             "title": "Done Date"
+          },
+          "confirm_move_in": {
+            "type": "boolean",
+            "title": "Confirm Move In",
+            "description": "전입 경고(409 MOVE_IN_BEFORE_RETURN)를 보고 그래도 끝내면 true",
+            "default": false
           }
         },
         "type": "object",
@@ -2409,6 +3351,33 @@
           "file"
         ],
         "title": "Body_upload_evidence_api_todos__todo_id__evidence_post"
+      },
+      "CalendarLinkOut": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "https 구독 주소 (구글 캘린더 \"URL로 추가\"에 넣음)"
+          },
+          "webcal_url": {
+            "type": "string",
+            "title": "Webcal Url",
+            "description": "webcal:// 주소 (휴대폰에서 열면 캘린더 앱이 구독을 묻는다)"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url",
+          "webcal_url",
+          "created_at"
+        ],
+        "title": "CalendarLinkOut",
+        "description": "캘린더 구독 주소 (FR-042, #47). 이 응답에서 한 번만 준다 (서버에는 토큰 해시만)."
       },
       "CheckInput": {
         "properties": {
@@ -2849,6 +3818,18 @@
             ],
             "title": "Email"
           },
+          "co_tenant_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Co Tenant Email",
+            "description": "공동 계약자 알림 이메일 (FR-043)"
+          },
           "special_term_result": {
             "additionalProperties": {
               "type": "string",
@@ -2886,6 +3867,19 @@
             "title": "Status",
             "description": "active / cancelled (계약 무산, FR-016)"
           },
+          "not_returned_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Not Returned Date",
+            "description": "9번(반환 확인)에서 \"못 받음\"을 고른 날 (FR-024). 반환 대응 중이면 날짜, 아니면 null"
+          },
           "payment_id": {
             "anyOf": [
               {
@@ -2914,6 +3908,14 @@
             "title": "Todos",
             "description": "할 일 목록 (sort_order 순서)"
           },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/ContractDocumentOut"
+            },
+            "type": "array",
+            "title": "Documents",
+            "description": "첫 계약 서류 (계약서·계약금 이체 내역, FR-051)"
+          },
           "access_token": {
             "type": "string",
             "title": "Access Token",
@@ -2941,16 +3943,71 @@
           "renewal_right_used",
           "co_tenant",
           "email",
+          "co_tenant_email",
           "special_term_result",
           "report_required",
           "alert_level",
           "status",
+          "not_returned_date",
           "payment_id",
           "special_term_effects",
           "todos",
+          "documents",
           "access_token"
         ],
         "title": "ContractCreatedOut"
+      },
+      "ContractDocumentOut": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "todos.yaml first_documents id (contract 계약서 / down_payment 계약금 이체 내역)"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail",
+            "description": "찍는 방법 안내"
+          },
+          "uploaded": {
+            "type": "boolean",
+            "title": "Uploaded",
+            "description": "올렸는지. 보기는 GET /api/contracts/{id}/documents/{kind}"
+          },
+          "uploaded_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploaded At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "label",
+          "detail",
+          "uploaded",
+          "uploaded_at"
+        ],
+        "title": "ContractDocumentOut",
+        "description": "첫 계약 서류 한 종류 (FR-051). 올리지 않은 종류도 uploaded: false로 넣는다."
       },
       "ContractInput": {
         "properties": {
@@ -3047,6 +4104,20 @@
             ],
             "title": "Email",
             "description": "알림 이메일"
+          },
+          "co_tenant_email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 254,
+                "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Co Tenant Email",
+            "description": "공동 계약자 알림 이메일 (FR-043). co_tenant가 true일 때만, 알림 이메일과 다른 주소. 같은 알림 이메일을 따로 받고, 이 주소로 접근 링크를 다시 받아 자기 휴대폰에서 같은 계약을 볼 수 있다"
           },
           "special_term_result": {
             "additionalProperties": {
@@ -3222,6 +4293,18 @@
             ],
             "title": "Email"
           },
+          "co_tenant_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Co Tenant Email",
+            "description": "공동 계약자 알림 이메일 (FR-043)"
+          },
           "special_term_result": {
             "additionalProperties": {
               "type": "string",
@@ -3259,6 +4342,19 @@
             "title": "Status",
             "description": "active / cancelled (계약 무산, FR-016)"
           },
+          "not_returned_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Not Returned Date",
+            "description": "9번(반환 확인)에서 \"못 받음\"을 고른 날 (FR-024). 반환 대응 중이면 날짜, 아니면 null"
+          },
           "payment_id": {
             "anyOf": [
               {
@@ -3286,6 +4382,14 @@
             "type": "array",
             "title": "Todos",
             "description": "할 일 목록 (sort_order 순서)"
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/ContractDocumentOut"
+            },
+            "type": "array",
+            "title": "Documents",
+            "description": "첫 계약 서류 (계약서·계약금 이체 내역, FR-051)"
           }
         },
         "type": "object",
@@ -3309,13 +4413,16 @@
           "renewal_right_used",
           "co_tenant",
           "email",
+          "co_tenant_email",
           "special_term_result",
           "report_required",
           "alert_level",
           "status",
+          "not_returned_date",
           "payment_id",
           "special_term_effects",
-          "todos"
+          "todos",
+          "documents"
         ],
         "title": "ContractOut"
       },
@@ -3466,6 +4573,20 @@
             ],
             "title": "Email",
             "description": "알림 이메일. null을 보내면 지운다"
+          },
+          "co_tenant_email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 254,
+                "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Co Tenant Email",
+            "description": "공동 계약자 알림 이메일. null을 보내면 지운다 (공동 계약을 끄려면 함께 지움)"
           },
           "special_term_result": {
             "anyOf": [
@@ -3686,6 +4807,140 @@
         "title": "ErrorResponse",
         "description": "모든 오류 응답의 형식."
       },
+      "ExplainInput": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExplainItemInput"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "ExplainInput",
+        "description": "등기 항목 쉬운 말 설명 요청 (FR-007). POST /api/registry/parse 결과를 사용자가 확인한 뒤 보낸다."
+      },
+      "ExplainItemInput": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Id",
+            "description": "화면에서 항목을 찾는 값 (예: 순위번호). 응답에 그대로 돌려준다"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "mortgage",
+              "lease",
+              "seizure",
+              "trust",
+              "other"
+            ],
+            "title": "Kind",
+            "description": "mortgages→mortgage, leases→lease, seizures→seizure, trusts→trust, others→other"
+          },
+          "purpose": {
+            "type": "string",
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Purpose",
+            "description": "등기 목적 (예: 근저당권설정, 주택임차권). 권리자 이름은 넣지 않는다"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount",
+            "description": "채권최고액·보증금 (원). 사용자가 확인한 값"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "purpose"
+        ],
+        "title": "ExplainItemInput",
+        "description": "설명할 등기 항목 1개. 이름·원문 글자·주소는 받지 않는다 (LLM에 보내지 않게, AI-REQ-05)."
+      },
+      "ExplainResult": {
+        "properties": {
+          "explanations": {
+            "items": {
+              "$ref": "#/components/schemas/ExplanationOut"
+            },
+            "type": "array",
+            "title": "Explanations",
+            "description": "보낸 순서대로"
+          },
+          "disclaimer": {
+            "type": "string",
+            "title": "Disclaimer",
+            "description": "결과 화면 공통 문구 (verdict.yaml display.disclaimer)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "explanations",
+          "disclaimer"
+        ],
+        "title": "ExplainResult"
+      },
+      "ExplanationOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "mortgage",
+              "lease",
+              "seizure",
+              "trust",
+              "other"
+            ],
+            "title": "Kind"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "쉬운 말 설명"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "llm",
+              "template"
+            ],
+            "title": "Source",
+            "description": "llm(LLM이 쓰고 금지 표현·숫자 검사를 통과) / template(LLM 꺼짐·실패·검사 탈락, rules/explain.yaml)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "text",
+          "source"
+        ],
+        "title": "ExplanationOut"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -3698,6 +4953,24 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "LinkOut": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "url"
+        ],
+        "title": "LinkOut"
       },
       "LinkedRuleOut": {
         "properties": {
@@ -3874,6 +5147,27 @@
         "title": "MoveInput",
         "description": "갈아타기: 다음 집 계약 조건 (FR-025, UI-07). 만기 6개월 전 할 일(7번)에서 \"이사할게요\"를 고르면 입력한다.\n\n다음 집 계약 전 확인(POST /api/checks)은 따로 한다 (FR-028). 여기서는 날짜·돈으로 자금 틈과 할 일만 계산한다."
       },
+      "MoveLinkInput": {
+        "properties": {
+          "next_contract_id": {
+            "type": "integer",
+            "title": "Next Contract Id"
+          },
+          "next_contract_token": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Next Contract Token",
+            "description": "다음 집 계약을 만들 때 받은 access_token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "next_contract_id",
+          "next_contract_token"
+        ],
+        "title": "MoveLinkInput",
+        "description": "갈아타기에 다음 집 계약 연결 (FR-027). 다음 집 계약을 만든 휴대폰이 그 계약의 접근 토큰을 함께 보낸다."
+      },
       "MoveOut": {
         "properties": {
           "contract_id": {
@@ -3966,6 +5260,18 @@
             "type": "boolean",
             "title": "Move In Warning",
             "description": "전입 예정일이 반환 예정일과 같거나 앞서면 true (반환 확인을 끝냈으면 false, FR-027)"
+          },
+          "next_contract_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Contract Id",
+            "description": "다음 집으로 만든 계약 (POST .../move/next로 연결). 연결하면 그 계약의 전입신고를 끝낼 때 경고한다"
           },
           "warnings": {
             "items": {
@@ -4183,9 +5489,11 @@
             "type": "string",
             "enum": [
               "app",
-              "email"
+              "email",
+              "email_co"
             ],
-            "title": "Channel"
+            "title": "Channel",
+            "description": "app / email(계약 이메일) / email_co(공동 계약자 이메일)"
           },
           "status": {
             "type": "string",
@@ -4838,6 +6146,271 @@
         "title": "RegistryParseResult",
         "description": "등기부 요약 추출 결과 (FR-005). 사용자가 확인·수정한 뒤 fields를 CheckInput.registry로 보낸다 (FR-006)."
       },
+      "ReturnDocumentOut": {
+        "properties": {
+          "rule_id": {
+            "type": "string",
+            "title": "Rule Id",
+            "description": "서류를 올리는 할 일 (T1~T9, R1~R4)"
+          },
+          "todo_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Todo Id",
+            "description": "기록함에 올릴 할 일 id. 반환 대응 시작 전의 R 단계는 null"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "서류 이름 (그 할 일의 증빙)"
+          },
+          "uploaded": {
+            "type": "boolean",
+            "title": "Uploaded",
+            "description": "기록함에 올렸는지. 나중에 올리기(skipped)는 false"
+          },
+          "needed_by": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Needed By",
+            "description": "이 서류가 필요한 단계 rule_id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rule_id",
+          "todo_id",
+          "name",
+          "uploaded",
+          "needed_by"
+        ],
+        "title": "ReturnDocumentOut",
+        "description": "청구 서류 대조 한 줄 (FR-035). 서류는 그 할 일의 증빙이다."
+      },
+      "ReturnGuideOut": {
+        "properties": {
+          "contract_id": {
+            "type": "integer",
+            "title": "Contract Id"
+          },
+          "today": {
+            "type": "string",
+            "format": "date",
+            "title": "Today"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "preview",
+              "in_progress",
+              "ended"
+            ],
+            "title": "Status",
+            "description": "preview(아직 \"못 받음\"을 고르지 않음, 미리 점검) / in_progress(반환 대응 중) / ended(반환 대응 중 9번 반환 확인을 끝냄)"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "not_returned_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Not Returned Date",
+            "description": "\"못 받음\"을 고른 날. preview면 null"
+          },
+          "guarantor": {
+            "type": "string",
+            "enum": [
+              "HUG",
+              "HF",
+              "SGI",
+              "none"
+            ],
+            "title": "Guarantor"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/ReturnStepOut"
+            },
+            "type": "array",
+            "title": "Steps",
+            "description": "단계 순서대로 (반환 요청 기록 → 내용증명 → 임차권등기명령 → 청구·상담)"
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/ReturnDocumentOut"
+            },
+            "type": "array",
+            "title": "Documents",
+            "description": "청구 서류 대조. 이 계약에 없는 할 일의 서류는 빠진다"
+          },
+          "missing_count": {
+            "type": "integer",
+            "title": "Missing Count",
+            "description": "기록함에 없는 서류 수"
+          },
+          "help_desks": {
+            "items": {
+              "$ref": "#/components/schemas/LinkOut"
+            },
+            "type": "array",
+            "title": "Help Desks",
+            "description": "공공 상담 창구"
+          },
+          "disclaimer": {
+            "type": "string",
+            "title": "Disclaimer"
+          },
+          "rules_version": {
+            "type": "string",
+            "title": "Rules Version",
+            "description": "todos.yaml version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contract_id",
+          "today",
+          "status",
+          "end_date",
+          "not_returned_date",
+          "guarantor",
+          "steps",
+          "documents",
+          "missing_count",
+          "help_desks",
+          "disclaimer",
+          "rules_version"
+        ],
+        "title": "ReturnGuideOut",
+        "description": "반환 대응 안내 (UI-08, FR-024·034·035). 일반 절차 안내이며 개별 법률 판단이 아니다."
+      },
+      "ReturnStepOut": {
+        "properties": {
+          "rule_id": {
+            "type": "string",
+            "title": "Rule Id",
+            "description": "todos.yaml return_response 단계 id (R1~R4)"
+          },
+          "todo_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Todo Id",
+            "description": "이 단계의 할 일 id. 반환 대응을 시작하기 전(preview)이면 null"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LinkOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "신청·청구 창구 (내용증명, 대법원 전자소송, 보증기관 등)"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence",
+            "description": "끝낼 때 올릴 증빙. 없으면 null (공공 상담)"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "done",
+              "current",
+              "todo"
+            ],
+            "title": "State",
+            "description": "done(끝냄, 나중에 올리기 포함) / current(지금 할 단계: 끝내지 않은 첫 단계) / todo"
+          },
+          "done_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Done Date"
+          },
+          "evidence_uploaded": {
+            "type": "boolean",
+            "title": "Evidence Uploaded"
+          },
+          "documents": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Documents",
+            "description": "이 단계에 필요한 서류의 rule_id (documents에서 이름·대조 결과)"
+          },
+          "missing_documents": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Documents",
+            "description": "이 단계에 필요한데 기록함에 없는 서류 이름 (FR-035)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rule_id",
+          "todo_id",
+          "title",
+          "detail",
+          "link",
+          "evidence",
+          "state",
+          "done_date",
+          "evidence_uploaded",
+          "documents",
+          "missing_documents"
+        ],
+        "title": "ReturnStepOut",
+        "description": "반환 대응 한 단계 (FR-034). 반환 대응을 시작하면 같은 rule_id의 할 일로 붙는다 (끝내기·증빙은 /api/todos/{todo_id})."
+      },
       "SpecialTermEffectOut": {
         "properties": {
           "warnings": {
@@ -5275,6 +6848,12 @@
             ],
             "title": "Done Date",
             "description": "끝낸 날. 없으면 오늘(가상 날짜면 그날). 뒤 할 일의 기준일이 된다 (예: 전입신고 완료 다음 날 → 반환보증 시작)"
+          },
+          "confirm_move_in": {
+            "type": "boolean",
+            "title": "Confirm Move In",
+            "description": "갈아타기 다음 집의 전입신고를 지금 집 반환 확인 전에 끝낼 때, 경고(409 MOVE_IN_BEFORE_RETURN)를 보고 그래도 끝내면 true (FR-027)",
+            "default": false
           }
         },
         "type": "object",

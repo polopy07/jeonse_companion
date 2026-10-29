@@ -29,8 +29,8 @@ from app.engine.todos import build_todos, report_required
 from app.errors import api_error, responses
 from app.models import Contract, ContractToken, Payment, Todo, Verdict
 from app.rules.loader import get_rules
-from app.schemas import (AccessLinkInput, AccessLinkResult, ContractCreatedOut, ContractInput, ContractOut, ContractPatch,
-                         SpecialTermEffectOut, TodoOut)
+from app.schemas import (AccessLinkInput, AccessLinkResult, ContractCreatedOut, ContractDocumentOut, ContractInput,
+                         ContractOut, ContractPatch, SpecialTermEffectOut, TodoOut)
 
 router = APIRouter(prefix="/api/contracts", tags=["계약"])
 logger = logging.getLogger(__name__)
@@ -188,7 +188,7 @@ def _sync_todos(row: Contract, check: Verdict, rules: dict) -> None:
 
     def plan():
         return build_todos(_todo_values(row), linkages, row.special_term_result, row.alert_level, rules,
-                           done_dates=done_dates)
+                           done_dates=done_dates, not_returned_date=row.not_returned_date)
 
     planned = plan()
     reopenable = {t["id"] for t in rules["todos"]["todos"] if t.get("reopen_if_done_before_start")}
@@ -213,6 +213,7 @@ def _sync_todos(row: Contract, check: Verdict, rules: dict) -> None:
     for t in sorted(existing.values(), key=lambda t: t.sort_order):
         if t.status in FINISHED:
             t.sort_order, t.archived = len(todos) + 1, True
+            t.pinned = t.moved_to_top = False   # 기록은 맨 뒤라 맨 위·고정 표시도 푼다
             todos.append(t)
         elif db is not None:   # 다시 연 뒤 지워지는 할 일의 증빙 파일도 (볼 수도 지울 수도 없게 남지 않게)
             evidence.remove_after_commit(db, t.evidence_path)
@@ -254,17 +255,27 @@ def _to_out(row: Contract, db: Session, rules: dict, today: date) -> ContractOut
         renewal_right_used=row.renewal_right_used,
         co_tenant=row.co_tenant,
         email=row.email,
+        co_tenant_email=row.co_tenant_email,
         special_term_result=row.special_term_result,
         report_required=row.report_required,
         alert_level=row.alert_level,
         status=row.status or "active",
+        not_returned_date=row.not_returned_date,
         payment_id=row.payment_id,
         special_term_effects=[
             SpecialTermEffectOut(term_id=e.term_id, label=e.label, result=e.result, **asdict(e.outcome))
             for e in term_effects(row.special_term_result or {}, rules)
         ],
         todos=[_todo_out(t, today) for t in row.todos],
+        documents=_documents_out(row, rules),
     )
+
+
+def _documents_out(row: Contract, rules: dict) -> list[ContractDocumentOut]:
+    saved = {d.kind: d for d in row.documents}
+    return [ContractDocumentOut(kind=k["id"], label=k["label"], detail=k.get("detail"), uploaded=k["id"] in saved,
+                                uploaded_at=saved[k["id"]].uploaded_at if k["id"] in saved else None)
+            for k in rules["todos"]["first_documents"]]
 
 
 @router.post("", response_model=ContractCreatedOut, status_code=201, responses=responses(402, 404, 409, 422))
@@ -330,14 +341,16 @@ def create_contract(inp: ContractInput, db: Session = Depends(get_db), rules: di
 def send_access_link(inp: AccessLinkInput, db: Session = Depends(get_db)):
     """접근 링크 이메일로 다시 받기 (#39, 휴대폰을 바꾸거나 앱을 지웠을 때).
 
-    그 이메일로 만든 진행 중 계약마다 새 접근 토큰을 만들어 계약 이메일로 보낸다. 처음 토큰은 그대로 둔다
+    그 이메일(계약 이메일 또는 공동 계약자 이메일, FR-043)로 만든 진행 중 계약마다 새 접근 토큰을 만들어 그 주소로 보낸다.
+    처음 토큰은 그대로 둔다
     (남이 다시 받기를 눌러도 원래 휴대폰이 쫓겨나지 않게). 이메일이 없어도 같은 202를 돌려준다.
     무산된 계약도 풀린 결제(released)가 남아 있으면 보낸다: 그 토큰이 있어야 다음 집 계약에 결제를 다시 쓴다(FR-016).
     """
     now = datetime.now(timezone.utc)
     released = select(Payment.id).where(Payment.contract_id == Contract.id, Payment.status == "released").exists()
+    wanted = inp.email.strip().lower()
     rows = db.scalars(select(Contract).where(
-        func.lower(Contract.email) == inp.email.strip().lower(),
+        or_(func.lower(Contract.email) == wanted, func.lower(Contract.co_tenant_email) == wanted),
         or_(Contract.status == "active", Contract.status.is_(None), (Contract.status == "cancelled") & released),
     ).order_by(Contract.id)).all()
     issued = []
@@ -351,7 +364,9 @@ def send_access_link(inp: AccessLinkInput, db: Session = Depends(get_db)):
         issued.append((row, token))
     if issued:
         try:
-            mailer.send(mailer.Mail(issued[0][0].email, "[전동기] 계약 접근 링크", _access_link_body(issued)))
+            first = issued[0][0]   # 요청한 주소로 보낸다 (공동 계약자면 공동 계약자 이메일)
+            to = first.email if (first.email or "").lower() == wanted else first.co_tenant_email
+            mailer.send(mailer.Mail(to, "[전동기] 계약 접근 링크", _access_link_body(issued)))
         except mailer.MailError as e:
             db.rollback()   # 보내지 못한 토큰은 남기지 않는다. 응답은 같게
             logger.warning("접근 링크 이메일 실패 (계약 %s): %s", [r.id for r, _ in issued], e)
@@ -399,6 +414,14 @@ def update_contract(contract_id: int, inp: ContractPatch, db: Session = Depends(
         ContractInput(check_id=row.check_id, **{**current, **changes})
     except ValidationError as e:
         raise RequestValidationError(e.errors()) from None
+
+    # 반환 대응 중이면 만기일을 "못 받음"을 고른 날보다 뒤로 미룰 수 없다 (반환 대응 단계의 시작일이 만기일 앞이 되므로)
+    new_end = changes.get("end_date")
+    if new_end and row.not_returned_date and new_end > row.not_returned_date:
+        raise RequestValidationError([{
+            "type": "value_error", "loc": ("body", "end_date"), "input": new_end.isoformat(),
+            "msg": f"Value error, 반환 대응을 시작한 날({row.not_returned_date.isoformat()})보다 만기일이 뒤일 수 없습니다. "
+                   "\"못 받음\"을 잘못 골랐으면 반환 대응을 먼저 되돌리세요"}])
 
     for name, value in changes.items():
         setattr(row, name, value)
