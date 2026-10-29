@@ -22,6 +22,7 @@ import {
 } from '@/lib/contract';
 import { pickEvidence, type EvidenceSource } from '@/lib/evidence';
 import { exportIcs, icsEventCount } from '@/lib/ics';
+import { useReleasedPayment } from '@/lib/payment';
 
 /** 할 일 하나에 대한 동작 (계약이 있을 때만) */
 type TodoActions = {
@@ -42,6 +43,7 @@ type TodoActions = {
  */
 export default function TodosScreen() {
   const contract = useLatestContract();
+  const released = useReleasedPayment();
   const notice = useContractNotice();
   const now = useToday();
   const check = useLatestCheck();
@@ -150,7 +152,8 @@ export default function TodosScreen() {
 
       {contract?.status === 'cancelled' ? (
         <AppText size={12} color={Colors.textSub} style={{ marginTop: 2 }}>
-          무산된 계약이에요. 할 일은 기록으로만 남고 알림은 보내지 않아요
+          무산된 계약이에요. 할 일은 기록으로만 남고 알림은 보내지 않아요.
+          {released ? ' 다음 집은 계약 전 확인부터 다시 하면 이 계약의 결제를 그대로 써요' : ''}
         </AppText>
       ) : contract ? (
         // FR-021·049·050: 잔금일이 미뤄지거나 특약 결과가 바뀌면 할 일을 다시 계산한다
@@ -160,6 +163,17 @@ export default function TodosScreen() {
           label="계약 날짜·특약 결과 고치기"
           onPress={() => router.push('/contract-edit')}
           style={{ marginTop: 12 }}
+        />
+      ) : null}
+
+      {contract && contract.status !== 'cancelled' ? (
+        // FR-048·023: 계약 당일(점검한 날과 계약일이 다를 때)·잔금일 아침(3번 할 일) 등기부 재비교
+        <Button
+          variant="outline"
+          height={44}
+          label="등기부 다시 비교 (계약 당일·잔금일)"
+          onPress={() => router.push('/registry-compare')}
+          style={{ marginTop: 8 }}
         />
       ) : null}
 

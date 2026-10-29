@@ -1,6 +1,8 @@
 """갈아타기: 다음 집 날짜·돈 → 자금 틈, 대출 순서, 전입 순서 경고, 두 집 할 일 묶기 (FR-025~027, UC-008, UI-07).
 
 다음 집 입력만 저장하고 계산은 읽을 때마다 다시 한다. 다음 집 계약 전 확인은 POST /api/checks (FR-028).
+다음 집 계약을 만들면 POST .../move/next로 연결한다. 연결된 다음 집의 전입신고(4번)를 지금 집 반환 확인(9번) 전에
+끝내려 하면 PATCH·POST /api/todos/{id}가 409 MOVE_IN_BEFORE_RETURN으로 경고한다 (FR-027, move_in_warning).
 """
 from datetime import date
 
@@ -11,18 +13,36 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.contracts import _TODO_FIELDS, FINISHED, TOKEN_HEADER_DESC, _active, _contract_for
+from app.api.contracts import _TODO_FIELDS, FINISHED, TOKEN_HEADER_DESC, _active, _contract_for, _token_matches
 from app.clock import today as today_dep
 from app.db import get_db
-from app.engine.move import plan_move
+from app.engine.move import MOVE_IN_NOT_RETURNED, MOVE_IN_NOT_RETURNED_HINT, plan_move
 from app.engine.schedule import days_left, todo_state
 from app.engine.todos import build_todos
 from app.errors import api_error, responses
-from app.models import Contract, Move
+from app.models import Contract, Move, Todo
 from app.rules.loader import get_rules
-from app.schemas import MoveInput, MoveOut, MoveTodoOut
+from app.schemas import MoveInput, MoveLinkInput, MoveOut, MoveTodoOut
 
 router = APIRouter(prefix="/api/contracts", tags=["갈아타기"])
+MOVE_IN_TODO, RETURN_TODO = "T4", "T9"   # 다음 집 전입신고, 지금 집 보증금 반환 확인
+LEASE_REGISTERED_TODO = "R3"             # 반환 대응(#52)의 임차권등기명령 단계. 끝냈으면 전입해도 대항력이 남는다
+
+
+def check_move_in(todo: Todo, row: Contract, db: Session) -> None:
+    """갈아타기 다음 집 계약의 전입신고를 지금 집 반환 확인·임차권등기 전에 끝내려 하면 409 (FR-027, UC-008 *a)."""
+    if todo.rule_id != MOVE_IN_TODO:
+        return
+    move = db.scalar(select(Move).where(Move.next_contract_id == row.id))
+    prev = db.get(Contract, move.contract_id) if move is not None else None
+    if prev is None or prev.status == "cancelled":
+        return
+    done = {t.rule_id for t in prev.todos if t.status in FINISHED}
+    if RETURN_TODO in done or LEASE_REGISTERED_TODO in done:
+        return
+    ret = next((t.due_date for t in prev.todos if t.rule_id == RETURN_TODO and t.due_date), prev.end_date)
+    raise api_error(409, "MOVE_IN_BEFORE_RETURN", MOVE_IN_NOT_RETURNED.format(ret=ret.isoformat()),
+                    MOVE_IN_NOT_RETURNED_HINT)
 
 def _line(house: str, rule_id: str, title: str, start, due, remind, status: str, today: date) -> MoveTodoOut:
     return MoveTodoOut(house=house, rule_id=rule_id, title=title, start_date=start, due_date=due, remind_date=remind,
@@ -61,7 +81,8 @@ def _to_out(row: Contract, move: Move, rules: dict, today: date) -> MoveOut:
         current_deposit=row.deposit, return_date=plan.return_date, returned=returned,
         next_balance=plan.next_balance, gap_days=plan.gap_days, gap_amount=plan.gap_amount,
         loan_order=plan.loan_order, loan_gap_days=plan.loan_gap_days,
-        move_in_date=plan.move_in_date, move_in_warning=plan.move_in_warning, warnings=plan.warnings,
+        move_in_date=plan.move_in_date, move_in_warning=plan.move_in_warning, next_contract_id=move.next_contract_id,
+        warnings=plan.warnings,
         next_todos=next_todos, todos=merged,
     )
 
@@ -97,6 +118,35 @@ def save_move(contract_id: int, inp: MoveInput, db: Session = Depends(get_db), r
         move.next_inputs = inputs
         db.commit()
     move = db.scalar(select(Move).where(Move.contract_id == row.id))
+    return _to_out(row, move, rules, today)
+
+
+@router.post("/{contract_id}/move/next", response_model=MoveOut, responses=responses(404, 409, 422))
+def link_next_contract(contract_id: int, inp: MoveLinkInput, db: Session = Depends(get_db),
+                       rules: dict = Depends(get_rules), today: date = Depends(today_dep),
+                       x_contract_token: str | None = Header(None, description=TOKEN_HEADER_DESC)):
+    """다음 집으로 만든 계약을 갈아타기에 연결한다 (FR-027). 다음 집 계약의 접근 토큰을 본문으로 함께 보낸다.
+
+    갈아타기를 저장하지 않았거나 다음 집 계약이 없거나 토큰이 틀리면 404, 지금 계약과 같으면 422, 지금 계약이나
+    다음 집 계약이 무산됐거나 다음 집 계약이 이미 다른 갈아타기에 연결돼 있으면 409. 다시 보내면 연결을 바꾼다.
+    """
+    row = _contract_for(contract_id, x_contract_token, db)
+    _active(row)
+    move = db.scalar(select(Move).where(Move.contract_id == row.id))
+    if move is None:
+        raise api_error(404, "NOT_FOUND", "갈아타기를 시작하지 않았습니다", "다음 집 정보를 먼저 저장하세요")
+    nxt = db.get(Contract, inp.next_contract_id)
+    if nxt is None or not _token_matches(nxt, inp.next_contract_token, db):   # 남의 계약을 끌어오지 못하게
+        raise api_error(404, "NOT_FOUND", "다음 집 계약이 없습니다", "다음 집 계약을 만든 휴대폰에서 연결하세요")
+    if nxt.id == row.id:
+        raise RequestValidationError([{"type": "value_error", "loc": ("body", "next_contract_id"), "input": nxt.id,
+                                       "msg": "Value error, 지금 계약을 다음 집으로 연결할 수 없습니다"}])
+    _active(nxt)
+    other = db.scalar(select(Move).where(Move.next_contract_id == nxt.id, Move.id != move.id))
+    if other is not None:
+        raise api_error(409, "NEXT_CONTRACT_LINKED", "이미 다른 갈아타기에 연결된 계약입니다")
+    move.next_contract_id = nxt.id
+    db.commit()
     return _to_out(row, move, rules, today)
 
 
