@@ -1,4 +1,4 @@
-"""계약 전 확인 API (UC-001, FR-001~FR-010)와 판정에 맞는 특약 예시 (FR-039), 테스트 결제 (FR-013)."""
+"""계약 전 확인 API (UC-001, FR-001~FR-010)와 판정에 맞는 특약 예시 (FR-039), 할 일 미리보기 (FR-012), 테스트 결제 (FR-013)."""
 from dataclasses import asdict
 from datetime import date
 
@@ -12,10 +12,11 @@ from app.engine.check import MissingInputError, run_check
 from app.engine.market import ComplexKey, nearby_jeonse, pick_trade_price
 from app.engine.payment import PRODUCTS, product_for
 from app.engine.special_terms import contract_day_guide
+from app.engine.todos import build_todos, report_required
 from app.errors import api_error, responses
 from app.models import Payment, Trade, Verdict
 from app.rules.loader import get_rules
-from app.schemas import CheckInput, CheckResult, PaymentOut, SpecialTermsResult
+from app.schemas import CheckInput, CheckResult, PaymentOut, SpecialTermsResult, TodoPreviewItem, TodoPreviewOut
 
 router = APIRouter(prefix="/api/checks", tags=["계약 전 확인"])
 
@@ -147,6 +148,61 @@ def get_special_terms(check_id: int, db: Session = Depends(get_db), rules: dict 
         "disclaimer": rules["verdict"].get("display", {}).get("disclaimer", ""),
         "rules_version": str(rules["special_terms"]["version"]),
     })
+
+
+# 미리보기에서 할 일 목록을 만들 때 쓰는 계약 조건. 날짜는 순서·조건만 정하는 자리 값이라 응답에 넣지 않는다
+_PREVIEW_DATES = {"contract_date": date(2026, 1, 5), "balance_date": date(2026, 2, 5), "end_date": date(2028, 2, 4)}
+
+
+@router.get("/{check_id}/todo-preview", response_model=TodoPreviewOut, responses=responses(404, 409, 422))
+def todo_preview(check_id: int, db: Session = Depends(get_db), rules: dict = Depends(get_rules)):
+    """결제 전 할 일 종류 미리보기 (FR-012). 이 판정으로 패키지를 시작하면 생길 할 일의 종류·시점·증빙만, 날짜 없이.
+
+    계약 조건을 아직 모르므로 전세(월세 없음)·반환보증 가입·대출 없음으로 가정하고, 판정의 연동 규칙과 경보 단계는
+    계약을 만들 때와 같게 반영한다 (맨 위 할 일, 기한이 계약 당일로 당겨지는 할 일). 순서는 맨 위로 올라가는 할 일 →
+    번호순 (날짜를 모르므로). "문제 항목"이면 409 CHECK_BLOCKED.
+    """
+    from app.api.contracts import _alert_level   # contracts가 checks를 쓰지 않지만 순환을 피해 함수 안에서
+
+    row = db.get(Verdict, check_id)
+    if row is None:
+        raise api_error(404, "NOT_FOUND", "판정 결과가 없습니다")
+    level = _level(rules, row.level)
+    if level.get("block_payment"):
+        raise api_error(409, "CHECK_BLOCKED", f"\"{level['label']}\" 판정이라 패키지를 시작할 수 없습니다",
+                        "계약을 다시 검토하고 공공 상담 창구에 문의하세요")
+    values = {**_PREVIEW_DATES, "deposit": row.inputs.get("deposit"), "monthly_rent": 0, "loan": False,
+              "loan_execution_date": None, "guarantor": "HUG", "brokered": True, "renewal_right_used": False}
+    cfg = rules["todos"]
+    number = {t["id"]: i for i, t in enumerate(cfg["todos"])}
+    # 날짜를 모르니 기한순이 아니라 맨 위로 올라가는 할 일 → 번호순 (계약 뒤 목록은 실제 날짜로 다시 정렬된다)
+    planned = sorted(build_todos(values, row.linkages, {}, _alert_level(row, rules), rules),
+                     key=lambda p: (not p.moved_to_top, number[p.rule_id]))
+    by_id = {t["id"]: t for t in cfg["todos"]}
+    anchor_label = {"contract_date": "계약 당일", "balance_date": "잔금일", "end_date": "만기일"}
+    pulled = {a["todo"]: anchor_label.get(a["anchor"], a["anchor"])   # 연동 규칙이 기한을 당긴 할 일 (비율 90% 이상 → 2번)
+              for r in rules["linkage"]["rules"] if r["id"] in row.linkages and r.get("mvp")
+              for a in r.get("after_contract", []) if a.get("action") == "set_due"}
+
+    def note(rule: dict) -> str | None:
+        if any((rule.get(k) or {}).get("from") == "guarantors.yaml" for k in ("due", "remind")):
+            return cfg["preview"]["guarantee_note"]
+        if "todo_not_done" in (rule.get("when_applies") or {}):
+            return cfg["preview"]["todo_not_done_note"]
+        return None
+
+    product = product_for(row.level)
+    return TodoPreviewOut(
+        check_id=row.id, level=row.level, product=product, amount=PRODUCTS[product],
+        report_required=report_required(values, cfg),
+        todos=[TodoPreviewItem(rule_id=p.rule_id, title=p.title,
+                               timing=f"{pulled[p.rule_id]}까지" if p.rule_id in pulled else by_id[p.rule_id]["timing"],
+                               evidence=p.evidence, pinned=p.pinned, moved_to_top=p.moved_to_top,
+                               note=note(by_id[p.rule_id]))
+               for p in planned],
+        assumption=cfg["preview"]["assumption"],
+        package_note=cfg["preview"]["package_note"],
+    )
 
 
 def payment_out(p: Payment) -> PaymentOut:

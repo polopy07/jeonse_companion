@@ -33,6 +33,14 @@ notifications:
   evidence_after_days: 7    # 나중에 올리기(FR-030) 한 할 일은 나중에 올리기로 바꾼 날(증빙을 지운 날) 7일 뒤 증빙을 올리라고 다시 알림 (앱 안 알림만)
   hypothesis: false         # 기한 7·1일 전, 7일, 증빙 재알림 7일 (PO 확정 2026-10-28)
 
+# 결제 전 할 일 종류 미리보기 (FR-012, GET /api/checks/{id}/todo-preview). 무료 사용자에게는 종류·시점(timing)만 보여 주고,
+# 내 날짜로 계산한 기한·알림·기록함은 패키지에서만 준다. 계약 조건을 모르는 때라 아래 가정으로 할 일 목록을 만든다
+preview:
+  assumption: 전세(월세 없음)·반환보증 가입 기준이에요. 계약 당일 입력하는 조건에 따라 할 일이 달라질 수 있어요.
+  package_note: 내 계약 날짜로 계산한 기한·알림·기록함은 패키지를 시작하면 바로 만들어져요.
+  guarantee_note: 반환보증에 가입할 때 (미가입이면 이 할 일은 없어요)
+  todo_not_done_note: 앞 할 일을 아직 끝내지 않았을 때만
+
 # 계약 당일 첫 계약 서류 (FR-051, UC-003 5단계, UI-03). 기록함의 첫 서류로 저장한다 (POST /api/contracts/{id}/documents).
 # 할 일이 아니라 완료·알림·기한은 없다. 특약 반영 분기의 "특약이 보이는 계약서 사진"(special_terms.yaml require_document)도 이 계약서로 남긴다
 first_documents:
@@ -46,6 +54,7 @@ first_documents:
 todos:
   - id: T1
     title: 임대차 신고 (계약 후 30일 이내)
+    timing: 계약 직후 (계약 후 30일 이내)
     when_applies: {field: report_required, op: "==", value: true}
     start: {anchor: contract_date}
     due: {anchor: contract_date, offset_days: 30}
@@ -54,6 +63,7 @@ todos:
 
   - id: T2
     title: 보증 가입 여부 확정
+    timing: 임대차 신고 완료 후 (비대상이면 계약 직후), 잔금 전까지
     detail_by_guarantor:
       HUG: 전세보증 사전심사 신청
       HF: 취급 은행 사전 상담
@@ -74,6 +84,7 @@ todos:
 
   - id: T3
     title: 잔금일 아침 등기부 재비교
+    timing: 잔금일 아침
     detail: 등기부 요약을 다시 올리면 계약 전과 자동 비교. 변동이 있으면 "잔금 보류 후 상담" 안내
     start: {anchor: balance_date}
     due: {anchor: balance_date}
@@ -83,6 +94,7 @@ todos:
 
   - id: T4
     title: 전입신고
+    timing: 잔금일 당일
     detail: 임대차 신고를 했으면 확정일자는 이미 부여됨. 신고하지 않은 계약이면 확정일자도 함께
     start: {anchor: balance_date}
     due: {anchor: balance_date}
@@ -93,6 +105,7 @@ todos:
 
   - id: T5
     title: 반환보증 가입
+    timing: 대출 실행 후 (대출이 없거나 전입신고가 더 늦으면 전입신고 다음 날)
     detail: 입력한 보증기관 기준 (guarantors.yaml)
     start:
       anchor: loan_execution_date
@@ -105,6 +118,7 @@ todos:
 
   - id: T6
     title: 반환보증 가입 마감 전 재알림
+    timing: 반환보증 가입 마감 30일 전
     when_applies: {todo_not_done: T5}
     remind: {from: guarantors.yaml, key: return_guarantee_deadline, offset_days: -30}
     hypothesis: false  # 마감 30일 전 재알림 (PO 확정 2026-10-07)
@@ -112,6 +126,7 @@ todos:
 
   - id: T7
     title: 갱신 또는 이사 의사 통보 안내
+    timing: 만기 6개월 전 (통보는 만기 2개월 전까지)
     detail: 갱신하면 대출·보증 연장 준비, 이사하면 갈아타기 시작
     start: {anchor: end_date, offset_months: -6}
     due: {anchor: end_date, offset_months: -2}   # 갱신요구·갱신거절 통지 기간: 만기 6개월 전 ~ 2개월 전
@@ -126,6 +141,7 @@ todos:
 
   - id: T8
     title: 통보 마감 재알림
+    timing: 만기 2개월 + 2주 전 (통보 마감 2주 전)
     when_applies: {todo_not_done: T7}
     remind: {anchor: end_date, offset_months: -2, offset_days: -14}
     hypothesis: false  # 통보 마감(만기 2개월 전) 2주 전에 알림 (PO 확정 2026-10-07, 기획안 v4.34)
@@ -133,6 +149,7 @@ todos:
 
   - id: T9
     title: 보증금 반환 확인
+    timing: 만기일
     detail: '"보증금을 돌려받았나요?" 확인. 못 받았으면 반환 대응으로 전환 (FR-024, FR-034)'
     start: {anchor: end_date}
     due: {anchor: end_date}
@@ -144,14 +161,17 @@ todos:
 extra_todos:
   - id: X-FIXED-DATE-STATUS
     title: 확정일자 부여현황 열람 (임대인 동의)
+    timing: 계약 전날
     added_by: [L-MULTI]
     start: {anchor: contract_date, offset_days: -1}
   - id: X-LANDLORD-PLAN
     title: 임대인 반환 계획 서면 확인
+    timing: 만기 6개월 전
     added_by: [alert.warning]
     start: {anchor: end_date, offset_months: -6}
   - id: X-HUG-LANDLORD-RISK
     title: HUG 안심전세앱 임대인 위험도 조회
+    timing: 계약 직후
     added_by: [S-TAX-CERT.rejected]
     start: {anchor: contract_date}
 
