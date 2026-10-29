@@ -1,7 +1,7 @@
 # 날짜별 할 일 9종과 추가 할 일 (명세서 부속표 A, FR-015, FR-017~FR-021)
 # 기한은 규칙으로만 계산한다 (LLM 사용 안 함). 잔금일·만기일이 바뀌면 연결된 기한을 모두 다시 계산한다.
-version: "1.4"   # 1.1: 기한 정답표 PO 결정 반영 (2026-10-12), 1.2: 잔금일이 미뤄지면 끝낸 T3·T4를 다시 할 일로 (2026-10-15), 1.3: 알림 시점 (2026-10-22), 1.4: 나중에 올리기 증빙 재알림 (2026-10-26)
-as_of: "2026-10-26"
+version: "1.5"   # 1.1: 기한 정답표 PO 결정 반영 (2026-10-12), 1.2: 잔금일이 미뤄지면 끝낸 T3·T4를 다시 할 일로 (2026-10-15), 1.3: 알림 시점 (2026-10-22), 1.4: 나중에 올리기 증빙 재알림 (2026-10-26), 1.5: 반환 대응 단계 (2026-10-28)
+as_of: "2026-10-28"
 basis: "서비스 기획안 v4.35 '날짜별 할 일 9종', 요구사항 명세서 v0.5 부속표 A"
 
 # 임대차 신고 대상 기준 (FR-015)
@@ -154,3 +154,56 @@ extra_todos:
     title: HUG 안심전세앱 임대인 위험도 조회
     added_by: [S-TAX-CERT.rejected]
     start: {anchor: contract_date}
+
+# 반환 대응 (FR-024, FR-034, FR-035, UC-009). 9번(반환 확인)에서 "못 받음"을 고르면 이 단계를 할 일(R1~R4)로 붙인다.
+# 시작일은 "못 받음"을 고른 날, 기한은 없음(일반 절차 안내라 법정 기한을 정하지 않음). 화면 맨 위에 이 순서대로 둔다.
+# documents: 그 단계에 필요한 서류를 할 일 id로 적는다. 그 할 일의 증빙(evidence)이 서류 이름이고, 기록함에 올렸는지로 대조한다.
+# 그 계약에 없는 할 일(신고 비대상의 T1, 보증 미가입의 T5)은 대조하지 않는다.
+# by_guarantor: 보증기관(계약의 guarantor)에 따라 바뀌는 제목·안내·창구. 기관 이름은 제도 안내로만 쓴다 (guarantors.yaml display_rule)
+return_response:
+  hypothesis: true   # 단계별 서류는 팀 제안. 출시 전 보증기관 청구 서류 목록·법률 자문으로 확인
+  disclaimer: 일반 절차 안내이며 개별 법률 판단이 아닙니다.
+  help_desks:
+    - {label: 대법원 전자소송, url: "https://ecfs.scourt.go.kr"}
+    - {label: 대한법률구조공단 상담, url: "https://www.klac.or.kr"}
+  steps:
+    - id: R1
+      title: 반환 요청 기록
+      detail: 보증금 반환을 요청한 문자·통화 기록을 캡처해 기록함에 남겨요
+      evidence: 반환 요청 기록 (문자·통화 캡처)
+      documents: [T4]
+    - id: R2
+      title: 내용증명 보내기
+      detail: 반환을 요청했다는 사실을 공식 기록으로 남기는 일반 절차예요. 우체국 방문이나 인터넷우체국으로 보낼 수 있어요
+      link: {label: 인터넷우체국, url: "https://service.epost.go.kr"}
+      evidence: 내용증명 사본
+      documents: [T4, R1]
+    - id: R3
+      title: 임차권등기명령 신청
+      detail: 대법원 전자소송에서 신청할 수 있어요. 등기 완료를 확인한 뒤에 이사해야 대항력·우선변제권이 유지돼요
+      link: {label: 대법원 전자소송, url: "https://ecfs.scourt.go.kr"}
+      evidence: 임차권등기가 된 등기부
+      documents: [T4, T1, R2]
+    - id: R4
+      documents: [T5, T4, R2, R3]
+      by_guarantor:
+        HUG:
+          title: 반환보증 청구
+          detail: 주택도시보증공사 반환보증 가입자예요. HUG 보증 이행 청구 창구에서 절차를 안내받으세요
+          link: {label: 주택도시보증공사 보증 청구, url: "https://www.khug.or.kr"}
+          evidence: 보증 이행 청구 접수 기록
+        HF:
+          title: 반환보증 청구
+          detail: 한국주택금융공사 반환보증 가입자예요. HF 보증 이행 청구 창구에서 절차를 안내받으세요
+          link: {label: 한국주택금융공사 보증 청구, url: "https://www.hf.go.kr"}
+          evidence: 보증 이행 청구 접수 기록
+        SGI:
+          title: 반환보증 청구
+          detail: 서울보증보험 반환보증 가입자예요. SGI 보험금 청구 창구에서 절차를 안내받으세요
+          link: {label: 서울보증보험 보험금 청구, url: "https://www.sgic.co.kr"}
+          evidence: 보험금 청구 접수 기록
+        none:
+          title: 공공 상담 받기
+          detail: 반환보증에 가입하지 않았어요. 대한법률구조공단 등 공공 상담 창구에서 다음 절차를 안내받으세요
+          link: {label: 대한법률구조공단 상담, url: "https://www.klac.or.kr"}
+          evidence: null

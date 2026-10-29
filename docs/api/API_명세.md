@@ -109,6 +109,10 @@
 | `TODO_NOT_STARTED` | 409 | 잔금일에 하는 할 일(3번 재비교·4번 전입신고)을 시작일 전 날짜로 끝내려 함 |
 | `DEPENDENT_DONE` | 409 | 이 할 일을 먼저 끝내야 하는 뒤 할 일이 이미 끝나 있어 되돌릴 수 없음. 뒤 할 일부터 되돌림 |
 | `TODO_NOT_PLANNED` | 409 | 계약 조건이 바뀌어 지금 계약에는 없는 끝낸 할 일(기록으로만 남은 것, 예: 5번을 끝내 빠진 6번)을 되돌리려 함. 되돌리면 재계산에서 기록째 지워져서 막음. 기록으로만 남은 할 일은 `DEPENDENT_DONE`의 뒤 할 일로 치지 않음. 할 일 응답의 `archived: true`가 이런 할 일이라 앱은 되돌리기 버튼을 숨김 |
+| `RETURN_NOT_DUE` | 409 | 만기일 전에 "못 받음"(반환 대응 시작)을 고름 (FR-024) |
+| `ALREADY_RETURNED` | 409 | 9번(반환 확인)을 이미 끝낸 계약에 "못 받음"을 고름. 잘못 끝냈으면 9번을 먼저 되돌림 |
+| `RETURN_NOT_STARTED` | 409 | 반환 대응을 시작하지 않은 계약에 "못 받음" 되돌리기 |
+| `RETURN_STEP_DONE` | 409 | 끝낸 반환 대응 단계(나중에 올리기 포함)가 있어 "못 받음"을 되돌릴 수 없음 (기록이 지워지지 않게). 돈을 돌려받았으면 9번을 끝냄 |
 | `ADMIN_TOKEN_INVALID` | 401 | 관리자 API에 `X-Admin-Token` 헤더가 없거나 서버 `ADMIN_TOKEN`과 다름 |
 | `ADMIN_DISABLED` | 403 | 서버에 `ADMIN_TOKEN`이 없어 관리자 API가 꺼져 있음 |
 | `TRADES_COLLECT_CONFLICT` | 409 | 같은 거래를 동시에 수집한 다른 요청과 겹쳐 저장하지 못함 → 다시 시도 |
@@ -183,6 +187,9 @@ A = 개발 A(백엔드·규칙), B = 개발 B(화면). 주차는 노션 "할 일
 | `POST /api/admin/alerts/recalculate` | 경보 재계산 (관리자): 본문 `date`(→ `X-Virtual-Today` → 실제 오늘)를 기준일로 진행 중 계약의 추정 주택가격·내 보증금 비율·경보 단계를 계약 전 확인과 같은 규칙으로 다시 계산해 이력(`alerts`)에 남긴다. 실거래는 저장된 것(`POST /api/admin/trades`로 수집)에서 판정 때 단지로 찾고(판정 때 사용자가 매매 실거래가를 직접 넣었으면 판정처럼 그 값을 씀, `basis.trade_price_input`), 선순위 채권은 마지막으로 올린 등기부. 이 기능 전에 만든 판정에는 단지 정보가 없어 공시가격으로만 계산하니 시연 DB는 `reset_demo_db.py`로 초기화. `contract_ids`로 일부만, `official_prices`(`{계약 id: 새 공시가격}`)로 공시가격 새 발표를 적재한 뒤 계산. 같은 날 다시 부르면 그날 계산을 바꿈(가상 날짜를 되돌려 앞선 날을 부르면 그날 기록을 바꾸고, 앞 단계는 그날보다 앞선 기록). 단계가 바뀌면 계약 `alert_level`과 할 일을 다시 계산(주의 이상이면 T5 맨 위), 올라가면 앱 안 알림(`kind: "alert"`, 하루 한 건: 같은 날 한 번 더 오르면 그 알림을 새 단계로 고침, `raised`는 그날 앞서 계산한 단계보다도 높을 때만 true). 지금 `alert.yaml`에 없는 예전 단계는 정상으로 봄. 공시가격이 없는 계약·무산된 계약은 건너뜀 | FR-037, 046 | |
 | `POST /api/contracts/access-link` | 접근 링크 이메일로 다시 받기: 본문 `{"email"}`(계약 이메일 또는 공동 계약자 이메일, 요청한 주소로 보냄). 그 이메일로 만든 진행 중 계약(무산된 계약도 풀린 결제가 남아 있으면)마다 새 접근 토큰을 만들어 계약 이메일로 보냄(처음 토큰은 그대로, 계약마다 한 시간에 3번). 이메일이 없어도 같은 202 (계약이 있는지 알아내지 못하게). 링크는 `APP_LINK_BASE`가 있으면 `{APP_LINK_BASE}?contract={id}&token=...`, 없으면 접근 코드 | NFR-011 | UI-04 |
 | `PATCH /api/contracts/{id}` | 계약 조건(날짜·월세·대출·보증기관·중개·갱신·공동 계약·이메일)과 특약 넣음/거절당함을 바꾸고 할 일을 다시 계산. 보낸 칸만 바꾸고, 특약은 보낸 특약만 바꾼다(그 판정에서 안내한 특약만). 바꾼 뒤 조건이 계약 생성 규칙(날짜 순서·대출 실행일)을 어기거나 꼭 있어야 하는 칸에 null이면 422(아무것도 안 바뀜). 계약일을 뒤로 바꿔 목록에 있는 끝낸 할 일의 끝낸 날이 새 계약일보다 앞서게 되면 422 `contract_date`(그 할 일을 되돌리거나 끝낸 날을 고친 뒤 바꿈), 없는 계약이면 404. 같은 할 일은 `id`·상태·완료일을 유지하고, 끝낸 할 일의 완료일을 뒤 할 일의 기준일로 쓴다. 더는 해당하지 않는 할 일은 지우되 끝낸 것은 맨 뒤에 남긴다. 잔금일이 미뤄져 끝낸 T3·T4의 완료일이 새 잔금일보다 앞서면 다시 할 일로 돌린다. 주택 유형·보증금·`alert_level`은 바꾸지 않는다(경보 단계는 경보 재계산으로만 바뀜) `X-Contract-Token` 확인, 무산된 계약이면 409 `CONTRACT_CANCELLED` | FR-021, 049~050 | UI-03, UI-04 |
+| `POST /api/contracts/{id}/return-response` | 9번(반환 확인)에서 "못 받음" (반환 대응 시작): 오늘(가상 날짜면 그날)을 `not_returned_date`로 저장하고 반환 대응 단계 4개(R1 반환 요청 기록 → R2 내용증명 → R3 임차권등기명령 → R4 반환보증 청구, 미가입은 공공 상담, `todos.yaml` `return_response`)를 기한 없는 할 일로 맨 위에 붙인다. 단계 끝내기·증빙은 다른 할 일처럼 `PATCH`·`POST /api/todos/{id}`. 만기일 전이면 409 `RETURN_NOT_DUE`, 9번을 이미 끝냈으면 409 `ALREADY_RETURNED`, 이미 시작했으면 그대로 200. 계약 전체를 돌려줌(`not_returned_date`). 나중에 돌려받으면 9번을 끝낸다(남은 단계는 할 일에서 빠지고 끝낸 단계는 맨 뒤 기록으로 남음, 9번을 되돌리면 다시 맨 위). 반환 대응 중에는 만기일을 `not_returned_date`보다 뒤로 바꿀 수 없음(`PATCH /api/contracts/{id}` 422 `end_date`). `X-Contract-Token` 확인, 무산된 계약은 409 | FR-024 | UI-04, UI-08 |
+| `DELETE /api/contracts/{id}/return-response` | "못 받음"을 잘못 골랐을 때 되돌리기: 반환 대응 단계 할 일을 지우고 `not_returned_date`를 null로. 시작하지 않았으면 409 `RETURN_NOT_STARTED`, 끝낸 단계가 있으면 409 `RETURN_STEP_DONE` | FR-024 | UI-08 |
+| `GET /api/contracts/{id}/return-guide` | 반환 대응 안내: `status`(`preview` "못 받음" 전 미리 점검 / `in_progress` / `ended` 반환 대응 중 9번을 끝냄), 단계(`steps`: 제목·안내·창구 `link`·증빙·`state` done/current/todo·`todo_id`·이 단계에 필요한데 없는 서류 `missing_documents`), 청구 서류 대조(`documents`: 단계별 서류를 그 할 일의 증빙으로 보고 기록함에 올렸는지 `uploaded`, 필요한 단계 `needed_by`. 이 계약에 없는 할 일의 서류는 뺌. `preview`에서는 지금 준비할 수 있는 할 일(T) 서류만 대조), `missing_count`, 공공 상담 창구 `help_desks`, `disclaimer`. 보증기관별 4단계 안내·창구는 `by_guarantor`. 무산된 계약도 볼 수 있음 | FR-034~035 | UI-08 |
 | `POST /api/contracts/{id}/calendar-link` | 캘린더 구독 주소 만들기: `url`(https)·`webcal_url`(휴대폰에서 열면 캘린더 앱이 구독을 물음)·`created_at`. 주소에 보기 전용 토큰이 들어 있어 이 응답에서 한 번만 준다(서버엔 해시). 다시 만들면 앞 주소는 끊김(계약마다 살아 있는 주소 하나). 주소 앞부분은 `PUBLIC_BASE_URL`, 없으면 요청이 들어온 주소. `X-Contract-Token` 확인, 무산된 계약은 409. 앱 ICS 내보내기(#102)는 내보낸 때의 일정이고, 구독은 기한이 바뀌면 캘린더가 저절로 따라감. 캘린더 앱이 서버에 닿아야 해서 실제 구독은 배포 서버에서 | FR-042 | UI-04 |
 | `DELETE /api/contracts/{id}/calendar-link` | 구독 주소 끊기 (주소가 샜거나 더 쓰지 않을 때). 204, 끊을 주소가 없으면 404. 무산된 계약도 됨 | FR-042 | UI-04 |
 | `GET /api/calendar/{token}.ics` | 구독 파일 (`text/calendar`, 캘린더 앱이 헤더 없이 주기적으로 부름). 끝나지 않은 할 일마다 하루 종일 일정(기한, 재알림은 알림일), 기한 7·1일 전 오전 9시 알림(`todos.yaml` `notifications.due_before_days`), UID는 앱 내보내기와 같아 겹치지 않음. 집 주소·이름은 넣지 않음. 끊은·없는 주소 404, 무산된 계약은 일정 없는 캘린더(구독한 일정이 지워짐). 이 토큰은 계약 API에 쓸 수 없음 | FR-042 | |
@@ -200,7 +207,6 @@ GitHub 이슈와 마일스톤(2주차·3주차·4주차)으로 진행을 관리�
 | 메서드·주소 | 하는 일 | FR | 화면 | 주차 | 이슈 |
 | --- | --- | --- | --- | --- | --- |
 | `GET /api/contracts/{id}/timeline` | 계약 2년 기록을 날짜순으로 | FR-032 | UI-06 | 4 | #51 |
-| `GET /api/contracts/{id}/return-guide` | 반환 대응 단계, 청구 서류 대조 | FR-024, 034~035 | UI-08 | 4 | #52 |
 
 ### 2.3 정할 것 (2주차)
 
