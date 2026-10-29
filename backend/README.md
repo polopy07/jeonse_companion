@@ -77,6 +77,8 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/engine/registry_compare.py` | 등기부 재비교: 항목별 변동·보류 안내 |
 | `app/api/todos.py` | `PATCH /api/todos/{id}` 할 일 끝내기·나중에 올리기·되돌리기, `POST`·`GET`·`DELETE /api/todos/{id}/evidence` 증빙 |
 | `app/api/returns.py` | `POST`·`DELETE /api/contracts/{id}/return-response` "못 받음"·되돌리기, `GET /api/contracts/{id}/return-guide` 반환 대응 안내 |
+| `app/engine/calendar.py` | 할 일 → ICS (앱 내보내기와 같은 UID·알림) |
+| `app/api/calendar.py` | 캘린더 구독 주소 만들기·끊기(`/api/contracts/{id}/calendar-link`), 구독 파일(`/api/calendar/{token}.ics`) |
 | `app/api/documents.py` | `POST /api/contracts/{id}/documents`, `GET`·`DELETE /api/contracts/{id}/documents/{kind}` 첫 계약 서류 |
 | `app/evidence.py` | 증빙 파일 저장·삭제 (`EVIDENCE_DIR`, 기본 `backend/data/evidence`, git 제외) |
 | `app/api/alerts.py` | `GET /api/contracts/{id}/alerts/latest` 경보 리포트 |
@@ -206,6 +208,13 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - `GET /api/contracts/{id}/return-guide`: 단계 진행(`state` done / current / todo), 단계별 창구 링크, 청구 서류 대조(단계마다 적은 할 일의 증빙을 기록함에 올렸는지, 이 계약에 없는 할 일의 서류는 뺌), 빠진 서류 수, 공공 상담 창구. "못 받음" 전에도 `preview`로 볼 수 있다(경보 위험일 때 미리 점검, 서류는 지금 준비할 수 있는 할 일(T) 서류만)
 - 4단계는 보증기관에 따라 HUG·HF·SGI 청구 창구, 미가입은 공공 상담(증빙 없음). 단계별 서류는 팀 제안(`hypothesis: true`), 출시 전 보증기관 청구 서류·법률 자문으로 확인
 - 반환 대응 중에는 만기일을 "못 받음"을 고른 날보다 뒤로 바꿀 수 없다 (`PATCH /api/contracts/{id}` 422 `end_date`)
+
+### 캘린더 구독 (FR-042, #47)
+
+- 앱 ICS 내보내기(#102)는 내보낸 때의 일정이라 날짜가 바뀌면 다시 내보내야 한다. 구독 주소를 캘린더에 넣으면 캘린더 앱이 주기적으로 불러와 바뀐 기한이 저절로 반영된다
+- `POST /api/contracts/{id}/calendar-link` → `url`·`webcal_url`. 캘린더 앱은 헤더를 못 보내 주소에 **보기 전용 토큰**을 넣는다(`calendar_tokens`, 해시만 저장). 이 토큰으로는 계약 API를 쓸 수 없고, 다시 만들면 앞 주소는 끊긴다. `DELETE`로 끊기
+- `GET /api/calendar/{token}.ics`: 끝나지 않은 할 일만, 앱 내보내기와 같은 UID·하루 종일 일정·7·1일 전 오전 9시 알림. 집 주소·이름은 넣지 않음. 무산된 계약은 일정 없는 캘린더
+- 캘린더 앱(구글·애플)이 서버에 닿아야 하므로 실제 구독은 배포 서버에서 된다. 배포 서버가 프록시 뒤라 주소가 달라지면 `PUBLIC_BASE_URL`
 
 ### 첫 계약 서류 (FR-051, #46)
 

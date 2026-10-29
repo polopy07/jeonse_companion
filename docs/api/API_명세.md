@@ -148,7 +148,7 @@
 
 - 계약 전 확인(`/api/checks`, `/api/registry/parse`)은 그대로 로그인 없이 쓴다 (UC-001)
 - **계약별 접근 토큰 (#39)**: `POST /api/contracts` 응답에 `access_token`을 한 번만 준다(서버는 해시만 저장). 계약 아래 API(`GET·PATCH /api/contracts/{id}`, 앞으로 만들 할 일 완료·증빙·서류)는 헤더 `X-Contract-Token`이 맞아야 한다. 토큰이 없거나 틀리면 계약이 없을 때와 같은 404 `NOT_FOUND`(번호를 바꿔 가며 계약이 있는지 알아내지 못하게). 회원 식별은 이메일만 (NFR-011). 휴대폰을 바꾸거나 앱을 지우면 "접근 링크 이메일로 다시 받기"(`POST /api/contracts/access-link`, 2.1)로 다시 들어온다. 다시 받은 토큰은 `contract_tokens`에 해시로 더하고 처음 토큰은 그대로 쓸 수 있다
-- 캘린더 파일(`calendar.ics`, #47)은 캘린더 앱이 헤더를 못 보내므로 주소에 별도 구독용 토큰을 넣는다
+- 캘린더 구독(#47)은 캘린더 앱이 헤더를 못 보내므로 주소에 보기 전용 토큰을 넣는다(`/api/calendar/{token}.ics`). 계약 접근 토큰과 따로라 계약 API에는 쓸 수 없고, 다시 만들거나 끊으면 앞 주소는 404
 - **테스트 결제 (#40, FR-013)**: `POST /api/checks/{id}/payment` → `{payment_id, product: "package" | "todo_only", amount, method: "test", status: "paid"}`. 금액은 서버가 판정 단계로 정한다(9,900원, 다가구·단독 할 일 관리만 4,900원). "문제 항목" 판정이면 409 `CHECK_BLOCKED`. 실제 돈은 나가지 않는다
 - `POST /api/contracts`에 `payment_id`. 이 판정의 결제이거나 무산된 계약에서 풀린 결제(`released`)여야 하고, 아니면 402 `PAYMENT_REQUIRED`. 풀린 결제는 그 결제를 썼던 무산된 계약의 접근 토큰을 본문 `released_contract_token`으로 함께 보내야 한다(지금 만드는 계약의 토큰이 아니라 `X-Contract-Token` 헤더와 뜻이 달라서. 없으면 402와 접근 링크 다시 받기 안내, 결제 번호만 바꿔 남의 풀린 결제를 쓰지 못하게, `REQUIRE_CONTRACT_AUTH`와 상관없이 언제나). 풀린 결제가 할 일 관리만(4,900원)인데 다음 집이 패키지면 402(다시 결제). 결제 화면은 UI-02의 확인 창
 - 계약 무산(FR-016): `POST /api/contracts/{id}/cancel` → 계약 `cancelled`, 결제 `released`. 무산된 계약은 `GET`만 되고 바꾸는 요청은 409 `CONTRACT_CANCELLED`, 알림은 보내지 않는다
@@ -190,6 +190,9 @@ A = 개발 A(백엔드·규칙), B = 개발 B(화면). 주차는 노션 "할 일
 | `POST /api/contracts/{id}/return-response` | 9번(반환 확인)에서 "못 받음" (반환 대응 시작): 오늘(가상 날짜면 그날)을 `not_returned_date`로 저장하고 반환 대응 단계 4개(R1 반환 요청 기록 → R2 내용증명 → R3 임차권등기명령 → R4 반환보증 청구, 미가입은 공공 상담, `todos.yaml` `return_response`)를 기한 없는 할 일로 맨 위에 붙인다. 단계 끝내기·증빙은 다른 할 일처럼 `PATCH`·`POST /api/todos/{id}`. 만기일 전이면 409 `RETURN_NOT_DUE`, 9번을 이미 끝냈으면 409 `ALREADY_RETURNED`, 이미 시작했으면 그대로 200. 계약 전체를 돌려줌(`not_returned_date`). 나중에 돌려받으면 9번을 끝낸다(남은 단계는 할 일에서 빠지고 끝낸 단계는 맨 뒤 기록으로 남음, 9번을 되돌리면 다시 맨 위). 반환 대응 중에는 만기일을 `not_returned_date`보다 뒤로 바꿀 수 없음(`PATCH /api/contracts/{id}` 422 `end_date`). `X-Contract-Token` 확인, 무산된 계약은 409 | FR-024 | UI-04, UI-08 |
 | `DELETE /api/contracts/{id}/return-response` | "못 받음"을 잘못 골랐을 때 되돌리기: 반환 대응 단계 할 일을 지우고 `not_returned_date`를 null로. 시작하지 않았으면 409 `RETURN_NOT_STARTED`, 끝낸 단계가 있으면 409 `RETURN_STEP_DONE` | FR-024 | UI-08 |
 | `GET /api/contracts/{id}/return-guide` | 반환 대응 안내: `status`(`preview` "못 받음" 전 미리 점검 / `in_progress` / `ended` 반환 대응 중 9번을 끝냄), 단계(`steps`: 제목·안내·창구 `link`·증빙·`state` done/current/todo·`todo_id`·이 단계에 필요한데 없는 서류 `missing_documents`), 청구 서류 대조(`documents`: 단계별 서류를 그 할 일의 증빙으로 보고 기록함에 올렸는지 `uploaded`, 필요한 단계 `needed_by`. 이 계약에 없는 할 일의 서류는 뺌. `preview`에서는 지금 준비할 수 있는 할 일(T) 서류만 대조), `missing_count`, 공공 상담 창구 `help_desks`, `disclaimer`. 보증기관별 4단계 안내·창구는 `by_guarantor`. 무산된 계약도 볼 수 있음 | FR-034~035 | UI-08 |
+| `POST /api/contracts/{id}/calendar-link` | 캘린더 구독 주소 만들기: `url`(https)·`webcal_url`(휴대폰에서 열면 캘린더 앱이 구독을 물음)·`created_at`. 주소에 보기 전용 토큰이 들어 있어 이 응답에서 한 번만 준다(서버엔 해시). 다시 만들면 앞 주소는 끊김(계약마다 살아 있는 주소 하나). 주소 앞부분은 `PUBLIC_BASE_URL`, 없으면 요청이 들어온 주소. `X-Contract-Token` 확인, 무산된 계약은 409. 앱 ICS 내보내기(#102)는 내보낸 때의 일정이고, 구독은 기한이 바뀌면 캘린더가 저절로 따라감. 캘린더 앱이 서버에 닿아야 해서 실제 구독은 배포 서버에서 | FR-042 | UI-04 |
+| `DELETE /api/contracts/{id}/calendar-link` | 구독 주소 끊기 (주소가 샜거나 더 쓰지 않을 때). 204, 끊을 주소가 없으면 404. 무산된 계약도 됨 | FR-042 | UI-04 |
+| `GET /api/calendar/{token}.ics` | 구독 파일 (`text/calendar`, 캘린더 앱이 헤더 없이 주기적으로 부름). 끝나지 않은 할 일마다 하루 종일 일정(기한, 재알림은 알림일), 기한 7·1일 전 오전 9시 알림(`todos.yaml` `notifications.due_before_days`), UID는 앱 내보내기와 같아 겹치지 않음. 집 주소·이름은 넣지 않음. 끊은·없는 주소 404, 무산된 계약은 일정 없는 캘린더(구독한 일정이 지워짐). 이 토큰은 계약 API에 쓸 수 없음 | FR-042 | |
 | `POST /api/contracts/{id}/documents` | 계약 당일 첫 계약 서류 올리기 (기록함의 첫 서류, 할 일과 별개): multipart `kind`(`contract` 계약서 / `down_payment` 계약금 이체 내역, `todos.yaml` `first_documents`)와 `file`. 종류마다 1장, 다시 올리면 바꿈. 형식·화질 제한 없이 20MB까지(넘으면 413 `FILE_TOO_LARGE`), 빈 파일·없는 종류 422. 계약 전체를 돌려줌(`documents`: 종류마다 `label`·`detail`·`uploaded`·`uploaded_at`, `GET`·`PATCH` 응답에도). `X-Contract-Token` 확인, 무산된 계약은 409 | FR-051 | UI-03, UI-05 |
 | `GET /api/contracts/{id}/documents/{kind}` | 올린 첫 계약 서류 파일 (기록함 보기). 사진·PDF는 `inline`, 다른 형식은 내려받기(증빙과 같음). 없으면 404. 무산된 계약도 볼 수 있음 | FR-051 | UI-05 |
 | `DELETE /api/contracts/{id}/documents/{kind}` | 첫 계약 서류 삭제 (언제든, 무산된 계약도). 계약 전체를 돌려줌. 올린 서류가 없으면 404 | FR-033 | UI-05 |
@@ -203,7 +206,6 @@ GitHub 이슈와 마일스톤(2주차·3주차·4주차)으로 진행을 관리�
 
 | 메서드·주소 | 하는 일 | FR | 화면 | 주차 | 이슈 |
 | --- | --- | --- | --- | --- | --- |
-| `GET /api/contracts/{id}/calendar.ics` | 할 일 기한을 캘린더 파일로 (`text/calendar`) | FR-042 | UI-04 | 3 | #47 |
 | `GET /api/contracts/{id}/timeline` | 계약 2년 기록을 날짜순으로 | FR-032 | UI-06 | 4 | #51 |
 
 ### 2.3 정할 것 (2주차)
