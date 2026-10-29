@@ -470,3 +470,71 @@ export type ApiDemoHouse = {
 export function getDemoHouses() {
   return request<{ as_of: string; houses: ApiDemoHouse[] }>('/api/demo-houses', { method: 'GET' });
 }
+
+// ---- POST·GET /api/contracts/{id}/move ----
+
+/** 갈아타기: 다음 집 계약 조건 (FR-025, UI-07) */
+export type ApiMoveInput = {
+  contract_date: string;
+  balance_date: string;
+  end_date: string;
+  deposit: number;
+  /** 잔금 = 보증금 − 계약금 */
+  down_payment: number;
+  loan?: boolean;
+  guarantor?: Guarantor;
+};
+
+/** 지금 집과 다음 집 할 일을 묶은 목록의 한 줄 */
+export type ApiMoveTodo = {
+  house: 'current' | 'next';
+  rule_id: string;
+  title: string;
+  start_date: string | null;
+  due_date: string | null;
+  remind_date: string | null;
+  state: ApiTodo['state'];
+  days_left: number | null;
+};
+
+export type ApiMove = {
+  contract_id: number;
+  today: string;
+  /** 갈아타기를 처음 저장한 날 */
+  decided_on: string;
+  next: ApiMoveInput & { loan: boolean; guarantor: Guarantor };
+  current_deposit: number;
+  /** 지금 집 보증금 반환 예정일 (반환 확인을 끝냈으면 돌려받은 날) */
+  return_date: string;
+  /** 지금 집 반환 확인(9번 할 일)을 끝냈는지. 끝냈으면 경고를 내지 않는다 */
+  returned: boolean;
+  next_balance: number;
+  /** 반환 예정일이 다음 집 잔금일보다 늦은 일수, 늦지 않으면 0 */
+  gap_days: number;
+  /** 그동안 비는 금액 = min(지금 집 보증금, 다음 집 잔금) (정답표 Q5) */
+  gap_amount: number;
+  move_in_date: string;
+  /** 전입 예정일이 반환 예정일과 같거나 앞섬 (FR-027) */
+  move_in_warning: boolean;
+  /** 자금 틈·대출 순서·전입 순서 안내, 화면에 그대로 */
+  warnings: string[];
+  /** 지금 집 + 다음 집 할 일, 날짜순 */
+  todos: ApiMoveTodo[];
+};
+
+/**
+ * 갈아타기 저장 (FR-025~027). 다시 보내면 다음 집 입력을 바꾼다.
+ * 날짜 순서가 틀리면 422, 무산된 계약이면 409 CONTRACT_CANCELLED
+ */
+export function postMove(contractId: number, token: string | null, input: ApiMoveInput) {
+  return request<ApiMove>(`/api/contracts/${contractId}/move`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...contractHeaders(token) },
+    body: JSON.stringify(input),
+  });
+}
+
+/** 저장한 갈아타기를 지금 계약 상태로 다시 계산 (반환 확인을 끝냈으면 돌려받은 날 기준). 시작 전이면 404 */
+export function getMove(contractId: number, token: string | null) {
+  return request<ApiMove>(`/api/contracts/${contractId}/move`, { method: 'GET', headers: contractHeaders(token) });
+}
