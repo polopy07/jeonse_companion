@@ -76,6 +76,8 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/engine/registry_compare.py` | 등기부 재비교: 항목별 변동·보류 안내 |
 | `app/api/todos.py` | `PATCH /api/todos/{id}` 할 일 끝내기·나중에 올리기·되돌리기, `POST`·`GET`·`DELETE /api/todos/{id}/evidence` 증빙 |
 | `app/api/timeline.py` | `GET /api/contracts/{id}/timeline` 계약 타임라인 |
+| `app/engine/calendar.py` | 할 일 → ICS (앱 내보내기와 같은 UID·알림) |
+| `app/api/calendar.py` | 캘린더 구독 주소 만들기·끊기(`/api/contracts/{id}/calendar-link`), 구독 파일(`/api/calendar/{token}.ics`) |
 | `app/api/documents.py` | `POST /api/contracts/{id}/documents`, `GET`·`DELETE /api/contracts/{id}/documents/{kind}` 첫 계약 서류 |
 | `app/evidence.py` | 증빙 파일 저장·삭제 (`EVIDENCE_DIR`, 기본 `backend/data/evidence`, git 제외) |
 | `app/api/alerts.py` | `GET /api/contracts/{id}/alerts/latest` 경보 리포트 |
@@ -201,6 +203,13 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 
 - 계약 2년 기록을 날짜순으로 한 목록에: 계약 전 확인(판정·비율, 기준일은 판정의 실거래 기준일) → 계약 당일 체크(시작 경보) → 특약 넣음/거절당함 → 끝낸 할 일(증빙 여부) → 경보 재계산(단계 변화) → 갈아타기 시작 → 계약 무산
 - 앱(#112)이 계약 응답으로 그리던 타임라인에 경보 재계산 이력·갈아타기가 더해진다. 등기부 재비교(#115)·반환 대응·첫 계약 서류가 병합되면 그 기록도 더할 것
+
+### 캘린더 구독 (FR-042, #47)
+
+- 앱 ICS 내보내기(#102)는 내보낸 때의 일정이라 날짜가 바뀌면 다시 내보내야 한다. 구독 주소를 캘린더에 넣으면 캘린더 앱이 주기적으로 불러와 바뀐 기한이 저절로 반영된다
+- `POST /api/contracts/{id}/calendar-link` → `url`·`webcal_url`. 캘린더 앱은 헤더를 못 보내 주소에 **보기 전용 토큰**을 넣는다(`calendar_tokens`, 해시만 저장). 이 토큰으로는 계약 API를 쓸 수 없고, 다시 만들면 앞 주소는 끊긴다. `DELETE`로 끊기
+- `GET /api/calendar/{token}.ics`: 끝나지 않은 할 일만, 앱 내보내기와 같은 UID·하루 종일 일정·7·1일 전 오전 9시 알림. 집 주소·이름은 넣지 않음. 무산된 계약은 일정 없는 캘린더
+- 캘린더 앱(구글·애플)이 서버에 닿아야 하므로 실제 구독은 배포 서버에서 된다. 배포 서버가 프록시 뒤라 주소가 달라지면 `PUBLIC_BASE_URL`
 
 ### 첫 계약 서류 (FR-051, #46)
 

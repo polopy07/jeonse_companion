@@ -7,9 +7,10 @@ import { TextField } from '@/components/form';
 import { Button, Card, Disclaimer, Screen } from '@/components/layout';
 import { PickButton } from '@/components/term';
 import { Colors, Radius } from '@/constants/theme';
-import { ApiError, patchContract, type ApiContractPatch } from '@/lib/api';
+import { ApiError, cancelContract, patchContract, type ApiContract, type ApiContractPatch } from '@/lib/api';
 import { contractToken, setLatestContract, useLatestContract } from '@/lib/contract';
 import { dateOrderError, isDateText } from '@/lib/format';
+import { setReleasedPayment } from '@/lib/payment';
 import type { SpecialTermResult } from '@/lib/special-terms';
 
 /**
@@ -137,6 +138,72 @@ export default function ContractEditScreen() {
           ))}
         </>
       ) : null}
+
+      {cancelled ? null : <CancelCard contract={contract} />}
     </Screen>
+  );
+}
+
+/**
+ * 계약 무산 (FR-016, POST /api/contracts/{id}/cancel). 계약을 하지 않게 됐으면 무산으로 바꾼다: 할 일은 기록으로 남고
+ * 알림은 멈추며, 쓴 결제는 풀려 다음 집 계약에 다시 쓴다. 되돌릴 수 없어 한 번 더 눌러 확인한다 (웹은 Alert가 동작하지 않음)
+ */
+function CancelCard({ contract }: { contract: ApiContract }) {
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const cancel = async () => {
+    if (busy) return;
+    if (!confirm) {
+      setConfirm(true);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const token = contractToken(contract.id);
+    try {
+      const updated = await cancelContract(contract.id, token);
+      // 풀린 결제는 이 계약의 토큰과 함께 써야 해서, 다음 계약이 토큰을 덮어쓰기 전에 따로 남긴다
+      if (updated.payment_id !== null && token) {
+        setReleasedPayment({
+          payment_id: updated.payment_id,
+          product: updated.level === 'not_applicable' ? 'todo_only' : 'package',
+          contract_id: updated.id,
+          token,
+        });
+      }
+      setLatestContract(updated);
+      router.back();
+    } catch (e) {
+      setError(e instanceof ApiError ? [e.message, e.hint].filter(Boolean).join('. ') : '계약을 무산으로 바꾸지 못했어요');
+      setConfirm(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card style={{ marginTop: 24, borderRadius: Radius.lg }}>
+      <AppText size={15} weight="bold">
+        계약이 무산됐어요
+      </AppText>
+      <AppText size={13} color={Colors.textSub} leading={1.6} style={{ marginTop: 4 }}>
+        계약을 하지 않게 됐다면 무산으로 바꿔 주세요. 할 일은 기록으로만 남고 알림은 멈춰요.
+        {contract.payment_id !== null ? ' 결제는 다음 집 계약에 다시 쓸 수 있어요.' : ''}
+      </AppText>
+      {error ? (
+        <AppText size={13} color={Colors.danger} leading={1.6} style={{ marginTop: 8 }}>
+          {error}
+        </AppText>
+      ) : null}
+      <Button
+        variant="outline"
+        height={44}
+        label={busy ? '바꾸는 중…' : confirm ? '한 번 더 누르면 무산으로 바꿔요 (되돌릴 수 없어요)' : '계약 무산으로 바꾸기'}
+        onPress={cancel}
+        style={{ marginTop: 12, borderColor: Colors.danger }}
+      />
+    </Card>
   );
 }
