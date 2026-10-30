@@ -41,6 +41,8 @@ EMAIL_BACKEND=console
 # SMTP_USER=
 # SMTP_PASSWORD=
 # SMTP_FROM=
+# 접근 링크 메일의 링크 앞부분 (예: 앱 딥링크). 비워 두면 링크 대신 접근 코드를 보낸다
+# APP_LINK_BASE=
 # 공공데이터포털 키 (실거래가를 새로 받을 때만, 시연은 저장본이라 필요 없음)
 DATA_GO_KR_SERVICE_KEY=
 CORS_ORIGINS=
@@ -67,7 +69,7 @@ sudo systemctl restart "$SERVICE"
 
 echo "== 5. 확인"
 for _ in $(seq 1 15); do
-    if curl -fsS http://127.0.0.1:8000/health; then
+    if curl -fsS http://127.0.0.1:8000/health 2>/dev/null; then
         echo
         echo "서버가 떴습니다. VM 상세 화면 \"포트\"에 8000을 저장하고 ${PUBLIC_URL:-배포 주소}/health 를 열어 보세요"
         exit 0

@@ -21,7 +21,7 @@ fi
 sudo systemctl start "$SERVICE"
 
 for _ in $(seq 1 15); do
-    if curl -fsS http://127.0.0.1:8000/health; then
+    if curl -fsS http://127.0.0.1:8000/health 2>/dev/null; then
         echo
         echo "다시 떴습니다: $(git log --oneline -1)"
         exit 0
