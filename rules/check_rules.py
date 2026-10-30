@@ -159,7 +159,6 @@ def main():
             if not variant.get("title") or not variant.get("detail"):
                 errors.append(f"todos.yaml:return_response.{sid}: title·detail 없음")
 
-
     # 걸린 항목 설명·확인 못 한 항목 안내 (화면 문구)
     for lv in data["verdict"]["levels"]:
         for r in lv.get("rules", []):
