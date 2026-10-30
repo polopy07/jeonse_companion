@@ -494,16 +494,19 @@ export function getAlertReport(contractId: number, token: string | null) {
 
 // ---- PATCH /api/todos/{id}, POST /api/todos/{id}/evidence ----
 
+/** 갈아타기 다음 집의 전입신고를 지금 집 반환 확인 전에 끝내려 할 때 (FR-027). confirmMoveIn: true로 다시 보내면 끝난다 */
+export const MOVE_IN_BEFORE_RETURN = 'MOVE_IN_BEFORE_RETURN';
+
 /**
  * 할 일 끝내기·되돌리기 (FR-020, FR-029·030). done은 증빙을 올린 할 일만(아니면 409 EVIDENCE_REQUIRED),
  * skipped는 나중에 올리기, todo는 되돌리기. 먼저 끝낼 할 일이 남았으면 409 PREREQUISITE_NOT_DONE,
  * 뒤 할 일을 이미 끝냈으면 409 DEPENDENT_DONE. 끝낸 날로 뒤 기한을 다시 계산해 계약 전체를 돌려준다
  */
-export function patchTodo(todoId: number, token: string | null, status: ApiTodo['status']) {
+export function patchTodo(todoId: number, token: string | null, status: ApiTodo['status'], confirmMoveIn = false) {
   return request<ApiContract>(`/api/todos/${todoId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...contractHeaders(token) },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify(confirmMoveIn ? { status, confirm_move_in: true } : { status }),
   });
 }
 
@@ -511,8 +514,9 @@ export function patchTodo(todoId: number, token: string | null, status: ApiTodo[
  * 증빙 사진 1장을 올려 할 일을 끝낸다 (FR-029, 기록함 FR-031). 나중에 올리기였던 할 일은 끝낸 날 그대로 완료로,
  * 다시 올리면 앞 사진을 바꾼다. 20MB가 넘으면 413 FILE_TOO_LARGE. 끝낼 수 있는 조건은 patchTodo와 같다
  */
-export async function uploadEvidence(todoId: number, token: string | null, file: PickedFile) {
+export async function uploadEvidence(todoId: number, token: string | null, file: PickedFile, confirmMoveIn = false) {
   const form = new FormData();
+  if (confirmMoveIn) form.append('confirm_move_in', 'true');
   await appendFile(form, file, 'image/jpeg');
   return request<ApiContract>(
     `/api/todos/${todoId}/evidence`,
@@ -611,6 +615,8 @@ export type ApiMove = {
   warnings: string[];
   /** 지금 집 + 다음 집 할 일, 날짜순 */
   todos: ApiMoveTodo[];
+  /** 다음 집으로 만든 계약 (postMoveNext로 연결). 없으면 null */
+  next_contract_id: number | null;
 };
 
 /**
@@ -622,6 +628,18 @@ export function postMove(contractId: number, token: string | null, input: ApiMov
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...contractHeaders(token) },
     body: JSON.stringify(input),
+  });
+}
+
+/**
+ * 다음 집으로 만든 계약을 갈아타기에 연결 (FR-027). 연결하면 다음 집 전입신고를 지금 집 반환 확인 전에 끝낼 때
+ * 409 MOVE_IN_BEFORE_RETURN로 경고한다. 갈아타기를 저장하지 않았으면 404, 다른 갈아타기에 연결된 계약이면 409
+ */
+export function postMoveNext(contractId: number, token: string | null, nextContractId: number, nextToken: string) {
+  return request<ApiMove>(`/api/contracts/${contractId}/move/next`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...contractHeaders(token) },
+    body: JSON.stringify({ next_contract_id: nextContractId, next_contract_token: nextToken }),
   });
 }
 

@@ -369,6 +369,15 @@ function SwitchForm({ contract }: { contract: ApiContract | null }) {
         </View>
       )}
 
+      {plan && !dirty ? (
+        // FR-027: 다음 집 계약을 만들면 이 갈아타기에 연결돼 다음 집 전입신고를 반환 확인 전에 끝낼 때 경고한다
+        <AppText size={12} color={Colors.textSub} leading={1.6} style={{ marginTop: 10 }}>
+          {plan.next_contract_id
+            ? '다음 집 계약이 연결됐어요. 할 일 탭에서 지금 집과 다음 집 할 일을 오가며 볼 수 있어요.'
+            : '다음 집도 계약 전 확인부터 시작해 패키지를 만들면 이 갈아타기에 연결돼요. 그때부터 두 집 할 일을 오가며 볼 수 있어요.'}
+        </AppText>
+      ) : null}
+
       {shown ? <MoveTodos todos={shown.todos} /> : null}
 
       <Card style={styles.toggleRow}>

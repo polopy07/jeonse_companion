@@ -6,12 +6,21 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { ApiError, apiEnabled, getContract, type ApiContract, type ApiTodo } from '@/lib/api';
+import {
+  ApiError,
+  apiEnabled,
+  getContract,
+  postMoveNext,
+  type ApiContract,
+  type ApiContractCreated,
+  type ApiTodo,
+} from '@/lib/api';
 import { parseDateKey } from '@/lib/clock';
 import { createStore } from '@/lib/store';
 
 const CONTRACT_ID_KEY = 'jeonse.contractId';
 const CONTRACT_TOKEN_KEY = 'jeonse.contractToken';
+const OTHER_HOUSE_KEY = 'jeonse.otherHouse';
 /** 토큰이 없거나 틀려 서버가 404를 줄 때 안내 (결정 자료 결정 3) */
 export const NOT_MY_CONTRACT = '이 휴대폰에서 만든 계약이 아니에요. 저장해 둔 계약을 지웠어요';
 
@@ -25,6 +34,20 @@ export const clearContractNotice = () => contractNotice.set(null);
 
 let savedToken: { contractId: number; token: string } | null = null;
 
+/**
+ * 갈아타기 중 보고 있지 않은 다른 집 계약 (FR-025·027). 다음 집 계약을 만들면 지금 집 계약을 여기 두고(role: 'current'),
+ * 할 일 탭에서 두 집을 오가며 본다. 지금 집 9번(반환 확인)은 지금 집 계약에서 끝낸다
+ */
+export type OtherHouse = { contractId: number; token: string | null; role: 'current' | 'next' };
+const otherHouse = createStore<OtherHouse | null>(null);
+export const useOtherHouse = otherHouse.use;
+
+function setOtherHouse(house: OtherHouse | null) {
+  otherHouse.set(house);
+  const save = house ? AsyncStorage.setItem(OTHER_HOUSE_KEY, JSON.stringify(house)) : AsyncStorage.removeItem(OTHER_HOUSE_KEY);
+  save.catch(() => {});
+}
+
 /** 이 휴대폰에 저장한 그 계약의 접근 토큰 (계약 아래 API의 X-Contract-Token). 없으면 null */
 export function contractToken(contractId: number): string | null {
   return savedToken?.contractId === contractId ? savedToken.token : null;
@@ -32,7 +55,8 @@ export function contractToken(contractId: number): string | null {
 
 function forget() {
   savedToken = null;
-  AsyncStorage.multiRemove([CONTRACT_ID_KEY, CONTRACT_TOKEN_KEY]).catch(() => {});
+  otherHouse.set(null);
+  AsyncStorage.multiRemove([CONTRACT_ID_KEY, CONTRACT_TOKEN_KEY, OTHER_HOUSE_KEY]).catch(() => {});
 }
 
 /**
@@ -58,6 +82,44 @@ export function setLatestContract(contract: ApiContract | null, token?: string) 
 }
 
 /**
+ * 새로 만든 계약을 보여 준다 (setLatestContract와 같음). 보던 계약이 갈아타기를 저장한 지금 집이면 새 계약을 다음 집으로
+ * 연결하고(POST /api/contracts/{id}/move/next) 지금 집 계약을 다른 집으로 남긴다. 갈아타기가 없으면(404) 다른 집은 지운다
+ */
+export async function setCreatedContract(created: ApiContractCreated): Promise<void> {
+  const prev = latestContract.get();
+  let linked: OtherHouse | null = null;
+  if (apiEnabled && prev && prev.id !== created.id && prev.status === 'active') {
+    const prevToken = contractToken(prev.id);
+    linked = await postMoveNext(prev.id, prevToken, created.id, created.access_token).then(
+      () => ({ contractId: prev.id, token: prevToken, role: 'current' as const }),
+      () => null,
+    );
+  }
+  setLatestContract(created, created.access_token);
+  setOtherHouse(linked);
+}
+
+/**
+ * 갈아타기 중인 두 집을 바꿔 본다: 다른 집 계약을 불러와 보여 주고, 보던 계약을 다른 집으로 남긴다.
+ * 다른 집 계약이 서버에 없으면(404) 다른 집을 지우고 오류를 던진다
+ */
+export async function switchHouse(): Promise<void> {
+  const other = otherHouse.get();
+  const current = latestContract.get();
+  if (!other || !current) return;
+  let contract: ApiContract;
+  try {
+    contract = await getContract(other.contractId, other.token);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) setOtherHouse(null);
+    throw e;
+  }
+  const currentToken = contractToken(current.id);
+  setLatestContract(contract, other.token ?? undefined);
+  setOtherHouse({ contractId: current.id, token: currentToken, role: other.role === 'current' ? 'next' : 'current' });
+}
+
+/**
  * 앱을 켤 때 한 번: 저장한 계약 id·토큰이 있으면 서버에서 다시 불러온다.
  * 404면(DB를 다시 만들었거나 토큰이 맞지 않음) 저장한 계약을 지우고 안내하고, 연결 실패면 남겨 다음에 다시 시도한다.
  */
@@ -74,6 +136,10 @@ export async function restoreContract(): Promise<void> {
   }
   if (!Number.isInteger(id) || id <= 0) return;
   if (token) savedToken = { contractId: id, token };
+  try {
+    const raw = await AsyncStorage.getItem(OTHER_HOUSE_KEY);
+    if (raw) otherHouse.set(JSON.parse(raw) as OtherHouse);
+  } catch {}
   try {
     const contract = await getContract(id, token);
     if (!latestContract.get()) latestContract.set(contract);
