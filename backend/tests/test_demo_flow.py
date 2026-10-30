@@ -30,6 +30,7 @@ class Phone:
 
     def __init__(self, client):
         self.client, self.token, self.contract_id, self.day = client, None, None, None
+        self.payment = None
 
     def headers(self) -> dict:
         h = {"X-Virtual-Today": self.day} if self.day else {}
@@ -60,10 +61,18 @@ class Phone:
 
     def start(self, check: dict, body: dict) -> dict:
         """테스트 결제 뒤 패키지 시작. 접근 토큰을 받아 이 휴대폰에 둔다."""
-        payment = self.call("POST", f"/api/checks/{check['id']}/payment", status=201)
-        created = self.call("POST", "/api/contracts", json={**body, "payment_id": payment["payment_id"]}, status=201)
+        self.payment = self.call("POST", f"/api/checks/{check['id']}/payment", status=201)
+        created = self.call("POST", "/api/contracts", json={**body, "payment_id": self.payment["payment_id"]},
+                            status=201)
         self.token, self.contract_id = created["access_token"], created["id"]
         return created
+
+    def upload_documents(self) -> dict:
+        """계약 당일 첫 계약 서류 2장 (계약서·계약금 이체 내역, 기록함의 첫 서류)."""
+        for kind in ("contract", "down_payment"):
+            self.call("POST", f"/api/contracts/{self.contract_id}/documents", data={"kind": kind},
+                      files={"file": (f"{kind}.jpg", b"\xff\xd8 demo photo", "image/jpeg")})
+        return self.contract()
 
 
 def _villa(phone: Phone) -> tuple[dict, dict, dict]:
@@ -93,6 +102,7 @@ def test_demo_flow_villa(client):
     body = _villa_body(check, scene)
     assert phone.call("POST", "/api/contracts", json=body, status=402)["detail"]["code"] == "PAYMENT_REQUIRED"
     created = phone.start(check, body)
+    assert (phone.payment["product"], phone.payment["amount"]) == ("package", 9900)
     assert (created["payment_product"], created["alert_level"]) == ("package", "warning")
 
     # 3. 핵심 장면: 담보 설정 금지 "거절당함" → 4번 전입신고가 맨 위, "넣음"으로 바꾸면 내려가고 다시 거절하면 올라감
@@ -116,10 +126,8 @@ def test_demo_flow_villa(client):
     assert (same["stage"], same["changed"], same["hold"]) == ("contract_day", False, False)
     assert same["mortgage_check_required"] and same["mortgage_check"]["change"] == "same"
     # 4-2. 첫 계약 서류: 계약서·계약금 이체 내역을 기록함에 (할 일과 별개)
-    for kind in ("contract", "down_payment"):
-        phone.call("POST", f"/api/contracts/{phone.contract_id}/documents", data={"kind": kind},
-                   files={"file": (f"{kind}.jpg", b"\xff\xd8 demo photo", "image/jpeg")})
-    assert all(d["uploaded"] for d in phone.contract()["documents"])
+    documents = phone.upload_documents()["documents"]
+    assert [(d["kind"], d["uploaded"]) for d in documents] == [("contract", True), ("down_payment", True)]
 
     # 5. 계약 후 30일 안 임대차 신고(1번) → 잔금일 아침 등기부 재비교(3번)·전입신고(4번)
     phone.day = "2026-10-20"
@@ -207,15 +215,21 @@ def test_demo_flow_apartment(client):
 
 
 def test_demo_flow_villa_not_returned(client):
-    # 같은 빌라를 만기일까지 가서 "못 받음" → 반환 대응 단계(R1~R4)가 할 일 맨 위에, 단계마다 창구·청구 서류
+    # 같은 빌라를 만기일까지 가서 "못 받음" → 반환 대응 단계(R1~R4)가 할 일 맨 위에, 단계마다 창구·청구 서류.
+    # 계약 당일에 올린 첫 계약 서류(계약서·계약금 이체 내역)는 청구 서류 대조에서 이미 있는 것으로 나온다
     phone = Phone(client)
     _, scene, check = _villa(phone)
     phone.day = scene["contract_date"]
     phone.start(check, _villa_body(check, scene))
+    phone.upload_documents()
 
+    # 경보 경고인 집이라 시연에서는 "못 받음" 전에 미리 점검하는 장면으로 보여 준다 ("못 받음" 전에는 늘 preview)
     phone.day = scene["end_date"]
     preview = phone.call("GET", f"/api/contracts/{phone.contract_id}/return-guide")
-    assert preview["status"] == "preview"   # 경보 경고인 집이라 "못 받음" 전에도 서류를 미리 점검
+    assert preview["status"] == "preview"
+    first = {d["rule_id"]: d for d in preview["documents"] if d["kind"] == "contract_document"}
+    assert set(first) == {"contract", "down_payment"} and all(d["uploaded"] for d in first.values())
+    assert first["contract"]["name"] == "계약서 (계약 당일 사진)"
     started = phone.call("POST", f"/api/contracts/{phone.contract_id}/return-response")
     assert started["not_returned_date"] == scene["end_date"]
     assert [t["rule_id"] for t in started["todos"][:4]] == ["R1", "R2", "R3", "R4"]

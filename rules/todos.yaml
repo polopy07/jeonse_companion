@@ -45,7 +45,7 @@ preview:
 # 할 일이 아니라 완료·알림·기한은 없다. 특약 반영 분기의 "특약이 보이는 계약서 사진"(special_terms.yaml require_document)도 이 계약서로 남긴다
 first_documents:
   - id: contract
-    label: 계약서
+    label: 계약서 (계약 당일 사진)
     detail: 특약이 보이게 모든 쪽을 찍어 올려요
   - id: down_payment
     label: 계약금 이체 내역

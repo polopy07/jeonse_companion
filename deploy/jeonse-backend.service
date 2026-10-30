@@ -1,0 +1,19 @@
+# 전동기 백엔드를 VM이 켜질 때 자동으로 띄우는 systemd 설정 (docs/guide/배포_방법.md).
+# 직접 고치지 않는다: deploy/setup_vm.sh가 __USER__·__REPO__를 바꿔 /etc/systemd/system/에 넣는다.
+# 서버 설정은 backend/.env에서 읽는다 (uvicorn --env-file: 값 뒤 "# 설명"을 빼고 읽음)
+
+[Unit]
+Description=전동기(전세동행기록) 백엔드 API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=__USER__
+WorkingDirectory=__REPO__/backend
+ExecStart=__REPO__/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --env-file .env
+# 죽으면 5초 뒤 다시 띄운다 (시연 중 멈춤 대비)
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
