@@ -393,6 +393,8 @@ export type ApiContract = {
   payment_id: number | null;
   /** 기록한 특약 결과의 분기: 거절당함이면 위험 안내·맨 위로 올라간 할 일·상담 창구, 넣음이면 기록함 서류 */
   special_term_effects: ApiTermEffect[];
+  /** 만기일에 "못 받음"을 고른 날 (반환 대응 중). 고르지 않았으면 null */
+  not_returned_date: string | null;
   /** sort_order 순서 */
   todos: ApiTodo[];
 };
@@ -628,4 +630,77 @@ export function postMove(contractId: number, token: string | null, input: ApiMov
 /** 저장한 갈아타기를 지금 계약 상태로 다시 계산 (반환 확인을 끝냈으면 돌려받은 날 기준). 시작 전이면 404 */
 export function getMove(contractId: number, token: string | null) {
   return request<ApiMove>(`/api/contracts/${contractId}/move`, { method: 'GET', headers: contractHeaders(token) });
+}
+
+// ---- POST·DELETE /api/contracts/{id}/return-response, GET .../return-guide ----
+
+export type ApiLink = { label: string; url: string };
+
+/** 반환 대응 한 단계 (R1~R4, FR-034). 보증기관에 맞춘 제목·안내·창구는 서버가 넣어 준다 */
+export type ApiReturnStep = {
+  rule_id: string;
+  /** 이 단계의 할 일 id (끝내기·증빙은 /api/todos/{id}). "못 받음" 전(preview)이면 null */
+  todo_id: number | null;
+  title: string;
+  detail: string;
+  link: ApiLink | null;
+  /** 끝낼 때 올릴 증빙. 없으면 null (공공 상담) */
+  evidence: string | null;
+  state: 'done' | 'current' | 'todo';
+  done_date: string | null;
+  evidence_uploaded: boolean;
+  /** 이 단계에 필요한데 기록함에 없는 서류 이름 (FR-035) */
+  missing_documents: string[];
+};
+
+/** 청구 서류 대조 한 줄 (FR-035): 할 일 증빙(todo) 또는 첫 계약 서류(contract_document) */
+export type ApiReturnDocument = {
+  rule_id: string;
+  todo_id: number | null;
+  kind: 'todo' | 'contract_document';
+  name: string;
+  uploaded: boolean;
+  needed_by: string[];
+};
+
+export type ApiReturnGuide = {
+  contract_id: number;
+  today: string;
+  /** preview "못 받음" 전 미리 점검 / in_progress 반환 대응 중 / ended 반환 대응 중 9번(반환 확인)을 끝냄 */
+  status: 'preview' | 'in_progress' | 'ended';
+  end_date: string;
+  not_returned_date: string | null;
+  guarantor: Guarantor;
+  steps: ApiReturnStep[];
+  documents: ApiReturnDocument[];
+  missing_count: number;
+  help_desks: ApiLink[];
+  disclaimer: string;
+};
+
+/** 반환 대응 안내 (UI-08): 단계·진행·청구 서류 대조. "못 받음" 전에도 미리 볼 수 있고 무산된 계약도 볼 수 있다 */
+export function getReturnGuide(contractId: number, token: string | null) {
+  return request<ApiReturnGuide>(`/api/contracts/${contractId}/return-guide`, {
+    method: 'GET',
+    headers: contractHeaders(token),
+  });
+}
+
+/**
+ * 만기일에 "못 받음" (FR-024): 반환 대응 단계(R1~R4)를 할 일 맨 위에 붙인다. 만기일 전이면 409 RETURN_NOT_DUE,
+ * 반환 확인을 이미 끝냈으면 409 ALREADY_RETURNED, 이미 시작했으면 그대로
+ */
+export function startReturnResponse(contractId: number, token: string | null) {
+  return request<ApiContract>(`/api/contracts/${contractId}/return-response`, {
+    method: 'POST',
+    headers: contractHeaders(token),
+  });
+}
+
+/** "못 받음"을 잘못 골랐을 때 되돌리기. 끝낸 단계가 있으면 409 RETURN_STEP_DONE */
+export function undoReturnResponse(contractId: number, token: string | null) {
+  return request<ApiContract>(`/api/contracts/${contractId}/return-response`, {
+    method: 'DELETE',
+    headers: contractHeaders(token),
+  });
 }

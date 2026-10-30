@@ -117,7 +117,7 @@ export type TodoView = {
   badge?: string;
   status: TodoViewStatus;
   todayBefore?: boolean;
-  href?: '/switch';
+  href?: '/switch' | '/return';
   /** 서버 할 일 id (PATCH /api/todos/{id}). 시연 할 일이면 없음 */
   todoId?: number;
   /** 완료 증빙으로 올릴 것. 없으면 증빙 없이 끝내는 할 일 */
@@ -154,6 +154,16 @@ function whenLabel(t: ApiTodo, today: Date) {
 }
 
 /**
+ * 할 일을 누르면 갈 화면. 7번(만기 6개월 전 "이사할게요")·9번(반환 확인)은 갈아타기로 (FR-025),
+ * 만기일이 되어 끝나지 않은 9번과 반환 대응 단계(R1~R4)는 반환 대응 안내로 ("못 받음", FR-024·034)
+ */
+function hrefOf(t: ApiTodo): TodoView['href'] {
+  if (t.rule_id.startsWith('R')) return '/return';
+  if (t.rule_id === 'T9') return t.status === 'todo' && t.state !== 'upcoming' ? '/return' : '/switch';
+  return t.rule_id === 'T7' ? '/switch' : undefined;
+}
+
+/**
  * 서버 할 일(sort_order 순서) → 할 일 화면 값. 순서는 서버(C7) 그대로 두고, 상태(state)·남은 날(days_left)은
  * 서버가 오늘(가상 날짜면 그날) 기준으로 계산한 값을 쓴다. "지금 할 일"은 할 때가 됐거나 기한이 지난 첫 할 일
  * (없으면 끝나지 않은 첫 할 일)이고, 시작 전인 고정 할 일은 흐리게 보여 준다. today는 날짜 표기(올해면 연도 생략)에만 쓴다.
@@ -186,8 +196,7 @@ export function todoViews(todos: ApiTodo[], today: Date): TodoView[] {
         badge: badges.length ? badges.join(' · ') : undefined,
         status,
         todayBefore: status === 'current',
-        // 7번(만기 6개월 전 "이사할게요")·9번(반환 확인)에서 갈아타기로 (FR-025)
-        href: t.rule_id === 'T7' || t.rule_id === 'T9' ? '/switch' : undefined,
+        href: hrefOf(t),
         todoId: t.id,
         evidence: t.evidence,
         skipped: t.status === 'skipped',
