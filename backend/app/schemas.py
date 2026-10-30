@@ -729,15 +729,18 @@ class MoveOut(BaseModel):
 
 class TimelineEventOut(BaseModel):
     date: date_
-    kind: Literal["check", "contract", "special_term", "todo", "alert", "move", "cancel"] = Field(
-        description="check 계약 전 확인 / contract 계약 당일 체크 / special_term 특약 넣음·거절당함 / todo 끝낸 할 일 / "
-                    "alert 경보 재계산 / move 갈아타기 시작 / cancel 계약 무산")
+    kind: Literal["check", "contract", "registry", "special_term", "document", "todo", "alert", "return", "move",
+                  "cancel"] = Field(
+        description="check 계약 전 확인 / contract 계약 당일 체크 / registry 등기부 재비교 / special_term 특약 넣음·거절당함 / "
+                    "document 첫 계약 서류 / todo 끝낸 할 일 / alert 경보 재계산 / return 반환 대응 시작 / "
+                    "move 갈아타기 시작 / cancel 계약 무산")
     title: str = Field(description="화면에 그대로 보여 줄 제목")
     detail: str | None = Field(description="한 줄 설명 (비율, 특약 결과 안내, 증빙 등)")
-    rule_id: str | None = Field(description="할 일 rule_id(todo) 또는 특약 id(special_term)")
+    rule_id: str | None = Field(description="할 일 rule_id(todo), 특약 id(special_term) 또는 첫 계약 서류 종류(document, "
+                                            "보기는 GET /api/contracts/{id}/documents/{kind})")
     todo_id: int | None = Field(description="끝낸 할 일 id. 증빙 보기는 GET /api/todos/{id}/evidence")
     evidence_uploaded: bool | None = Field(description="끝낸 할 일의 증빙을 올렸는지 (todo만)")
-    level: str | None = Field(description="판정 단계(check) 또는 경보 단계(alert)")
+    level: str | None = Field(description="판정 단계(check, registry는 등기부만 바꿔 다시 판정한 단계) 또는 경보 단계(alert)")
 
 
 class TimelineOut(BaseModel):

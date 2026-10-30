@@ -6855,14 +6855,17 @@
             "enum": [
               "check",
               "contract",
+              "registry",
               "special_term",
+              "document",
               "todo",
               "alert",
+              "return",
               "move",
               "cancel"
             ],
             "title": "Kind",
-            "description": "check 계약 전 확인 / contract 계약 당일 체크 / special_term 특약 넣음·거절당함 / todo 끝낸 할 일 / alert 경보 재계산 / move 갈아타기 시작 / cancel 계약 무산"
+            "description": "check 계약 전 확인 / contract 계약 당일 체크 / registry 등기부 재비교 / special_term 특약 넣음·거절당함 / document 첫 계약 서류 / todo 끝낸 할 일 / alert 경보 재계산 / return 반환 대응 시작 / move 갈아타기 시작 / cancel 계약 무산"
           },
           "title": {
             "type": "string",
@@ -6891,7 +6894,7 @@
               }
             ],
             "title": "Rule Id",
-            "description": "할 일 rule_id(todo) 또는 특약 id(special_term)"
+            "description": "할 일 rule_id(todo), 특약 id(special_term) 또는 첫 계약 서류 종류(document, 보기는 GET /api/contracts/{id}/documents/{kind})"
           },
           "todo_id": {
             "anyOf": [
@@ -6927,7 +6930,7 @@
               }
             ],
             "title": "Level",
-            "description": "판정 단계(check) 또는 경보 단계(alert)"
+            "description": "판정 단계(check, registry는 등기부만 바꿔 다시 판정한 단계) 또는 경보 단계(alert)"
           }
         },
         "type": "object",
