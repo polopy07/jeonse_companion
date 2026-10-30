@@ -64,7 +64,9 @@ def test_timeline_move_and_cancel(client):
 
     assert client.post(f"/api/contracts/{c['id']}/cancel", headers=_h(c)).status_code == 200
     events = _timeline(client, c)   # 무산된 계약도 기록으로 볼 수 있다
-    assert any(e["kind"] == "cancel" for e in events)
+    cancel = next(e for e in events if e["kind"] == "cancel")
+    assert "2026-11-02" <= cancel["date"] <= "2027-01-10"   # 실제로 무산한 날이 가상 계약일보다 앞서도 계약일 뒤에
+    assert [e["kind"] for e in events].index("contract") < [e["kind"] for e in events].index("cancel")
     assert [e["kind"] for e in _timeline(client, c, "2026-11-01")] == ["check"]   # 계약일 전으로 보면 무산도 아직 없음
     assert client.get(f"/api/contracts/{c['id']}/timeline", headers={"X-Contract-Token": "wrong"}).status_code == 404
 

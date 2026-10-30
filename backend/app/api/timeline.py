@@ -136,9 +136,11 @@ def timeline(contract_id: int, db: Session = Depends(get_db), rules: dict = Depe
         nxt = move.next_inputs or {}
         events.append(_Event(move.decided_on, "move", "갈아타기 시작",
                              f"다음 집 잔금일 {nxt['balance_date']}" if nxt.get("balance_date") else None))
-    # 계약 무산도 실제 시각뿐이라 오늘을 넘지 않게 두고, 오늘이 계약일 전이면 계약 당일 체크처럼 뺀다
+    # 계약 무산도 실제 시각뿐이라 계약일~오늘 사이로 두고(실제 날짜가 가상 계약일보다 앞서도 계약 당일 뒤에),
+    # 오늘이 계약일 전이면 계약 당일 체크처럼 뺀다
     if row.status == "cancelled" and row.cancelled_at is not None and not (row.contract_date and today < row.contract_date):
-        events.append(_Event(min(_kst_date(row.cancelled_at), today), "cancel", "계약 무산"))
+        events.append(_Event(min(max(_kst_date(row.cancelled_at), row.contract_date or date.min), today), "cancel",
+                             "계약 무산"))
 
     # 가상 날짜를 되돌리면 그 뒤의 기록(그 뒤 날짜로 끝낸 할 일·재계산 등)은 아직 일어나지 않은 것으로 뺀다
     events = [e for e in events if e.date <= today]
