@@ -62,12 +62,13 @@ const demoView: GuideView = {
   disclaimer: '일반 절차 안내이며 개별 법률 판단이 아닙니다.',
 };
 
-function heroOf(g: ApiReturnGuide) {
+/** returned: "못 받음" 없이 9번(반환 확인)을 끝낸 계약 (돌려받음) */
+function heroOf(g: ApiReturnGuide, returned: boolean) {
   const end = dotDate(g.end_date);
   if (g.status === 'in_progress') {
     return { heroLabel: `${end} 만기 · 보증금 못 받음`, heroTitle: '아직 이사 가지 마세요. 순서대로 함께 챙길게요.' };
   }
-  if (g.status === 'ended') {
+  if (g.status === 'ended' || returned) {
     return { heroLabel: `${end} 만기 · 반환 확인`, heroTitle: '보증금을 돌려받았어요. 반환 대응 기록은 기록함에 남아요.' };
   }
   return {
@@ -80,9 +81,9 @@ function heroOf(g: ApiReturnGuide) {
 }
 
 /** 서버 반환 대응 안내 → 화면 값. 단계 제목·안내·창구는 보증기관에 맞춘 서버 값 그대로 */
-function viewOf(g: ApiReturnGuide): GuideView {
+function viewOf(g: ApiReturnGuide, returned: boolean): GuideView {
   return {
-    ...heroOf(g),
+    ...heroOf(g, returned),
     steps: g.steps.map((s) => ({
       key: s.rule_id,
       title: s.title,
@@ -144,7 +145,9 @@ export default function ReturnScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const guide = remote?.guide ?? null;
-  const view = guide ? viewOf(guide) : contract && apiEnabled ? null : demoView;
+  // 9번(반환 확인)을 이미 끝냈으면 "못 받음"을 고를 수 없다 (서버 409 ALREADY_RETURNED)
+  const returned = !!contract?.todos.some((t) => t.rule_id === 'T9' && t.status !== 'todo');
+  const view = guide ? viewOf(guide, returned) : contract && apiEnabled ? null : demoView;
   const active = !!contract && contract.status === 'active';
 
   // 서버에서 바꾸고 돌아온 계약으로 다시 그린다 (계약이 바뀌면 안내도 다시 받는다)
@@ -174,7 +177,7 @@ export default function ReturnScreen() {
   const skip = (s: StepView) =>
     run((token) => (s.todoId ? patchTodo(s.todoId, token, 'skipped') : Promise.resolve(null)), '단계를 끝내지 못했어요');
 
-  const canStart = active && guide?.status === 'preview' && guide.today >= guide.end_date;
+  const canStart = active && !returned && guide?.status === 'preview' && guide.today >= guide.end_date;
   const canUndo = active && guide?.status === 'in_progress' && !guide.steps.some((s) => s.state === 'done');
   const stepActions = active && guide?.status === 'in_progress';
 
@@ -197,7 +200,7 @@ export default function ReturnScreen() {
               style={{ marginTop: 14, backgroundColor: Colors.danger, opacity: busy ? 0.6 : 1 }}
             />
           ) : null}
-          {guide?.status === 'preview' && !canStart ? (
+          {guide?.status === 'preview' && !canStart && !returned ? (
             <AppText size={12} color={Colors.dangerText} style={{ marginTop: 8 }}>
               만기일({dotDate(guide.end_date)})이 지나도 못 받으면 여기서 반환 대응을 시작해요
             </AppText>
