@@ -234,7 +234,7 @@ export const todos: Todo[] = [
 export type RecordDoc = { name: string; meta: string; filled: boolean; needForClaim: boolean };
 
 export const recordDocs: RecordDoc[] = [
-  { name: '계약서', meta: '10.14', filled: true, needForClaim: true },
+  { name: '계약서 (계약 당일 사진)', meta: '10.14', filled: true, needForClaim: true },
   { name: '계약금 이체 내역', meta: '10.14', filled: true, needForClaim: true },
   { name: '계약 당일 등기부', meta: '10.14', filled: true, needForClaim: false },
   { name: '임대차 신고 확인', meta: '10.20', filled: true, needForClaim: true },

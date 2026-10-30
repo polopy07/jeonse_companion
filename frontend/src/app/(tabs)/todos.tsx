@@ -177,6 +177,17 @@ export default function TodosScreen() {
         />
       ) : null}
 
+      {contract && contract.status !== 'cancelled' && contract.documents.some((d) => !d.uploaded) ? (
+        // FR-051: 계약 당일 첫 계약 서류(계약서·계약금 이체 내역)는 할 일과 별개로 기록함에 올린다
+        <Button
+          variant="outline"
+          height={44}
+          label={`계약 당일 서류 올리기 (${contract.documents.filter((d) => d.uploaded).length}/${contract.documents.length})`}
+          onPress={() => router.push('/records')}
+          style={{ marginTop: 8 }}
+        />
+      ) : null}
+
       {contract?.special_term_effects.length ? (
         // FR-050: 특약 결과별 안내 (거절당함 → 위험 안내·맨 위 할 일·상담, 넣음 → 기록함 서류)
         <View style={{ marginTop: 12, gap: 8 }}>
