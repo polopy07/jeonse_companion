@@ -124,6 +124,8 @@ export type TodoView = {
   evidence?: string | null;
   /** 나중에 올리기로 끝낸 할 일 (기록함이 빈칸이라 증빙을 올릴 수 있음) */
   skipped?: boolean;
+  /** 지금 계획에 없고 기록으로만 남은 할 일 (되돌릴 수 없음, #135) */
+  archived?: boolean;
 };
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -191,6 +193,7 @@ export function todoViews(todos: ApiTodo[], today: Date): TodoView[] {
         todoId: t.id,
         evidence: t.evidence,
         skipped: t.status === 'skipped',
+        archived: t.archived,
       };
     });
 }
