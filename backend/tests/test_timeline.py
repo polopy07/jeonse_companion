@@ -65,6 +65,7 @@ def test_timeline_move_and_cancel(client):
     assert client.post(f"/api/contracts/{c['id']}/cancel", headers=_h(c)).status_code == 200
     events = _timeline(client, c)   # 무산된 계약도 기록으로 볼 수 있다
     assert any(e["kind"] == "cancel" for e in events)
+    assert [e["kind"] for e in _timeline(client, c, "2026-11-01")] == ["check"]   # 계약일 전으로 보면 무산도 아직 없음
     assert client.get(f"/api/contracts/{c['id']}/timeline", headers={"X-Contract-Token": "wrong"}).status_code == 404
 
 
@@ -99,13 +100,16 @@ def test_timeline_registry_documents_and_return(client):
     assert not any(e["kind"] == "alert" and e["date"] in ("2026-11-02", "2026-12-01") and "(그대로)" in e["title"]
                    for e in events)
 
-    # 실제로 올린 날(오늘)이 계약일보다 앞이면 계약일에 둔다
+    # 첫 계약 서류는 올린 실제 날짜와 상관없이 계약일에 (잔금일에 보든 만기 뒤에 보든 같음)
     doc = next(e for e in events if e["kind"] == "document")
     assert (doc["date"], doc["rule_id"]) == ("2026-11-02", "contract") and doc["title"].startswith("첫 계약 서류: 계약서")
     ret = next(e for e in events if e["kind"] == "return")
     assert (ret["date"], ret["title"]) == ("2028-11-30", "보증금 못 받음: 반환 대응 시작")
     kinds = [e["kind"] for e in events if e["date"] == "2026-11-02"]
     assert kinds == sorted(kinds, key=["check", "contract", "registry", "special_term", "document"].index)
+
+    r = client.get(f"/api/contracts/{c['id']}/timeline", headers={**h, "X-Virtual-Today": "2026-12-01"})
+    assert next(e["date"] for e in r.json()["events"] if e["kind"] == "document") == "2026-11-02"
 
     # 가상 날짜가 계약일 전이면 계약 당일 체크와 함께 첫 계약 서류도 아직 없다
     r = client.get(f"/api/contracts/{c['id']}/timeline", headers={**h, "X-Virtual-Today": "2026-11-01"})

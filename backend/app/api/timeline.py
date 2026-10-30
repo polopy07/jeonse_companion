@@ -82,7 +82,9 @@ def timeline(contract_id: int, db: Session = Depends(get_db), rules: dict = Depe
     if check is not None:
         level = next((lv for lv in rules["verdict"]["levels"] if lv["id"] == check.level), {})
         checked_on = date.fromisoformat(points[0]["as_of"]) if points else _kst_date(check.created_at)
-        checked_on = min(checked_on, today)   # 판정한 날은 실제 날짜라 가상 날짜를 앞으로 돌려도 빠지지 않게
+        # 판정한 날은 실제 날짜라 가상 날짜 시연에서 계약일 뒤로 가거나(실제 오늘이 가상 계약일보다 늦을 때)
+        # 가상 날짜를 앞으로 돌려 빠지지 않게: 계약 전 확인은 계약일·오늘을 넘지 않는다
+        checked_on = min(checked_on, today, row.contract_date or checked_on)
         ratio = f"내 보증금 비율 {_percent(check.deposit_ratio)}" if check.deposit_ratio is not None else None
         events.append(_Event(checked_on, "check", f"계약 전 확인: {level.get('label', check.level)}", ratio,
                              level=check.level))
@@ -99,12 +101,11 @@ def timeline(contract_id: int, db: Session = Depends(get_db), rules: dict = Depe
         events.append(_Event(row.contract_date, "special_term", f"{e.label} 특약 {RESULT_LABEL[e.result]}", detail,
                              rule_id=e.term_id))
 
-    # 첫 계약 서류는 올린 시각(실제 시각)만 있어, 가상 날짜 시연에서 계약일 전·오늘 뒤로 가지 않게 그 사이로.
+    # 첫 계약 서류는 계약 당일 서류라 계약일에 둔다 (올린 시각은 실제 시각뿐이라, 따르면 보는 날·실제 날짜마다 바뀜).
     # 오늘이 계약일 전이면 계약 당일 체크처럼 아직 없는 기록으로 본다
     doc_labels = {k["id"]: k["label"] for k in rules["todos"]["first_documents"]}
-    for d in sorted(row.documents if not row.contract_date or today >= row.contract_date else [],
-                    key=lambda d: d.kind):
-        on = min(max(_kst_date(d.uploaded_at), row.contract_date or date.min), today)
+    for d in sorted(row.documents, key=lambda d: d.kind):
+        on = row.contract_date or min(_kst_date(d.uploaded_at), today)
         events.append(_Event(on, "document", f"첫 계약 서류: {doc_labels.get(d.kind, d.kind)}", rule_id=d.kind))
 
     for t in row.todos:
@@ -135,7 +136,8 @@ def timeline(contract_id: int, db: Session = Depends(get_db), rules: dict = Depe
         nxt = move.next_inputs or {}
         events.append(_Event(move.decided_on, "move", "갈아타기 시작",
                              f"다음 집 잔금일 {nxt['balance_date']}" if nxt.get("balance_date") else None))
-    if row.status == "cancelled" and row.cancelled_at is not None:
+    # 계약 무산도 실제 시각뿐이라 오늘을 넘지 않게 두고, 오늘이 계약일 전이면 계약 당일 체크처럼 뺀다
+    if row.status == "cancelled" and row.cancelled_at is not None and not (row.contract_date and today < row.contract_date):
         events.append(_Event(min(_kst_date(row.cancelled_at), today), "cancel", "계약 무산"))
 
     # 가상 날짜를 되돌리면 그 뒤의 기록(그 뒤 날짜로 끝낸 할 일·재계산 등)은 아직 일어나지 않은 것으로 뺀다

@@ -146,11 +146,14 @@ def history(row: Contract, check: Verdict, rules: dict) -> list[dict]:
     """계약 시작 + 재계산 이력 (기준일 순서, 같은 날이면 계약 시작 먼저). 경보를 계산하지 않는 집이면 빈 목록.
 
     계약 시작의 기준일은 판정한 날(실제 날짜)일 수 있어, 가상 날짜로 그보다 앞선 날을 재계산해도 날짜순이 깨지지 않게 함께 정렬한다.
+    다만 계약 시작은 계약일보다 늦게 정렬하지 않는다: 실제 오늘이 가상 계약일보다 늦으면(시연 당일 판정) 계약 당일
+    재계산보다 뒤로 가서 "최근 경보"가 계약 시작 값으로 되돌아가므로.
     """
     start = start_point(check, rules)
     if start is None:
         return []
-    points = [(start["as_of"], 0, 0, start)]
+    start_key = min(start["as_of"], row.contract_date.isoformat()) if row.contract_date else start["as_of"]
+    points = [(start_key, 0, 0, start)]
     for a in row.alerts:
         point = {"as_of": a.as_of.isoformat(), "level": _known(a.level, rules), "estimated_price": a.estimated_price,
                  "deposit_ratio": a.deposit_ratio, "basis": a.basis}
