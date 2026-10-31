@@ -22,7 +22,7 @@
 - 규칙 설정 파일: `rules/*.yaml` (판정 verdict, 경보 alert, 연동 linkage, 특약 special_terms, 할 일 todos, 보증기관 guarantors, 필드 fields). 명세서 부속표 A~E를 데이터로 옮긴 것. 고친 뒤 `python3 rules/check_rules.py`로 검사. v1.0(2026-10-07 PO 확정), 할 일·연동·특약·보증기관은 v1.1(2026-10-12, 기한 정답표 PO 결정 Q1~Q8). `hypothesis: true`로 남은 것은 외부 기준 확인이 필요한 값. 기한 정답표는 `docs/validation/기한계산_정답표.md`(+ `deadline_scenarios.yaml`, 시뮬레이터 `deadline_simulator.html`)
 - API 명세: `docs/api/API_명세.md` (공통 규칙·API 목록·오류 코드), 입출력 형식은 `docs/api/openapi.json`(서버 코드에서 생성, `cd backend && python export_openapi.py`. `tests/test_openapi.py`가 설명 문구를 뺀 내용이 코드와 같은지 검사)
 - 백엔드: `backend/` (FastAPI + SQLAlchemy, PostgreSQL 기본·SQLite도 동작, `DATABASE_URL`로 전환). 테스트는 `cd backend && pytest`. 배포 서버는 동아 클라우드 VM(https://cloud.dauai.org, Ubuntu 24.04, `https://<VM이름>-<아이디>.apps.dauai.org`): 설치·자동 실행·업데이트는 `docs/guide/배포_방법.md`와 `deploy/`(`setup_vm.sh`, `update.sh [--reset]`, systemd `jeonse-backend.service`)
-- 화면 목업: `docs/design/` (UI-01~09 + 처음 화면·홈·내 계약 불러오기·계약 전 확인 입력, 모바일 390px. 처음 화면·불러오기·입력 2단계는 10/31 #155·#157에 맞춰 추가, 명세서 v0.5 FR-001·UC-001·UI-01·DATA-01·COMP-05도 브이월드 공시가격 조회로 고침). 프론트 작업 시 이 목업의 화면 구성·문구·색을 기준으로 한다. 디자인 규칙과 컴포넌트 단위는 `docs/design/README.md`, 브라우저로 볼 때는 `docs/design/index.html`
+- 화면 목업: `docs/design/` (UI-01~09 + 처음 화면·홈·내 계약 불러오기·계약 전 확인 입력, 모바일 390px. 처음 화면·불러오기·입력 2단계는 10/31 #155·#157에 맞춰 추가, 명세서 v0.5 FR-001·UC-001·UI-01·DATA-01·COMP-05와 기획서 v4.35 데이터·MVP 줄인 방식·기술 표도 브이월드 공시가격 조회로 고침). 프론트 작업 시 이 목업의 화면 구성·문구·색을 기준으로 한다. 디자인 규칙과 컴포넌트 단위는 `docs/design/README.md`, 브라우저로 볼 때는 `docs/design/index.html`
 - 프론트엔드: `frontend/` (Expo + Expo Router, TypeScript. 안드로이드·iOS 앱 한 코드, 시연·제공은 휴대폰 앱(Expo Go)이고 웹은 개발 편의용). 실행 `cd frontend && npx expo start`, 검사 `npx tsc --noEmit`·`npx expo lint`, 패키지는 `npx expo install`. 목업 UI-01~09 + 홈을 옮겨 둠, 지금은 `src/data/demo.ts` 시연 데이터로 그림(백엔드 미연결)
 - 4주 개발 계획: `docs/plan/4주_개발계획.md` (기획서 그림에 빠져 있던 특약 반영 분기 → A 3주차, 계약 당일 체크 화면 UI-03 → B 2주차 반영)
 - PO는 황웅재, 개발 A(백엔드·규칙) 겸임. 배승환은 PM·개발 B (기획서 v4.35, 팀원 리뷰 중)
@@ -66,7 +66,7 @@
 - 4주·2인, 부산 집 2채(근저당 있는 다세대 빌라, 아파트)로 가상 날짜 5분 시연. 빌라 담보 설정 금지 특약을 "거절당함"으로 골라 할 일 순서가 바뀌는 장면을 보여 줌
 - 동작 화면 5개 + 정적 화면 4개, 연동 규칙 3개·특약 분기 2개만 구현. OCR·주민번호 가림·공유 링크·실결제 제외, 이메일 1종만 실제 발송
 - MVP 구현 규칙: 연동 규칙 = 근저당, 보증금 비율 90% 이상, 신탁 / 특약 분기 = 담보 설정 금지, 보증 거절 시 해제. 2주차 중간 점검에서 미달 시 특약 분기를 1개(담보 설정 금지)로 축소
-- 실거래가: 공공데이터포털 API로 시연 집 구의 아파트·연립다세대 최근 12개월을 받아 저장, 시연·검증은 저장본. 공시가격·건축물대장은 시연 집 미리 매칭 + 직접 입력
+- 실거래가: 공공데이터포털 API로 시연 집 구의 아파트·연립다세대 최근 12개월을 받아 저장, 시연·검증은 저장본. 공시가격은 브이월드 API로 주소·동·호 조회(시연 집은 미리 매칭, 실패·오피스텔은 직접 입력), 건축물대장은 시연 집 미리 매칭
 - 검증 3개 (인터뷰는 2026-10-07에 뺌): 등기부 요약 추출 95% 이상, 기한 계산 시나리오 10개 전부 일치, 경보 계산 일치. 4주차 사용성 테스트 5명(10분 안)
 - 기술 스택: Expo(React Native, Expo Router. 시연·제공은 휴대폰 앱, 웹은 개발 편의용 — 2026-10-26 PO 결정), FastAPI + PostgreSQL, pdfplumber 규칙 기반 파서, 규칙 기반 할 일 엔진, APScheduler, LLM API는 쉬운 말 설명용
 
