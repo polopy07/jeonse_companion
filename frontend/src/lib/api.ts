@@ -356,6 +356,8 @@ export type ApiTodo = {
   status: 'todo' | 'done' | 'skipped';
   /** 끝낸 날 (done·skipped). 뒤 할 일의 기준일 */
   done_date: string | null;
+  /** 계약 조건이 바뀌어 지금 계획에는 없고 끝낸 기록으로만 남은 할 일 (목록 맨 뒤). 되돌리면 409 TODO_NOT_PLANNED */
+  archived: boolean;
   rules_version: string;
   /** 오늘(가상 날짜면 그날) 기준: done 끝냄 / upcoming 시작 전 / in_progress 할 때 / overdue 기한 지남 */
   state: 'done' | 'upcoming' | 'in_progress' | 'overdue';

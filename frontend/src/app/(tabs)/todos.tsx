@@ -299,7 +299,14 @@ function TodoItem({
           {todo.skipped && todo.evidence ? (
             <TextAction label="증빙 올리기" onPress={() => actions.complete('library')} />
           ) : null}
-          <TextAction label="되돌리기" muted onPress={actions.reopen} />
+          {/* 계약 조건이 바뀌어 기록으로만 남은 할 일은 되돌리면 서버가 409 TODO_NOT_PLANNED (#135) */}
+          {todo.archived ? (
+            <AppText size={12} color={Colors.textHint} style={{ alignSelf: 'center' }}>
+              지금 계약엔 없는 할 일 · 기록으로 남김
+            </AppText>
+          ) : (
+            <TextAction label="되돌리기" muted onPress={actions.reopen} />
+          )}
         </View>
       ) : null}
       {actions?.error ? (
