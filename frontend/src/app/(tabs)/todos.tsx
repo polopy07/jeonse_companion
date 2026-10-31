@@ -8,16 +8,18 @@ import { Button, Disclaimer, Screen } from '@/components/layout';
 import { TermEffectCard } from '@/components/term';
 import { Colors, Radius } from '@/constants/theme';
 import { today, todos as demoTodos } from '@/data/demo';
-import { ApiError, patchTodo, uploadEvidence, type ApiContract } from '@/lib/api';
+import { ApiError, MOVE_IN_BEFORE_RETURN, patchTodo, uploadEvidence, type ApiContract, type PickedFile } from '@/lib/api';
 import { useLatestCheck } from '@/lib/check';
 import { useToday } from '@/lib/clock';
 import {
   clearContractNotice,
   contractToken,
   setLatestContract,
+  switchHouse,
   todoViews,
   useContractNotice,
   useLatestContract,
+  useOtherHouse,
   type TodoView,
 } from '@/lib/contract';
 import { pickEvidence, type EvidenceSource } from '@/lib/evidence';
@@ -34,7 +36,12 @@ type TodoActions = {
   reopen: () => void;
   busy: boolean;
   error: string | null;
+  /** 다음 집 전입신고를 지금 집 반환 확인 전에 끝내려 할 때 경고 (409 MOVE_IN_BEFORE_RETURN, FR-027). 누르면 그래도 끝낸다 */
+  confirmMoveIn: (() => void) | null;
 };
+
+/** 서버를 부르는 동작. confirmMoveIn이면 전입 경고를 보고 그래도 끝내는 것 */
+type TodoCall = (token: string | null, confirmMoveIn: boolean) => Promise<ApiContract | null>;
 
 /**
  * UI-04 할 일 목록: 세로 타임라인에 오늘 선을 긋고, 완료는 증빙 사진 1장으로.
@@ -51,7 +58,24 @@ export default function TodosScreen() {
   const [demoItems, setDemoItems] = useState<TodoView[]>(demoTodos);
   const items = contract ? todoViews(contract.todos, now) : demoItems;
   const [busyId, setBusyId] = useState<number | null>(null);
-  const [failed, setFailed] = useState<{ todoId: number; message: string } | null>(null);
+  const [failed, setFailed] = useState<{ todoId: number; message: string; retry: (() => void) | null } | null>(null);
+  const other = useOtherHouse();
+  const [switching, setSwitching] = useState(false);
+  const [switchError, setSwitchError] = useState<string | null>(null);
+
+  // 갈아타기 중 두 집 오가기 (지금 집 9번 반환 확인은 지금 집에서, 다음 집 할 일은 다음 집에서)
+  const toggleHouse = async () => {
+    if (switching) return;
+    setSwitching(true);
+    setSwitchError(null);
+    try {
+      await switchHouse();
+    } catch (e) {
+      setSwitchError(e instanceof ApiError ? e.message : '다른 집 계약을 불러오지 못했어요');
+    } finally {
+      setSwitching(false);
+    }
+  };
   const done = items.filter((t) => t.status === 'done').length;
   const todayLabel = contract ? `${now.getMonth() + 1}.${String(now.getDate()).padStart(2, '0')}` : today.label;
 
@@ -80,17 +104,23 @@ export default function TodosScreen() {
     );
 
   // 서버에서 바꾸고 돌아온 계약(뒤 기한 재계산 포함)으로 다시 그린다. 실패하면 그 할 일 아래에 이유를 보여 준다
-  const run = async (todoId: number, call: (token: string | null) => Promise<ApiContract | null>) => {
+  // 전입 경고(409 MOVE_IN_BEFORE_RETURN)면 경고를 보여 주고, "그래도 끝내기"는 같은 동작을 confirm_move_in으로 다시 보낸다
+  const run = async (todoId: number, call: TodoCall, confirmMoveIn = false) => {
     if (!contract || busyId !== null) return;
     setBusyId(todoId);
     setFailed(null);
     try {
-      const updated = await call(contractToken(contract.id));
+      const updated = await call(contractToken(contract.id), confirmMoveIn);
       if (updated) setLatestContract(updated);
     } catch (e) {
       const message =
         e instanceof ApiError ? [e.message, e.hint].filter(Boolean).join('. ') : e instanceof Error ? e.message : '';
-      setFailed({ todoId, message: message || '할 일을 바꾸지 못했어요' });
+      const moveIn = e instanceof ApiError && e.code === MOVE_IN_BEFORE_RETURN;
+      setFailed({
+        todoId,
+        message: message || '할 일을 바꾸지 못했어요',
+        retry: moveIn ? () => run(todoId, call, true) : null,
+      });
     } finally {
       setBusyId(null);
     }
@@ -100,16 +130,20 @@ export default function TodosScreen() {
     const id = t.todoId;
     if (!contract || contract.status === 'cancelled' || id === undefined) return undefined;
     return {
-      complete: (source) =>
-        run(id, async (token) => {
-          if (!t.evidence) return patchTodo(id, token, 'done');
-          const file = await pickEvidence(source);
-          return file ? uploadEvidence(id, token, file) : null;
-        }),
-      skip: () => run(id, (token) => patchTodo(id, token, 'skipped')),
+      complete: (source) => {
+        // 전입 경고 뒤 "그래도 끝내기"는 고른 사진을 다시 고르지 않고 그대로 보낸다
+        let file: PickedFile | null = null;
+        run(id, async (token, confirm) => {
+          if (!t.evidence) return patchTodo(id, token, 'done', confirm);
+          file ??= await pickEvidence(source);
+          return file ? uploadEvidence(id, token, file, confirm) : null;
+        });
+      },
+      skip: () => run(id, (token, confirm) => patchTodo(id, token, 'skipped', confirm)),
       reopen: () => run(id, (token) => patchTodo(id, token, 'todo')),
       busy: busyId === id,
       error: failed?.todoId === id ? failed.message : null,
+      confirmMoveIn: failed?.todoId === id ? failed.retry : null,
     };
   };
 
@@ -138,6 +172,24 @@ export default function TodosScreen() {
         // FR-015: 보증금 6천만 원 이하·월세 30만 원 이하면 신고 비대상이라 확정일자를 챙긴다
         <AppText size={12} color={Colors.textSub} style={{ marginTop: 2 }}>
           {contract.report_required ? '임대차 신고 대상 계약이에요' : '임대차 신고 비대상이라 확정일자를 챙겨 드려요'}
+        </AppText>
+      ) : null}
+
+      {contract && other ? (
+        // FR-025·027: 갈아타기 중 두 집 (지금 집 9번 반환 확인 → 다음 집 전입신고 순서)
+        <View style={styles.house}>
+          <AppText size={13} weight="semibold">
+            {other.role === 'current' ? '다음 집 계약을 보고 있어요' : '지금 집 계약을 보고 있어요'}
+          </AppText>
+          <TextAction
+            label={switching ? '불러오는 중…' : other.role === 'current' ? '지금 집 할 일 보기' : '다음 집 할 일 보기'}
+            onPress={toggleHouse}
+          />
+        </View>
+      ) : null}
+      {switchError ? (
+        <AppText size={12} color={Colors.caution} style={{ marginTop: 4 }}>
+          {switchError}
         </AppText>
       ) : null}
 
@@ -173,6 +225,17 @@ export default function TodosScreen() {
           height={44}
           label="등기부 다시 비교 (계약 당일·잔금일)"
           onPress={() => router.push('/registry-compare')}
+          style={{ marginTop: 8 }}
+        />
+      ) : null}
+
+      {contract && contract.status !== 'cancelled' && contract.documents.some((d) => !d.uploaded) ? (
+        // FR-051: 계약 당일 첫 계약 서류(계약서·계약금 이체 내역)는 할 일과 별개로 기록함에 올린다
+        <Button
+          variant="outline"
+          height={44}
+          label={`계약 당일 서류 올리기 (${contract.documents.filter((d) => d.uploaded).length}/${contract.documents.length})`}
+          onPress={() => router.push('/records')}
           style={{ marginTop: 8 }}
         />
       ) : null}
@@ -299,13 +362,25 @@ function TodoItem({
           {todo.skipped && todo.evidence ? (
             <TextAction label="증빙 올리기" onPress={() => actions.complete('library')} />
           ) : null}
-          <TextAction label="되돌리기" muted onPress={actions.reopen} />
+          {/* 계약 조건이 바뀌어 기록으로만 남은 할 일은 되돌리면 서버가 409 TODO_NOT_PLANNED (#135) */}
+          {todo.archived ? (
+            <AppText size={12} color={Colors.textHint} style={{ alignSelf: 'center' }}>
+              지금 계약엔 없는 할 일 · 기록으로 남김
+            </AppText>
+          ) : (
+            <TextAction label="되돌리기" muted onPress={actions.reopen} />
+          )}
         </View>
       ) : null}
       {actions?.error ? (
-        <AppText size={12} color={Colors.caution} leading={1.5} style={{ marginTop: 6 }}>
+        <AppText size={12} color={actions.confirmMoveIn ? Colors.danger : Colors.caution} leading={1.5} style={{ marginTop: 6 }}>
           {actions.error}
         </AppText>
+      ) : null}
+      {actions?.confirmMoveIn ? (
+        <View style={styles.subActions}>
+          <TextAction label="그래도 끝내기" onPress={actions.confirmMoveIn} />
+        </View>
       ) : null}
     </View>
   );
@@ -333,6 +408,18 @@ function TextAction({ label, muted, onPress }: { label: string; muted?: boolean;
 
 const styles = StyleSheet.create({
   notice: { marginTop: 12, padding: 12, borderRadius: Radius.input, backgroundColor: Colors.cautionBg },
+  house: {
+    marginTop: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: Radius.input,
+    backgroundColor: Colors.card,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 20 },
   calendarButton: {
     height: 44,

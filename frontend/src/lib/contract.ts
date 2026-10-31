@@ -6,12 +6,21 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { ApiError, apiEnabled, getContract, type ApiContract, type ApiTodo } from '@/lib/api';
+import {
+  ApiError,
+  apiEnabled,
+  getContract,
+  postMoveNext,
+  type ApiContract,
+  type ApiContractCreated,
+  type ApiTodo,
+} from '@/lib/api';
 import { parseDateKey } from '@/lib/clock';
 import { createStore } from '@/lib/store';
 
 const CONTRACT_ID_KEY = 'jeonse.contractId';
 const CONTRACT_TOKEN_KEY = 'jeonse.contractToken';
+const OTHER_HOUSE_KEY = 'jeonse.otherHouse';
 /** 토큰이 없거나 틀려 서버가 404를 줄 때 안내 (결정 자료 결정 3) */
 export const NOT_MY_CONTRACT = '이 휴대폰에서 만든 계약이 아니에요. 저장해 둔 계약을 지웠어요';
 
@@ -25,6 +34,20 @@ export const clearContractNotice = () => contractNotice.set(null);
 
 let savedToken: { contractId: number; token: string } | null = null;
 
+/**
+ * 갈아타기 중 보고 있지 않은 다른 집 계약 (FR-025·027). 다음 집 계약을 만들면 지금 집 계약을 여기 두고(role: 'current'),
+ * 할 일 탭에서 두 집을 오가며 본다. 지금 집 9번(반환 확인)은 지금 집 계약에서 끝낸다
+ */
+export type OtherHouse = { contractId: number; token: string | null; role: 'current' | 'next' };
+const otherHouse = createStore<OtherHouse | null>(null);
+export const useOtherHouse = otherHouse.use;
+
+function setOtherHouse(house: OtherHouse | null) {
+  otherHouse.set(house);
+  const save = house ? AsyncStorage.setItem(OTHER_HOUSE_KEY, JSON.stringify(house)) : AsyncStorage.removeItem(OTHER_HOUSE_KEY);
+  save.catch(() => {});
+}
+
 /** 이 휴대폰에 저장한 그 계약의 접근 토큰 (계약 아래 API의 X-Contract-Token). 없으면 null */
 export function contractToken(contractId: number): string | null {
   return savedToken?.contractId === contractId ? savedToken.token : null;
@@ -32,7 +55,8 @@ export function contractToken(contractId: number): string | null {
 
 function forget() {
   savedToken = null;
-  AsyncStorage.multiRemove([CONTRACT_ID_KEY, CONTRACT_TOKEN_KEY]).catch(() => {});
+  otherHouse.set(null);
+  AsyncStorage.multiRemove([CONTRACT_ID_KEY, CONTRACT_TOKEN_KEY, OTHER_HOUSE_KEY]).catch(() => {});
 }
 
 /**
@@ -58,6 +82,44 @@ export function setLatestContract(contract: ApiContract | null, token?: string) 
 }
 
 /**
+ * 새로 만든 계약을 보여 준다 (setLatestContract와 같음). 보던 계약이 갈아타기를 저장한 지금 집이면 새 계약을 다음 집으로
+ * 연결하고(POST /api/contracts/{id}/move/next) 지금 집 계약을 다른 집으로 남긴다. 갈아타기가 없으면(404) 다른 집은 지운다
+ */
+export async function setCreatedContract(created: ApiContractCreated): Promise<void> {
+  const prev = latestContract.get();
+  let linked: OtherHouse | null = null;
+  if (apiEnabled && prev && prev.id !== created.id && prev.status === 'active') {
+    const prevToken = contractToken(prev.id);
+    linked = await postMoveNext(prev.id, prevToken, created.id, created.access_token).then(
+      () => ({ contractId: prev.id, token: prevToken, role: 'current' as const }),
+      () => null,
+    );
+  }
+  setLatestContract(created, created.access_token);
+  setOtherHouse(linked);
+}
+
+/**
+ * 갈아타기 중인 두 집을 바꿔 본다: 다른 집 계약을 불러와 보여 주고, 보던 계약을 다른 집으로 남긴다.
+ * 다른 집 계약이 서버에 없으면(404) 다른 집을 지우고 오류를 던진다
+ */
+export async function switchHouse(): Promise<void> {
+  const other = otherHouse.get();
+  const current = latestContract.get();
+  if (!other || !current) return;
+  let contract: ApiContract;
+  try {
+    contract = await getContract(other.contractId, other.token);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) setOtherHouse(null);
+    throw e;
+  }
+  const currentToken = contractToken(current.id);
+  setLatestContract(contract, other.token ?? undefined);
+  setOtherHouse({ contractId: current.id, token: currentToken, role: other.role === 'current' ? 'next' : 'current' });
+}
+
+/**
  * 앱을 켤 때 한 번: 저장한 계약 id·토큰이 있으면 서버에서 다시 불러온다.
  * 404면(DB를 다시 만들었거나 토큰이 맞지 않음) 저장한 계약을 지우고 안내하고, 연결 실패면 남겨 다음에 다시 시도한다.
  */
@@ -74,6 +136,10 @@ export async function restoreContract(): Promise<void> {
   }
   if (!Number.isInteger(id) || id <= 0) return;
   if (token) savedToken = { contractId: id, token };
+  try {
+    const raw = await AsyncStorage.getItem(OTHER_HOUSE_KEY);
+    if (raw) otherHouse.set(JSON.parse(raw) as OtherHouse);
+  } catch {}
   try {
     const contract = await getContract(id, token);
     if (!latestContract.get()) latestContract.set(contract);
@@ -117,13 +183,15 @@ export type TodoView = {
   badge?: string;
   status: TodoViewStatus;
   todayBefore?: boolean;
-  href?: '/switch';
+  href?: '/switch' | '/return';
   /** 서버 할 일 id (PATCH /api/todos/{id}). 시연 할 일이면 없음 */
   todoId?: number;
   /** 완료 증빙으로 올릴 것. 없으면 증빙 없이 끝내는 할 일 */
   evidence?: string | null;
   /** 나중에 올리기로 끝낸 할 일 (기록함이 빈칸이라 증빙을 올릴 수 있음) */
   skipped?: boolean;
+  /** 지금 계획에 없고 기록으로만 남은 할 일 (되돌릴 수 없음, #135) */
+  archived?: boolean;
 };
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -151,6 +219,16 @@ function whenLabel(t: ApiTodo, today: Date) {
   if (t.remind_date) return `${dateLabel(t.remind_date, today)} 알림`;
   if (t.start_date) return `${dateLabel(t.start_date, today)}부터 · 기한은 보증기관 기준 확정 후`;
   return '기한은 보증기관 기준 확정 후';
+}
+
+/**
+ * 할 일을 누르면 갈 화면. 7번(만기 6개월 전 "이사할게요")·9번(반환 확인)은 갈아타기로 (FR-025),
+ * 만기일이 되어 끝나지 않은 9번과 반환 대응 단계(R1~R4)는 반환 대응 안내로 ("못 받음", FR-024·034)
+ */
+function hrefOf(t: ApiTodo): TodoView['href'] {
+  if (t.rule_id.startsWith('R')) return '/return';
+  if (t.rule_id === 'T9') return t.status === 'todo' && t.state !== 'upcoming' ? '/return' : '/switch';
+  return t.rule_id === 'T7' ? '/switch' : undefined;
 }
 
 /**
@@ -186,11 +264,11 @@ export function todoViews(todos: ApiTodo[], today: Date): TodoView[] {
         badge: badges.length ? badges.join(' · ') : undefined,
         status,
         todayBefore: status === 'current',
-        // 7번(만기 6개월 전 "이사할게요")·9번(반환 확인)에서 갈아타기로 (FR-025)
-        href: t.rule_id === 'T7' || t.rule_id === 'T9' ? '/switch' : undefined,
+        href: hrefOf(t),
         todoId: t.id,
         evidence: t.evidence,
         skipped: t.status === 'skipped',
+        archived: t.archived,
       };
     });
 }

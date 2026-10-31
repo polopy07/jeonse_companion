@@ -356,6 +356,8 @@ export type ApiTodo = {
   status: 'todo' | 'done' | 'skipped';
   /** 끝낸 날 (done·skipped). 뒤 할 일의 기준일 */
   done_date: string | null;
+  /** 계약 조건이 바뀌어 지금 계획에는 없고 끝낸 기록으로만 남은 할 일 (목록 맨 뒤). 되돌리면 409 TODO_NOT_PLANNED */
+  archived: boolean;
   rules_version: string;
   /** 오늘(가상 날짜면 그날) 기준: done 끝냄 / upcoming 시작 전 / in_progress 할 때 / overdue 기한 지남 */
   state: 'done' | 'upcoming' | 'in_progress' | 'overdue';
@@ -393,8 +395,23 @@ export type ApiContract = {
   payment_id: number | null;
   /** 기록한 특약 결과의 분기: 거절당함이면 위험 안내·맨 위로 올라간 할 일·상담 창구, 넣음이면 기록함 서류 */
   special_term_effects: ApiTermEffect[];
+  /** 만기일에 "못 받음"을 고른 날 (반환 대응 중). 고르지 않았으면 null */
+  not_returned_date: string | null;
   /** sort_order 순서 */
   todos: ApiTodo[];
+  /** 계약 당일 첫 계약 서류 (FR-051). 올리지 않은 종류도 uploaded: false로 온다 */
+  documents: ApiContractDocument[];
+};
+
+/** 첫 계약 서류 한 종류: 할 일과 별개로 기록함에만 남는다 (todos.yaml first_documents) */
+export type ApiContractDocument = {
+  /** contract 계약서 / down_payment 계약금 이체 내역 */
+  kind: string;
+  label: string;
+  /** 찍는 방법 안내 */
+  detail: string | null;
+  uploaded: boolean;
+  uploaded_at: string | null;
 };
 
 /** 계약을 만들 때만 오는 응답: 계약 접근 토큰은 이때 한 번만 준다 (휴대폰에 저장해 X-Contract-Token으로 보냄) */
@@ -494,16 +511,19 @@ export function getAlertReport(contractId: number, token: string | null) {
 
 // ---- PATCH /api/todos/{id}, POST /api/todos/{id}/evidence ----
 
+/** 갈아타기 다음 집의 전입신고를 지금 집 반환 확인 전에 끝내려 할 때 (FR-027). confirmMoveIn: true로 다시 보내면 끝난다 */
+export const MOVE_IN_BEFORE_RETURN = 'MOVE_IN_BEFORE_RETURN';
+
 /**
  * 할 일 끝내기·되돌리기 (FR-020, FR-029·030). done은 증빙을 올린 할 일만(아니면 409 EVIDENCE_REQUIRED),
  * skipped는 나중에 올리기, todo는 되돌리기. 먼저 끝낼 할 일이 남았으면 409 PREREQUISITE_NOT_DONE,
  * 뒤 할 일을 이미 끝냈으면 409 DEPENDENT_DONE. 끝낸 날로 뒤 기한을 다시 계산해 계약 전체를 돌려준다
  */
-export function patchTodo(todoId: number, token: string | null, status: ApiTodo['status']) {
+export function patchTodo(todoId: number, token: string | null, status: ApiTodo['status'], confirmMoveIn = false) {
   return request<ApiContract>(`/api/todos/${todoId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...contractHeaders(token) },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify(confirmMoveIn ? { status, confirm_move_in: true } : { status }),
   });
 }
 
@@ -511,8 +531,9 @@ export function patchTodo(todoId: number, token: string | null, status: ApiTodo[
  * 증빙 사진 1장을 올려 할 일을 끝낸다 (FR-029, 기록함 FR-031). 나중에 올리기였던 할 일은 끝낸 날 그대로 완료로,
  * 다시 올리면 앞 사진을 바꾼다. 20MB가 넘으면 413 FILE_TOO_LARGE. 끝낼 수 있는 조건은 patchTodo와 같다
  */
-export async function uploadEvidence(todoId: number, token: string | null, file: PickedFile) {
+export async function uploadEvidence(todoId: number, token: string | null, file: PickedFile, confirmMoveIn = false) {
   const form = new FormData();
+  if (confirmMoveIn) form.append('confirm_move_in', 'true');
   await appendFile(form, file, 'image/jpeg');
   return request<ApiContract>(
     `/api/todos/${todoId}/evidence`,
@@ -533,6 +554,40 @@ export function evidenceSource(todoId: number, token: string | null, v: string |
 /** 증빙 삭제 (FR-033). 완료했던 할 일은 "나중에 올리기"로 바뀌고(완료는 그대로) 기록함은 빈칸. 무산된 계약도 지울 수 있다 */
 export function deleteEvidence(todoId: number, token: string | null) {
   return request<ApiContract>(`/api/todos/${todoId}/evidence`, { method: 'DELETE', headers: contractHeaders(token) });
+}
+
+// ---- POST /api/contracts/{id}/documents, GET·DELETE .../documents/{kind} ----
+
+/**
+ * 첫 계약 서류 1장 올리기 (FR-051). 할 일은 끝내지 않고 기록함에만 남는다. 종류마다 1장이라 다시 올리면 바꾼다.
+ * 20MB가 넘으면 413 FILE_TOO_LARGE, 무산된 계약은 409
+ */
+export async function uploadDocument(contractId: number, token: string | null, kind: string, file: PickedFile) {
+  const form = new FormData();
+  form.append('kind', kind);
+  await appendFile(form, file, 'image/jpeg');
+  return request<ApiContract>(
+    `/api/contracts/${contractId}/documents`,
+    { method: 'POST', headers: contractHeaders(token), body: form },
+    { xhr: Platform.OS !== 'web' },
+  );
+}
+
+/** 올린 첫 계약 서류 파일 주소와 헤더 (evidenceSource와 같은 쓰임). 서버 주소가 없으면 null */
+export function documentSource(contractId: number, kind: string, token: string | null, v: string | number = 0) {
+  if (!API_URL) return null;
+  return {
+    uri: `${API_URL}/api/contracts/${contractId}/documents/${encodeURIComponent(kind)}?v=${encodeURIComponent(String(v))}`,
+    headers: contractHeaders(token),
+  };
+}
+
+/** 첫 계약 서류 삭제 (FR-033, 언제든·무산된 계약도). 올린 서류가 없으면 404 */
+export function deleteDocument(contractId: number, token: string | null, kind: string) {
+  return request<ApiContract>(`/api/contracts/${contractId}/documents/${encodeURIComponent(kind)}`, {
+    method: 'DELETE',
+    headers: contractHeaders(token),
+  });
 }
 
 // ---- GET /api/demo-houses ----
@@ -611,6 +666,8 @@ export type ApiMove = {
   warnings: string[];
   /** 지금 집 + 다음 집 할 일, 날짜순 */
   todos: ApiMoveTodo[];
+  /** 다음 집으로 만든 계약 (postMoveNext로 연결). 없으면 null */
+  next_contract_id: number | null;
 };
 
 /**
@@ -622,6 +679,18 @@ export function postMove(contractId: number, token: string | null, input: ApiMov
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...contractHeaders(token) },
     body: JSON.stringify(input),
+  });
+}
+
+/**
+ * 다음 집으로 만든 계약을 갈아타기에 연결 (FR-027). 연결하면 다음 집 전입신고를 지금 집 반환 확인 전에 끝낼 때
+ * 409 MOVE_IN_BEFORE_RETURN로 경고한다. 갈아타기를 저장하지 않았으면 404, 다른 갈아타기에 연결된 계약이면 409
+ */
+export function postMoveNext(contractId: number, token: string | null, nextContractId: number, nextToken: string) {
+  return request<ApiMove>(`/api/contracts/${contractId}/move/next`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...contractHeaders(token) },
+    body: JSON.stringify({ next_contract_id: nextContractId, next_contract_token: nextToken }),
   });
 }
 
@@ -656,4 +725,77 @@ export function getTimeline(contractId: number, token: string | null) {
     `/api/contracts/${contractId}/timeline`,
     { method: 'GET', headers: contractHeaders(token) },
   );
+}
+
+// ---- POST·DELETE /api/contracts/{id}/return-response, GET .../return-guide ----
+
+export type ApiLink = { label: string; url: string };
+
+/** 반환 대응 한 단계 (R1~R4, FR-034). 보증기관에 맞춘 제목·안내·창구는 서버가 넣어 준다 */
+export type ApiReturnStep = {
+  rule_id: string;
+  /** 이 단계의 할 일 id (끝내기·증빙은 /api/todos/{id}). "못 받음" 전(preview)이면 null */
+  todo_id: number | null;
+  title: string;
+  detail: string;
+  link: ApiLink | null;
+  /** 끝낼 때 올릴 증빙. 없으면 null (공공 상담) */
+  evidence: string | null;
+  state: 'done' | 'current' | 'todo';
+  done_date: string | null;
+  evidence_uploaded: boolean;
+  /** 이 단계에 필요한데 기록함에 없는 서류 이름 (FR-035) */
+  missing_documents: string[];
+};
+
+/** 청구 서류 대조 한 줄 (FR-035): 할 일 증빙(todo) 또는 첫 계약 서류(contract_document) */
+export type ApiReturnDocument = {
+  rule_id: string;
+  todo_id: number | null;
+  kind: 'todo' | 'contract_document';
+  name: string;
+  uploaded: boolean;
+  needed_by: string[];
+};
+
+export type ApiReturnGuide = {
+  contract_id: number;
+  today: string;
+  /** preview "못 받음" 전 미리 점검 / in_progress 반환 대응 중 / ended 반환 대응 중 9번(반환 확인)을 끝냄 */
+  status: 'preview' | 'in_progress' | 'ended';
+  end_date: string;
+  not_returned_date: string | null;
+  guarantor: Guarantor;
+  steps: ApiReturnStep[];
+  documents: ApiReturnDocument[];
+  missing_count: number;
+  help_desks: ApiLink[];
+  disclaimer: string;
+};
+
+/** 반환 대응 안내 (UI-08): 단계·진행·청구 서류 대조. "못 받음" 전에도 미리 볼 수 있고 무산된 계약도 볼 수 있다 */
+export function getReturnGuide(contractId: number, token: string | null) {
+  return request<ApiReturnGuide>(`/api/contracts/${contractId}/return-guide`, {
+    method: 'GET',
+    headers: contractHeaders(token),
+  });
+}
+
+/**
+ * 만기일에 "못 받음" (FR-024): 반환 대응 단계(R1~R4)를 할 일 맨 위에 붙인다. 만기일 전이면 409 RETURN_NOT_DUE,
+ * 반환 확인을 이미 끝냈으면 409 ALREADY_RETURNED, 이미 시작했으면 그대로
+ */
+export function startReturnResponse(contractId: number, token: string | null) {
+  return request<ApiContract>(`/api/contracts/${contractId}/return-response`, {
+    method: 'POST',
+    headers: contractHeaders(token),
+  });
+}
+
+/** "못 받음"을 잘못 골랐을 때 되돌리기. 끝낸 단계가 있으면 409 RETURN_STEP_DONE */
+export function undoReturnResponse(contractId: number, token: string | null) {
+  return request<ApiContract>(`/api/contracts/${contractId}/return-response`, {
+    method: 'DELETE',
+    headers: contractHeaders(token),
+  });
 }
