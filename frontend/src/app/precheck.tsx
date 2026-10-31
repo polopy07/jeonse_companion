@@ -30,7 +30,7 @@ import { dottedDate, todayDate } from '@/lib/clock';
 import { hasConsent, useConsent } from '@/lib/consent';
 import { formatWon, parseManwon, parseNumber } from '@/lib/format';
 
-const steps = ['집 정보', '공시가격', '등기부', '확인·수정'];
+const steps = ['집 정보', '집값·보증금', '등기부', '확인·수정'];
 
 type Violation = 'unknown' | 'no' | 'yes';
 // filled = 시연 등기부, parsed = 서버가 PDF에서 읽은 값, manual = 직접 입력
@@ -51,7 +51,10 @@ const todayText = () => dottedDate(todayDate());
 
 const toManwonText = (won: number) => (won ? String(Math.round(won / 10_000)) : '');
 
-/** 계약 전 확인 입력 (UI-01 입력 부분, FR-001~006). 집 정보 → 공시가격 → 등기부 → 추출 결과 확인·수정 → 결과 */
+/**
+ * 계약 전 확인 입력 (UI-01 입력 부분, FR-001~006). 집 정보 → 집값·보증금 → 등기부 → 추출 결과 확인·수정 → 결과.
+ * 다가구·단독은 점검 대상이 아니라 1단계에서 보증금까지 받고 바로 결과로 간다
+ */
 /** 서비스 안내·개인정보 동의를 받은 뒤에만 계약 전 확인을 시작한다 (처음 한 번, 안내 버전이 바뀌면 다시) */
 export default function PrecheckScreen() {
   const consent = useConsent();
@@ -149,6 +152,11 @@ function PrecheckForm() {
     setAddress(v);
     if (preset && v !== preset.address) setPreset(null);
     setFound(null); // 주소를 바꾸면 찾은 공시가격의 출처 표시를 남기지 않는다 (입력 칸 값은 그대로)
+  };
+
+  const editHousingType = (t: HousingType) => {
+    setHousingType(t);
+    if (t !== housingType) setFound(null); // 유형이 바뀌면 찾은 공시가격(공동주택가격) 표시를 풀고 칸 값만 남긴다
   };
 
   const editArea = (v: string) => {
@@ -276,10 +284,25 @@ function PrecheckForm() {
     router.push('/check');
   };
 
+  // 공동주택가격으로 공시가격을 찾을 수 있는 유형
+  const findable = housingType === 'apartment' || housingType === 'row_house';
+
+  const depositField = (
+    <TextField
+      label="보증금"
+      value={depositText}
+      onChange={setDepositText}
+      suffix="만 원"
+      keyboardType="number-pad"
+      placeholder="14000"
+      helper={deposit ? `= ${formatWon(deposit)} 원` : '계약서의 전세 보증금'}
+    />
+  );
+
   // 단계별로 다음으로 넘어갈 수 있는지
   const canNext = [
-    address.trim().length > 0 && housingType !== null && !!deposit,
-    !!official,
+    address.trim().length > 0 && housingType !== null && (!na || !!deposit),
+    !!official && !!deposit,
     false, // 등기부 단계는 아래 버튼들로 넘어간다
     (!mortgage || !!mortgageAmount) && leasesReady,
   ][step];
@@ -350,27 +373,9 @@ function PrecheckForm() {
 
           <Card style={{ marginTop: 12, gap: 14 }}>
             <TextField label="주소" value={address} onChange={editAddress} placeholder="예: 부산 수영구 ○○동 ○○빌라 201호" />
-            <ChoiceChips label="주택 유형" choices={housingTypes} value={housingType} onChange={setHousingType} />
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TextField
-                label="보증금"
-                value={depositText}
-                onChange={setDepositText}
-                suffix="만 원"
-                keyboardType="number-pad"
-                placeholder="14000"
-                helper={deposit ? `= ${formatWon(deposit)} 원` : undefined}
-              />
-              <TextField
-                label="전용면적"
-                value={areaText}
-                onChange={editArea}
-                suffix="㎡"
-                keyboardType="decimal-pad"
-                placeholder="49.5"
-                helper="계약서·건축물대장에 있어요"
-              />
-            </View>
+            <ChoiceChips label="주택 유형" choices={housingTypes} value={housingType} onChange={editHousingType} />
+            {/* 다가구·단독은 집값 단계가 없어 여기서 보증금을 받는다 (신고 대상 판별·할 일 관리) */}
+            {na ? depositField : null}
           </Card>
 
           {na ? (
@@ -389,7 +394,7 @@ function PrecheckForm() {
       {step === 1 ? (
         <>
           <AppText size={18} weight="bold" style={{ marginTop: 18 }}>
-            공시가격으로 집값을 추정해요
+            집값과 보증금을 확인해요
           </AppText>
           <AppText size={13} color={Colors.textSub} leading={1.6} style={{ marginTop: 4 }}>
             추정 집값 = 공시가격 × 140%. 같은 단지·비슷한 면적 실거래가가 있으면 둘 중 낮은 값을 써요.
@@ -404,6 +409,7 @@ function PrecheckForm() {
                 </AppText>
               </View>
               <Row label="공시가격" note={preset.officialBasis} value={`${formatWon(preset.official_price)} 원`} />
+              {areaText ? <Row label="전용면적" value={`${areaText}㎡`} /> : null}
               {apiEnabled && preset.complex ? (
                 <Row label="실거래가 · 전용 ±10%" note="최근 12개월 신고" value="판정 때 단지에서 찾아요" />
               ) : (
@@ -416,8 +422,9 @@ function PrecheckForm() {
             </Card>
           ) : (
             <>
-              {apiEnabled ? <OfficialPriceFinder address={address} onFound={fillFound} /> : null}
-              <Card style={{ marginTop: 14, gap: 8 }}>
+              {/* 주소로 찾기는 공동주택가격이 있는 아파트·연립다세대만 (오피스텔은 공동주택가격 대상이 아님) */}
+              {apiEnabled && findable ? <OfficialPriceFinder address={address} onFound={fillFound} /> : null}
+              <Card style={{ marginTop: 14, gap: 12 }}>
                 <TextField
                   label="공시가격"
                   value={officialText}
@@ -428,7 +435,9 @@ function PrecheckForm() {
                   helper={
                     official
                       ? `= ${formatWon(official)} 원 · 추정 집값 ${formatWon(estimateFromOfficial(official))} 원`
-                      : '부동산 공시가격 알리미에서 주소로 찾을 수 있어요'
+                      : findable
+                        ? '위에서 찾거나 부동산 공시가격 알리미에서 찾아 넣어요'
+                        : '오피스텔은 주소로 찾을 수 없어요. 직접 넣어 주세요'
                   }
                 />
                 {found ? (
@@ -436,9 +445,24 @@ function PrecheckForm() {
                     {found.label} · {found.source}
                   </AppText>
                 ) : null}
+                {found?.area ? (
+                  <Row label="전용면적" note="공동주택가격" value={`${found.area}㎡`} />
+                ) : (
+                  <TextField
+                    label="전용면적 (선택)"
+                    value={areaText}
+                    onChange={editArea}
+                    suffix="㎡"
+                    keyboardType="decimal-pad"
+                    placeholder="49.5"
+                    helper="같은 단지 실거래·주변 전세 시세를 찾을 때 써요"
+                  />
+                )}
               </Card>
             </>
           )}
+
+          <Card style={{ marginTop: 12 }}>{depositField}</Card>
 
           {deposit && official ? <MinimumPreview deposit={deposit} official={official} trade={preset?.trade_price ?? null} /> : null}
         </>

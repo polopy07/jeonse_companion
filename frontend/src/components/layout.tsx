@@ -1,6 +1,16 @@
 import { router, type Href } from 'expo-router';
-import type { ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, View, type ViewStyle } from 'react-native';
+import { useEffect, useRef, type ReactNode } from 'react';
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+  type ViewStyle,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/AppText';
@@ -17,19 +27,54 @@ type ScreenProps = {
   children: ReactNode;
 };
 
-/** 모든 화면의 바탕. 바탕색, 안전 영역, 스크롤, 하단 막대를 맡는다. */
+/** 키보드가 올라오면 입력 중인 칸이 화면 위쪽에 오게 스크롤할 여백 */
+const FOCUS_OFFSET = 120;
+
+/**
+ * 키보드가 입력 칸을 가리지 않게 (iOS는 숫자 키패드가 칸을 덮는다).
+ * 키보드가 뜨면 입력 중인 칸을 스크롤 영역 위쪽으로 올린다. 안드로이드는 창이 줄어들어 칸이 보이지만 같은 동작을 한다
+ */
+function useScrollToFocusedInput(scrollRef: React.RefObject<ScrollView | null>) {
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidShow', () => {
+      const input = TextInput.State.currentlyFocusedInput();
+      // getInnerViewRef는 런타임에 있지만 타입 선언에 빠져 있다. 새 아키텍처의 measureLayout은 숫자 핸들이 아니라 ref를 받는다
+      const scroll = scrollRef.current as (ScrollView & { getInnerViewRef?: () => View | null }) | null;
+      const inner = scroll?.getInnerViewRef?.();
+      if (!input || !inner) return;
+      input.measureLayout(
+        inner,
+        (_x, y) => scrollRef.current?.scrollTo({ y: Math.max(0, y - FOCUS_OFFSET), animated: true }),
+        () => {},
+      );
+    });
+    return () => sub.remove();
+  }, [scrollRef]);
+}
+
+/** 모든 화면의 바탕. 바탕색, 안전 영역, 스크롤, 하단 막대, 키보드 피하기를 맡는다. */
 export function Screen({ title, footer, inTabs, children }: ScreenProps) {
+  const scrollRef = useRef<ScrollView>(null);
+  useScrollToFocusedInput(scrollRef);
   return (
     <SafeAreaView style={styles.safe} edges={inTabs || footer ? ['top'] : ['top', 'bottom']}>
       {title ? <ScreenHeader title={title} /> : null}
-      <ScrollView contentContainerStyle={styles.scroll}>
-        {children}
-      </ScrollView>
-      {footer ? (
-        <SafeAreaView edges={['bottom']} style={styles.footer}>
-          {footer}
-        </SafeAreaView>
-      ) : null}
+      {/* iOS: 키보드만큼 줄여 하단 막대(다음 버튼)도 키보드 위로. 안드로이드는 창이 줄어들어 따로 하지 않는다 */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.scroll}
+          // 숫자 키패드에는 닫기 키가 없어, 칸 밖을 누르거나 아래로 끌면 키보드를 닫는다
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}>
+          {children}
+        </ScrollView>
+        {footer ? (
+          <SafeAreaView edges={['bottom']} style={styles.footer}>
+            {footer}
+          </SafeAreaView>
+        ) : null}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
