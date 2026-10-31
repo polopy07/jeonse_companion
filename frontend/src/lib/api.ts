@@ -617,6 +617,46 @@ export function getDemoHouses() {
   return request<{ as_of: string; houses: ApiDemoHouse[] }>('/api/demo-houses', { method: 'GET' });
 }
 
+// ---- GET /api/official-price/search, GET /api/official-price ----
+
+/** 주소 검색 결과의 필지 (FR-001 확장, 브이월드) */
+export type ApiParcel = { pnu: string; address: string; road_address: string | null };
+
+export type ApiUnitPrice = {
+  dong: string;
+  ho: string;
+  floor: string | null;
+  exclusive_area: number | null;
+  official_price: number;
+};
+
+/** 필지의 공동주택 공시가격 (호별) */
+export type ApiOfficialPrice = {
+  pnu: string;
+  stdr_year: number;
+  complex_name: string;
+  units: ApiUnitPrice[];
+  source: string;
+};
+
+/** 주소 → 필지 후보. 못 찾으면 404 ADDRESS_NOT_FOUND, 서버에 브이월드 키가 없으면 503 VWORLD_KEY_MISSING */
+export function searchParcels(address: string) {
+  return request<{ query: string; parcels: ApiParcel[] }>(
+    `/api/official-price/search?address=${encodeURIComponent(address)}`,
+    { method: 'GET' },
+  );
+}
+
+/** 필지의 호별 공시가격 (동·호를 주면 그 호만). 공동주택가격이 없으면 404 OFFICIAL_PRICE_NOT_FOUND */
+export function getOfficialPrice(pnu: string, dong?: string, ho?: string) {
+  // React Native의 URLSearchParams는 set 등이 없어 직접 붙인다
+  const q = [['pnu', pnu], ['dong', dong], ['ho', ho]]
+    .filter(([, v]) => v)
+    .map(([k, v]) => `${k}=${encodeURIComponent(v as string)}`)
+    .join('&');
+  return request<ApiOfficialPrice>(`/api/official-price?${q}`, { method: 'GET' });
+}
+
 // ---- POST·GET /api/contracts/{id}/move ----
 
 /** 갈아타기: 다음 집 계약 조건 (FR-025, UI-07) */

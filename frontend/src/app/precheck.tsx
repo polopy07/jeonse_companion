@@ -7,6 +7,7 @@ import { AppText } from '@/components/AppText';
 import { ChoiceChips, TextField, Toggle, ToggleRow } from '@/components/form';
 import { Icon } from '@/components/Icon';
 import { Button, Card, DashedBox, DemoTag, Screen, SectionLabel } from '@/components/layout';
+import { OfficialPriceFinder, type FoundPrice } from '@/components/official-price';
 import { ratioBand } from '@/components/verdict';
 import { Colors, Radius, Touch } from '@/constants/theme';
 import { demoHouseFromApi, demoHouses, type DemoHouse } from '@/data/demo';
@@ -86,8 +87,9 @@ function PrecheckForm() {
   const [depositText, setDepositText] = useState('');
   const [areaText, setAreaText] = useState('');
 
-  // ② 공시가격 (시연 집은 미리 매칭)
+  // ② 공시가격 (시연 집은 미리 매칭, 그 밖의 주소는 주소로 찾거나 직접 입력)
   const [officialText, setOfficialText] = useState('');
+  const [found, setFound] = useState<FoundPrice | null>(null);
 
   // ③④ 등기부
   const [registryMode, setRegistryMode] = useState<RegistryMode>('none');
@@ -110,7 +112,8 @@ function PrecheckForm() {
   const [guarantorConsult, setGuarantorConsult] = useState<GuarantorConsult>('not_yet');
 
   const deposit = parseManwon(depositText);
-  const official = preset ? preset.official_price : parseManwon(officialText);
+  // 주소로 찾은 값은 원 단위 그대로 (입력 칸은 만 원 단위라 반올림됨)
+  const official = preset ? preset.official_price : found ? found.price : parseManwon(officialText);
   const mortgageAmount = parseManwon(mortgageText);
   // 임차권·전세권 보증금은 선순위 채권. 등기부에서 읽은 목록이 있으면 넣은 항목만, 없으면 직접 입력한 합계
   const leaseRowAmount = (l: LeaseRow) => l.amount ?? parseManwon(l.amountText);
@@ -132,6 +135,7 @@ function PrecheckForm() {
     setDepositText(h.depositManwon);
     setAreaText(h.area);
     setOfficialText(toManwonText(h.official_price));
+    setFound(null);
     setViolation(h.building_violation === null ? 'unknown' : h.building_violation ? 'yes' : 'no');
     setRegistryMode('none');
     setFileName(null);
@@ -141,6 +145,17 @@ function PrecheckForm() {
   const editAddress = (v: string) => {
     setAddress(v);
     if (preset && v !== preset.address) setPreset(null);
+  };
+
+  const fillFound = (p: FoundPrice) => {
+    setFound(p);
+    setOfficialText(toManwonText(p.price));
+    if (!areaText.trim() && p.area) setAreaText(String(p.area));
+  };
+
+  const editOfficial = (v: string) => {
+    setOfficialText(v);
+    setFound(null);
   };
 
   const fillRegistry = (h: DemoHouse | null) => {
@@ -387,21 +402,29 @@ function PrecheckForm() {
               )}
             </Card>
           ) : (
-            <Card style={{ marginTop: 14, gap: 8 }}>
-              <TextField
-                label="공시가격"
-                value={officialText}
-                onChange={setOfficialText}
-                suffix="만 원"
-                keyboardType="number-pad"
-                placeholder="15000"
-                helper={
-                  official
-                    ? `= ${formatWon(official)} 원 · 추정 집값 ${formatWon(estimateFromOfficial(official))} 원`
-                    : '부동산 공시가격 알리미에서 주소로 찾을 수 있어요'
-                }
-              />
-            </Card>
+            <>
+              {apiEnabled ? <OfficialPriceFinder address={address} onFound={fillFound} /> : null}
+              <Card style={{ marginTop: 14, gap: 8 }}>
+                <TextField
+                  label="공시가격"
+                  value={officialText}
+                  onChange={editOfficial}
+                  suffix="만 원"
+                  keyboardType="number-pad"
+                  placeholder="15000"
+                  helper={
+                    official
+                      ? `= ${formatWon(official)} 원 · 추정 집값 ${formatWon(estimateFromOfficial(official))} 원`
+                      : '부동산 공시가격 알리미에서 주소로 찾을 수 있어요'
+                  }
+                />
+                {found ? (
+                  <AppText size={11} color={Colors.textHint} leading={1.5}>
+                    {found.label} · {found.source}
+                  </AppText>
+                ) : null}
+              </Card>
+            </>
           )}
 
           {deposit && official ? <MinimumPreview deposit={deposit} official={official} trade={preset?.trade_price ?? null} /> : null}
