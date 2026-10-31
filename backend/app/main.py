@@ -1,4 +1,5 @@
 """전동기 백엔드. 실행: uvicorn app.main:app --reload (backend/ 폴더에서)"""
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -23,8 +24,24 @@ def health():
     return {"status": "ok", "rules_version": rules["verdict"]["version"]}
 
 
+def setup_logging() -> None:
+    """우리 코드(app.*)의 INFO 로그를 서버 출력(배포 서버는 journalctl)에 찍는다.
+
+    uvicorn은 자기 로거만 설정해서, 이게 없으면 app.* 로그는 WARNING 이상만 보인다
+    (EMAIL_BACKEND=console의 메일 내용·알림 실행 기록이 안 보였음). 여러 번 불려도 처리기는 하나만.
+    """
+    log = logging.getLogger("app")
+    if not any(getattr(h, "_jeonse", False) for h in log.handlers):
+        handler = logging.StreamHandler()
+        handler._jeonse = True
+        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+        log.addHandler(handler)
+    log.setLevel(logging.INFO)
+
+
 def create_app() -> FastAPI:
     """앱을 만든다. CORS 허용 주소(CORS_ORIGINS)는 이때 한 번 읽는다 (테스트는 설정을 바꿔 다시 만든다)."""
+    setup_logging()
     app = FastAPI(title="전동기 API", version="0.1.0", lifespan=lifespan)
     origins = cors_origins()
     errors.install(app, cors_origins=origins)
