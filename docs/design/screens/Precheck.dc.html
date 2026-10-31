@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>계약 전 확인 입력</title>
+<script src="../preview.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1D3B5C}a:hover{color:#0F2338}
+</style>
+</helmet>
+<div style="width: 100%; max-width: 390px; height: 1240px; box-sizing: border-box; background: #F4F2EC; font-family: 'IBM Plex Sans KR', sans-serif; color: #17202A; display: flex; flex-direction: column; position: relative">
+  <div style="padding: 20px 20px 0; display: flex; align-items: center; gap: 8px">
+    <a href="Start.dc.html" aria-label="뒤로" style="width: 44px; height: 44px; margin-left: -12px; display: flex; align-items: center; justify-content: center">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#17202A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg></a>
+    <div style="font-size: 16px; font-weight: 600">계약 전 확인</div>
+  </div>
+  <div style="padding: 8px 20px 0">
+    <div style="display: flex; gap: 4px"><div style="flex: 1; height: 4px; border-radius: 2px; background: #1D3B5C"></div><div style="flex: 1; height: 4px; border-radius: 2px; background: #1D3B5C"></div><div style="flex: 1; height: 4px; border-radius: 2px; background: #D5D0C4"></div><div style="flex: 1; height: 4px; border-radius: 2px; background: #D5D0C4"></div></div>
+    <div style="font-size: 12px; color: #55606B; margin-top: 8px">2 / 4 · 집값·보증금 · 무료</div>
+    <div style="font-size: 18px; font-weight: 700; margin-top: 18px">집값과 보증금을 확인해요</div>
+    <div style="font-size: 13px; color: #55606B; line-height: 1.6; margin-top: 4px">추정 집값 = 공시가격 × 140%. 같은 단지·비슷한 면적 실거래가가 있으면 둘 중 낮은 값을 써요.</div>
+  </div>
+  <div style="margin: 14px 20px 0; padding: 16px; background: #FFFFFF; border-radius: 16px; border: 1px solid #E3DFD6; display: flex; flex-direction: column; gap: 10px">
+    <div style="font-size: 13px; font-weight: 600">주소로 공시가격 찾기</div>
+    <div><div style="font-size: 12px; color: #55606B; margin-bottom: 4px">주소 (도로명·지번)</div><div style="height: 44px; box-sizing: border-box; border: 1px solid #C9C3B6; border-radius: 10px; background: #FFFFFF; padding: 0 14px; display: flex; align-items: center; justify-content: space-between; font-size: 15px">부산 수영구 광안동 ○○○-○○</div></div>
+    <div style="display: flex; gap: 8px">
+      <div style="flex: 1"><div style="font-size: 12px; color: #55606B; margin-bottom: 4px">동</div><div style="height: 44px; box-sizing: border-box; border: 1px solid #C9C3B6; border-radius: 10px; background: #FFFFFF; padding: 0 14px; display: flex; align-items: center; justify-content: space-between; font-size: 15px; color: #9C968A">101 <span style="color: #55606B; font-size: 14px">동</span></div></div>
+      <div style="flex: 1"><div style="font-size: 12px; color: #55606B; margin-bottom: 4px">호</div><div style="height: 44px; box-sizing: border-box; border: 1px solid #C9C3B6; border-radius: 10px; background: #FFFFFF; padding: 0 14px; display: flex; align-items: center; justify-content: space-between; font-size: 15px">201 <span style="color: #55606B; font-size: 14px">호</span></div></div>
+    </div>
+    <div style="height: 44px; border-radius: 10px; border: 1px solid #C9C3B6; background: #FFFFFF; color: #1D3B5C; font-weight: 600; font-size: 15px; display: flex; align-items: center; justify-content: center; text-decoration: none">찾기</div>
+    <div style="font-size: 11px; color: #6B7580">동이 없는 빌라는 호만 넣어요. 아파트·연립·다세대만 있어요.</div>
+    <div style="font-size: 12px; color: #55606B">○○빌라 · 2026년 공시가격 · 3세대</div>
+    <div style="min-height: 44px; box-sizing: border-box; padding: 8px 12px; border-radius: 10px; border: 2px solid #1D3B5C; background: #FFFFFF; display: flex; align-items: center; justify-content: space-between">
+      <span style="font-size: 13px; font-weight: 600; color: #1D3B5C">✓ 201호 <span style="font-size: 11px; color: #6B7580; font-weight: 400">30.03㎡</span></span>
+      <span style="font-size: 13px; font-weight: 600">1억 1,600만 원</span>
+    </div>
+    <div style="min-height: 44px; box-sizing: border-box; padding: 8px 12px; border-radius: 10px; border: 1px solid #C9C3B6; background: #FFFFFF; display: flex; align-items: center; justify-content: space-between">
+      <span style="font-size: 13px; font-weight: 600; color: #17202A">202호 <span style="font-size: 11px; color: #6B7580; font-weight: 400">31.5㎡</span></span>
+      <span style="font-size: 13px; font-weight: 600">1억 2,200만 원</span>
+    </div>
+    <div style="min-height: 44px; box-sizing: border-box; padding: 8px 12px; border-radius: 10px; border: 1px solid #C9C3B6; background: #FFFFFF; display: flex; align-items: center; justify-content: space-between">
+      <span style="font-size: 13px; font-weight: 600; color: #17202A">301호 <span style="font-size: 11px; color: #6B7580; font-weight: 400">30.03㎡</span></span>
+      <span style="font-size: 13px; font-weight: 600">1억 1,800만 원</span>
+    </div>
+  </div>
+  <div style="margin: 12px 20px 0; padding: 16px; background: #FFFFFF; border-radius: 16px; border: 1px solid #E3DFD6; display: flex; flex-direction: column; gap: 8px">
+    <div><div style="font-size: 12px; color: #55606B; margin-bottom: 4px">공시가격</div><div style="height: 44px; box-sizing: border-box; border: 1px solid #C9C3B6; border-radius: 10px; background: #FFFFFF; padding: 0 14px; display: flex; align-items: center; justify-content: space-between; font-size: 15px">11600 <span style="color: #55606B; font-size: 14px">만 원</span></div>
+      <div style="font-size: 12px; color: #55606B; margin-top: 4px">= 1억 1,600만 원 · 추정 집값 1억 6,240만 원</div></div>
+    <div style="font-size: 11px; color: #6B7580; line-height: 1.5">○○빌라 201호 · 국토교통부 공동주택가격 (브이월드 공간정보 오픈플랫폼), 2026년 1월 1일 기준</div>
+    <div style="display: flex; justify-content: space-between; padding-top: 10px; border-top: 1px solid #EEEAE1"><span style="font-size: 13px; color: #55606B">전용면적<br><span style="font-size: 11px; color: #6B7580">공동주택가격</span></span><span style="font-size: 14px; font-weight: 600">30.03㎡</span></div>
+  </div>
+  <div style="margin: 12px 20px 0; padding: 16px; background: #FFFFFF; border-radius: 16px; border: 1px solid #E3DFD6">
+    <div style="font-size: 12px; color: #55606B; margin-bottom: 4px">보증금</div><div style="height: 44px; box-sizing: border-box; border: 1px solid #C9C3B6; border-radius: 10px; background: #FFFFFF; padding: 0 14px; display: flex; align-items: center; justify-content: space-between; font-size: 15px">14000 <span style="color: #55606B; font-size: 14px">만 원</span></div>
+    <div style="font-size: 12px; color: #55606B; margin-top: 4px">= 1억 4,000만 원</div>
+  </div>
+  <div style="margin: 12px 20px 0; padding: 16px; background: #FFFFFF; border-radius: 16px; border: 1px solid #E3DFD6">
+    <div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 13px; font-weight: 600">내 보증금 비율 (최소 추정치)</span><span style="font-size: 22px; font-weight: 700; color: #B85A0B">86%</span></div>
+    <div style="font-size: 12px; color: #55606B; line-height: 1.6; margin-top: 4px">근저당을 0원으로 둔 값이에요. 등기부를 올리면 근저당·임차권·전세권 보증금까지 더해 다시 계산해요.</div>
+  </div>
+  <div style="flex: 1"></div>
+  <div style="padding: 12px 20px 20px; background: #FFFFFF; border-top: 1px solid #E3DFD6; display: flex; gap: 8px">
+    <a href="Start.dc.html" style="height: 44px; border-radius: 10px; border: 1px solid #C9C3B6; background: #FFFFFF; color: #1D3B5C; font-weight: 600; font-size: 15px; display: flex; align-items: center; justify-content: center; text-decoration: none; height: 52px; padding: 0 20px">이전</a>
+    <a href="Check.dc.html" style="height: 52px; border-radius: 14px; background: #1D3B5C; color: #FFFFFF; font-weight: 600; font-size: 16px; display: flex; align-items: center; justify-content: center; text-decoration: none; flex: 1">다음</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1240}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
