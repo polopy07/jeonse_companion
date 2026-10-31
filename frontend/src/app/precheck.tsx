@@ -86,6 +86,8 @@ function PrecheckForm() {
   const [housingType, setHousingType] = useState<HousingType | null>(null);
   const [depositText, setDepositText] = useState('');
   const [areaText, setAreaText] = useState('');
+  // 전용면적을 주소로 찾은 공시가격에서 채웠는지 (그러면 다른 호를 고를 때 다시 채운다)
+  const [areaAuto, setAreaAuto] = useState(false);
 
   // ② 공시가격 (시연 집은 미리 매칭, 그 밖의 주소는 주소로 찾거나 직접 입력)
   const [officialText, setOfficialText] = useState('');
@@ -134,6 +136,7 @@ function PrecheckForm() {
     setHousingType(h.housing_type);
     setDepositText(h.depositManwon);
     setAreaText(h.area);
+    setAreaAuto(false);
     setOfficialText(toManwonText(h.official_price));
     setFound(null);
     setViolation(h.building_violation === null ? 'unknown' : h.building_violation ? 'yes' : 'no');
@@ -145,12 +148,22 @@ function PrecheckForm() {
   const editAddress = (v: string) => {
     setAddress(v);
     if (preset && v !== preset.address) setPreset(null);
+    setFound(null); // 주소를 바꾸면 찾은 공시가격의 출처 표시를 남기지 않는다 (입력 칸 값은 그대로)
+  };
+
+  const editArea = (v: string) => {
+    setAreaText(v);
+    setAreaAuto(false);
   };
 
   const fillFound = (p: FoundPrice) => {
     setFound(p);
     setOfficialText(toManwonText(p.price));
-    if (!areaText.trim() && p.area) setAreaText(String(p.area));
+    // 비어 있거나 앞서 찾은 값으로 채운 면적만 바꾼다 (직접 넣은 면적은 그대로)
+    if (p.area && (!areaText.trim() || areaAuto)) {
+      setAreaText(String(p.area));
+      setAreaAuto(true);
+    }
   };
 
   const editOfficial = (v: string) => {
@@ -351,7 +364,7 @@ function PrecheckForm() {
               <TextField
                 label="전용면적"
                 value={areaText}
-                onChange={setAreaText}
+                onChange={editArea}
                 suffix="㎡"
                 keyboardType="decimal-pad"
                 placeholder="49.5"

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
@@ -57,6 +57,8 @@ export function OfficialPriceFinder({ address, onFound }: { address: string; onF
   const [picked, setPicked] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const busy = phase === 'searching' || phase === 'loading';
+  // 마지막 요청 번호. 앞 요청의 응답이 늦게 와도 화면을 덮지 않게
+  const seq = useRef(0);
 
   const fail = (e: unknown) => {
     if (e instanceof ApiError && UNAVAILABLE.has(e.code)) {
@@ -81,24 +83,33 @@ export function OfficialPriceFinder({ address, onFound }: { address: string; onF
       (u) => (!dong.trim() || unitKey(u.dong, '동') === unitKey(dong, '동')) && (!ho.trim() || unitKey(u.ho, '호') === unitKey(ho, '호')),
     );
 
-  const loadUnits = async (p: ApiParcel) => {
+  const fetchUnits = async (p: ApiParcel) => {
+    const id = ++seq.current;
     setPhase('loading');
     setError(null);
     setPicked(null);
     try {
       const d = await getOfficialPrice(p.pnu);
+      if (id !== seq.current) return;
       setData(d);
       setPhase('units');
       const m = matchesOf(d);
       if (m.length === 1) pick(d, m[0]); // 동·호가 하나로 맞으면 바로 채운다
     } catch (e) {
+      if (id !== seq.current) return;
       setPhase('parcels');
       fail(e);
     }
   };
 
+  /** 필지 목록에서 고르기. 받는 중에는 다른 필지를 누르지 못한다 */
+  const loadUnits = (p: ApiParcel) => {
+    if (!busy) fetchUnits(p);
+  };
+
   const search = async () => {
     if (!query.trim() || busy) return;
+    const id = ++seq.current;
     setPhase('searching');
     setError(null);
     setParcels([]);
@@ -106,10 +117,12 @@ export function OfficialPriceFinder({ address, onFound }: { address: string; onF
     setPicked(null);
     try {
       const r = await searchParcels(query.trim());
+      if (id !== seq.current) return;
       setParcels(r.parcels);
-      if (r.parcels.length === 1) return loadUnits(r.parcels[0]);
+      if (r.parcels.length === 1) return fetchUnits(r.parcels[0]);
       setPhase('parcels');
     } catch (e) {
+      if (id !== seq.current) return;
       setPhase('idle');
       fail(e);
     }
