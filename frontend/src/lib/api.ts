@@ -397,6 +397,19 @@ export type ApiContract = {
   special_term_effects: ApiTermEffect[];
   /** sort_order 순서 */
   todos: ApiTodo[];
+  /** 계약 당일 첫 계약 서류 (FR-051). 올리지 않은 종류도 uploaded: false로 온다 */
+  documents: ApiContractDocument[];
+};
+
+/** 첫 계약 서류 한 종류: 할 일과 별개로 기록함에만 남는다 (todos.yaml first_documents) */
+export type ApiContractDocument = {
+  /** contract 계약서 / down_payment 계약금 이체 내역 */
+  kind: string;
+  label: string;
+  /** 찍는 방법 안내 */
+  detail: string | null;
+  uploaded: boolean;
+  uploaded_at: string | null;
 };
 
 /** 계약을 만들 때만 오는 응답: 계약 접근 토큰은 이때 한 번만 준다 (휴대폰에 저장해 X-Contract-Token으로 보냄) */
@@ -535,6 +548,40 @@ export function evidenceSource(todoId: number, token: string | null, v: string |
 /** 증빙 삭제 (FR-033). 완료했던 할 일은 "나중에 올리기"로 바뀌고(완료는 그대로) 기록함은 빈칸. 무산된 계약도 지울 수 있다 */
 export function deleteEvidence(todoId: number, token: string | null) {
   return request<ApiContract>(`/api/todos/${todoId}/evidence`, { method: 'DELETE', headers: contractHeaders(token) });
+}
+
+// ---- POST /api/contracts/{id}/documents, GET·DELETE .../documents/{kind} ----
+
+/**
+ * 첫 계약 서류 1장 올리기 (FR-051). 할 일은 끝내지 않고 기록함에만 남는다. 종류마다 1장이라 다시 올리면 바꾼다.
+ * 20MB가 넘으면 413 FILE_TOO_LARGE, 무산된 계약은 409
+ */
+export async function uploadDocument(contractId: number, token: string | null, kind: string, file: PickedFile) {
+  const form = new FormData();
+  form.append('kind', kind);
+  await appendFile(form, file, 'image/jpeg');
+  return request<ApiContract>(
+    `/api/contracts/${contractId}/documents`,
+    { method: 'POST', headers: contractHeaders(token), body: form },
+    { xhr: Platform.OS !== 'web' },
+  );
+}
+
+/** 올린 첫 계약 서류 파일 주소와 헤더 (evidenceSource와 같은 쓰임). 서버 주소가 없으면 null */
+export function documentSource(contractId: number, kind: string, token: string | null, v: string | number = 0) {
+  if (!API_URL) return null;
+  return {
+    uri: `${API_URL}/api/contracts/${contractId}/documents/${encodeURIComponent(kind)}?v=${encodeURIComponent(String(v))}`,
+    headers: contractHeaders(token),
+  };
+}
+
+/** 첫 계약 서류 삭제 (FR-033, 언제든·무산된 계약도). 올린 서류가 없으면 404 */
+export function deleteDocument(contractId: number, token: string | null, kind: string) {
+  return request<ApiContract>(`/api/contracts/${contractId}/documents/${encodeURIComponent(kind)}`, {
+    method: 'DELETE',
+    headers: contractHeaders(token),
+  });
 }
 
 // ---- GET /api/demo-houses ----
