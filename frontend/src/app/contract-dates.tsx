@@ -10,7 +10,7 @@ import { checkResult, house } from '@/data/demo';
 import { ApiError, apiEnabled, getCheck, getContract, postContract, type Guarantor } from '@/lib/api';
 import { useLatestCheck } from '@/lib/check';
 import { dateOrderError, isDateText as isDate, parseManwon } from '@/lib/format';
-import { contractToken, setLatestContract } from '@/lib/contract';
+import { contractToken, setCreatedContract, setLatestContract } from '@/lib/contract';
 import { paymentIdFor, releasedFor, setLatestPayment, setReleasedPayment } from '@/lib/payment';
 import { useSpecialTermResults } from '@/lib/special-terms';
 
@@ -76,8 +76,9 @@ export default function ContractDatesScreen() {
         payment_id: ownPayment ?? released?.payment_id ?? null,
         released_contract_token: released?.token ?? null,
       });
-      // 접근 토큰은 이 응답에서 한 번만 온다. 휴대폰에 저장해 계약 아래 API에 붙인다
-      setLatestContract(contract, contract.access_token);
+      // 접근 토큰은 이 응답에서 한 번만 온다. 휴대폰에 저장해 계약 아래 API에 붙인다.
+      // 보던 계약이 갈아타기를 저장한 지금 집이면 이 계약을 다음 집으로 연결하고 두 집을 오가며 본다 (FR-027)
+      await setCreatedContract(contract);
       setLatestPayment(null); // 계약에 쓴 결제 (무산되면 서버가 풀어 준다)
       if (released) setReleasedPayment(null);
       router.push('/todos');
