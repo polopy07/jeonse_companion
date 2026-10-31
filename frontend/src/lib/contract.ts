@@ -90,9 +90,11 @@ export async function setCreatedContract(created: ApiContractCreated): Promise<v
   let linked: OtherHouse | null = null;
   if (apiEnabled && prev && prev.id !== created.id && prev.status === 'active') {
     const prevToken = contractToken(prev.id);
+    // 연결이 404(갈아타기 없음)일 때만 지금 집을 버린다. 네트워크 오류 등이면 토큰을 다시 못 받으니 다른 집으로 남겨 둔다
     linked = await postMoveNext(prev.id, prevToken, created.id, created.access_token).then(
       () => ({ contractId: prev.id, token: prevToken, role: 'current' as const }),
-      () => null,
+      (e) =>
+        e instanceof ApiError && e.status === 404 ? null : { contractId: prev.id, token: prevToken, role: 'current' as const },
     );
   }
   setLatestContract(created, created.access_token);

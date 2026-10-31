@@ -91,22 +91,16 @@ function termSlots(results: Partial<Record<string, SpecialTermResult>>): Slot[] 
   return termDocNames(results).map((name) => ({ key: `term-${name}`, name, meta: '계약 당일', filled: false, needForClaim: true }));
 }
 
-/** ISO 시각 → 휴대폰 날짜 "10.30" */
-const mdOfTime = (iso: string) => {
-  const d = new Date(iso);
-  return `${d.getMonth() + 1}.${String(d.getDate()).padStart(2, '0')}`;
-};
-
 /**
  * 계약 당일 첫 계약 서류 → 기록함 칸 (FR-051, POST /api/contracts/{id}/documents). 할 일과 별개로 기록함에만 남고,
  * 반환보증 청구·임차권등기명령 서류로도 쓴다. "넣음"으로 고른 특약의 계약서 사진도 계약서(contract) 칸으로 남긴다
- * (todos.yaml first_documents)
+ * (todos.yaml first_documents). 날짜는 실제로 올린 날이 아니라 계약일(서버 타임라인과 같은 자리)
  */
 function documentSlots(contract: ApiContract): Slot[] {
   return contract.documents.map((d) => ({
     key: `doc-${d.kind}`,
     name: d.label,
-    meta: d.uploaded && d.uploaded_at ? `${mdOfTime(d.uploaded_at)} · 계약 당일` : '계약 당일',
+    meta: d.uploaded ? `${md(contract.contract_date)} · 계약 당일` : '계약 당일',
     filled: d.uploaded,
     needForClaim: true,
     document: d,
