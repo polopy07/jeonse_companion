@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 SEARCH_URL = "https://api.vworld.kr/req/search"
 PRICE_URL = "https://api.vworld.kr/ned/data/getApartHousingPriceAttr"
-TIMEOUT = 8          # 초. 계약 전 확인 화면에서 기다리는 시간이라 짧게 두고, 넘으면 직접 입력으로
+TIMEOUT = 6          # 초. 계약 전 확인 화면에서 기다리는 시간이라 짧게 두고(앱은 15초에 끊음), 넘으면 직접 입력으로
 PAGE_SIZE = 1000     # 공동주택가격 한 페이지 최대 건수
 MAX_PAGES = 20       # 큰 단지도 2만 세대를 넘지 않는다. 응답이 이상해도 끝없이 부르지 않게
 SEARCH_SIZE = 5      # 주소 후보 수
@@ -75,28 +75,44 @@ def _str(value) -> str:
 
 # 주소 검색 ---------------------------------------------------------------------
 
-def parse_search(body: dict) -> list[Parcel]:
-    """검색 API 응답 → 필지 후보. id가 PNU(19자리)인 것만 (도로명 결과의 id는 PNU가 아닐 수 있다)."""
+def _error_text(response: dict, status: str) -> str:
+    error = response.get("error") or {}
+    return _str(error.get("text")) or _str(error.get("code")) or status or "알 수 없는 오류"
+
+
+def _region(road: str) -> str:
+    """도로명 주소의 앞 두 칸 ("부산광역시 해운대구 세실로 7 (...)" → "부산광역시 해운대구")."""
+    return " ".join(road.split()[:2])
+
+
+def parse_search(body: dict) -> tuple[list[Parcel], list[str]]:
+    """검색 API 응답 → (필지 후보, PNU가 없는 결과의 지번 주소).
+
+    지번 결과와 실제 도로명 결과(2026-10-31 확인)는 id가 PNU(19자리)다. 도로명 결과의 id가 PNU가 아니면
+    지번 주소로 한 번 더 찾을 수 있게 따로 돌려준다. 도로명 결과의 지번 주소는 "좌동 1331"처럼 시·구가 없어
+    도로명 주소의 시·구를 붙인다.
+    """
     response = body.get("response") or {}
     status = _str(response.get("status")).upper()
     if status == "NOT_FOUND":
-        return []
+        return [], []
     if status != "OK":
-        error = response.get("error") or {}
-        msg = _str(error.get("text")) or _str(error.get("code")) or status or "알 수 없는 오류"
-        raise OfficialPriceApiError(f"브이월드 주소 검색 오류: {msg}")
-    parcels = []
+        raise OfficialPriceApiError(f"브이월드 주소 검색 오류: {_error_text(response, status)}")
+    parcels, fallbacks = [], []
     for item in ((response.get("result") or {}).get("items") or []):
-        pnu = _str(item.get("id"))
-        if not PNU.match(pnu):
-            continue
         address = item.get("address") or {}
-        parcels.append(Parcel(pnu=pnu, address=_str(address.get("parcel")) or _str(item.get("title")),
-                              road_address=_str(address.get("road")) or None))
-    return parcels
+        parcel, road = _str(address.get("parcel")), _str(address.get("road"))
+        if parcel and road and not parcel.startswith(_region(road).split()[0]):
+            parcel = f"{_region(road)} {parcel}"
+        pnu = _str(item.get("id"))
+        if PNU.match(pnu):
+            parcels.append(Parcel(pnu=pnu, address=parcel or _str(item.get("title")), road_address=road or None))
+        elif parcel:
+            fallbacks.append(parcel)
+    return parcels, fallbacks
 
 
-def _search(client: httpx.Client, key: str, query: str, category: str) -> list[Parcel]:
+def _search(client: httpx.Client, key: str, query: str, category: str) -> tuple[list[Parcel], list[str]]:
     params = {"service": "search", "request": "search", "version": "2.0", "type": "address", "category": category,
               "query": query, "size": SEARCH_SIZE, "page": 1, "format": "json", "errorformat": "json", "key": key}
     return parse_search(_get_json(client, SEARCH_URL, params))
@@ -106,9 +122,13 @@ def search_parcels(client: httpx.Client, key: str, query: str) -> list[Parcel]:
     """주소(도로명·지번 아무거나) → 필지 후보. 도로명처럼 보이면 도로명부터, 못 찾으면 다른 쪽으로 한 번 더."""
     order = ("road", "parcel") if ROAD_ADDRESS.search(query) else ("parcel", "road")
     for category in order:
-        found = _search(client, key, query, category)
+        found, fallbacks = _search(client, key, query, category)
         if found:
             return found
+        if category == "road" and fallbacks:   # 도로명 결과의 id가 PNU가 아니면 그 결과의 지번 주소로
+            found, _ = _search(client, key, fallbacks[0], "parcel")
+            if found:
+                return found
     return []
 
 
@@ -125,6 +145,12 @@ def parse_prices(body: dict) -> tuple[list[UnitPrice], int]:
     """공동주택가격 응답 → (호별 가격, 전체 건수). 공동주택이 아닌 필지는 빈 목록."""
     data = body.get("apartHousingPrices")
     if not data:
+        # 인증키·서비스 주소 오류는 다른 모양({"response": {"status": "ERROR", ...}})으로 올 수 있다.
+        # "공시가격 없음"(404)으로 보이지 않게 오류로 낸다
+        response = body.get("response") or {}
+        status = _str(response.get("status")).upper()
+        if status == "ERROR" or body.get("error"):
+            raise OfficialPriceApiError(f"브이월드 공동주택가격 오류: {_error_text(response or body, status)}")
         return [], 0
     code = _str(data.get("resultCode"))
     if code not in OK_CODES:
@@ -164,8 +190,9 @@ def fetch_prices(client: httpx.Client, key: str, domain: str, pnu: str, year: in
 
 
 def latest_prices(client: httpx.Client, key: str, domain: str, pnu: str, this_year: int,
-                  years_back: int = 2) -> list[UnitPrice]:
-    """가장 최근 기준연도의 가격. 올해 공시(4월 말) 전이면 올해 값이 없어 한 해씩 거슬러 찾는다."""
+                  years_back: int = 1) -> list[UnitPrice]:
+    """가장 최근 기준연도의 가격. 올해 공시(4월 말) 전이면 올해 값이 없어 지난해까지 찾는다
+    (공동주택이 아닌 필지는 두 번 다 비어 있으니, 앱이 오래 기다리지 않게 더 거슬러 가지 않는다)."""
     for year in range(this_year, this_year - years_back - 1, -1):
         units = fetch_prices(client, key, domain, pnu, year)
         if units:
@@ -176,9 +203,11 @@ def latest_prices(client: httpx.Client, key: str, domain: str, pnu: str, this_ye
 # 동·호 맞추기 -----------------------------------------------------------------
 
 def unit_key(value: str, suffix: str) -> str:
-    """"101동"·"101"·" 0101 동" → "101". 동·호 이름은 단지마다 표기가 달라 숫자·글자만 남겨 비교한다."""
+    """"101동"·"제101동"·"101"·" 0101 동" → "101". 동·호 이름은 단지마다 표기가 달라 숫자·글자만 남겨 비교한다."""
     v = re.sub(r"\s+", "", value or "")
     v = v.removesuffix(suffix)
+    if re.fullmatch(r"제\d+", v):
+        v = v[1:]
     return v.lstrip("0") or v
 
 

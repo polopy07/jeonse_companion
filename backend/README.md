@@ -317,7 +317,7 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 
 - 브이월드 인증키 `VWORLD_API_KEY`(국가중점·검색 API)가 있어야 켜진다. 없으면 503 `VWORLD_KEY_MISSING`이고 화면은 직접 입력
 - 서비스 주소(`domain`)는 `VWORLD_DOMAIN`, 비우면 `PUBLIC_BASE_URL`
-- 기준연도는 올해(한국 시간), 4월 말 공시 전이라 없으면 지난해·지지난해까지 찾는다
+- 기준연도는 올해(한국 시간), 4월 말 공시 전이라 없으면 지난해까지 찾는다. 없음은 기억하지 않는다
 - 같은 필지는 하루 동안 기억해 다시 부르지 않는다 (서버를 다시 켜면 비워짐)
 - 시연 집 2채는 이 API가 아니라 `GET /api/demo-houses`의 미리 넣은 값을 쓴다
 

@@ -41,11 +41,20 @@ def _transport(handler):
 # 응답 해석 ---------------------------------------------------------------------
 
 def test_parse_search_keeps_only_pnu_ids():
-    body = _search_ok(_parcel(), {"id": "26500105001021200010000123", "address": {"road": "도로명 id"}})
-    parcels = parse_search(body)
+    road_only = {"id": "26500105001021200010000123", "address": {"road": "부산광역시 수영구 광안해변로 100", "parcel": "광안동 212-1"}}
+    parcels, fallbacks = parse_search(_search_ok(_parcel(), road_only))
     assert [(p.pnu, p.address) for p in parcels] == [(PNU, "부산광역시 수영구 광안동 212-1")]
     assert parcels[0].road_address == "부산광역시 수영구 광안해변로 100"
-    assert parse_search({"response": {"status": "NOT_FOUND"}}) == []
+    assert fallbacks == ["부산광역시 수영구 광안동 212-1"]   # id가 PNU가 아니면 지번 주소로 다시 찾게
+    assert parse_search({"response": {"status": "NOT_FOUND"}}) == ([], [])
+
+
+def test_parse_search_road_result_real_shape():
+    # 2026-10-31 실제 응답(도로명 "세실로 7"): id는 PNU, 지번 주소는 시·구 없이 "좌동 1331" → 도로명의 시·구를 붙인다
+    item = {"id": "2635010700113310000", "address": {"road": "부산광역시 해운대구 세실로 7 (좌동,해운대상록아파트)",
+                                                      "parcel": "좌동 1331"}}
+    parcels, _ = parse_search(_search_ok(item))
+    assert [(p.pnu, p.address) for p in parcels] == [("2635010700113310000", "부산광역시 해운대구 좌동 1331")]
     with pytest.raises(OfficialPriceApiError, match="INCORRECT_KEY"):
         parse_search({"response": {"status": "ERROR", "error": {"code": "INCORRECT_KEY", "text": "INCORRECT_KEY"}}})
 
@@ -66,10 +75,13 @@ def test_parse_prices_fields():
     assert parse_prices({}) == ([], 0)
     with pytest.raises(OfficialPriceApiError, match="INCORRECT_KEY"):
         parse_prices(_prices(code="INCORRECT_KEY"))
+    # 인증키·서비스 주소 오류가 다른 모양으로 와도 "공시가격 없음"이 아니라 오류
+    with pytest.raises(OfficialPriceApiError, match="INCORRECT_KEY"):
+        parse_prices({"response": {"status": "ERROR", "error": {"code": "INCORRECT_KEY", "text": "INCORRECT_KEY"}}})
 
 
 def test_unit_key_and_match():
-    assert unit_key("101동", "동") == unit_key(" 0101 동", "동") == unit_key("101", "동") == "101"
+    assert unit_key("101동", "동") == unit_key(" 0101 동", "동") == unit_key("101", "동") == unit_key("제101동", "동") == "101"
     assert unit_key("1203호", "호") == "1203" and unit_key("B01호", "호") == "B01"
     units = [UnitPrice(2026, "a", "101동", "1203호", None, 59.85, 1), UnitPrice(2026, "a", "102동", "1203호", None, 59.85, 2),
              UnitPrice(2026, "a", "", "201", None, 30.0, 3)]
@@ -99,6 +111,22 @@ def test_search_tries_road_first_for_road_address_then_parcel():
     with _transport(handler) as c:
         search_parcels(c, KEY, "수영구 광안동 212-1")
     assert seen == ["parcel"]
+
+
+def test_search_road_result_without_pnu_retries_parcel():
+    queries = []
+
+    def handler(request):
+        p = request.url.params
+        queries.append((p["category"], p["query"]))
+        if p["category"] == "road":
+            return httpx.Response(200, json=_search_ok({"id": "도로명관리번호", "address": {
+                "road": "부산광역시 수영구 광안해변로 100", "parcel": "광안동 212-1"}}))
+        return httpx.Response(200, json=_search_ok(_parcel()))
+
+    with _transport(handler) as c:
+        assert [p.pnu for p in search_parcels(c, KEY, "수영구 광안해변로 100")] == [PNU]
+    assert queries == [("road", "수영구 광안해변로 100"), ("parcel", "부산광역시 수영구 광안동 212-1")]
 
 
 def test_fetch_prices_pages_and_sends_domain():
@@ -200,7 +228,16 @@ def test_api_price_not_apartment(client, vworld):
     vworld["handler"] = lambda r: httpx.Response(200, json={})   # 다가구·단독 필지
     r = client.get("/api/official-price", params={"pnu": PNU})
     assert r.status_code == 404 and r.json()["detail"]["code"] == "OFFICIAL_PRICE_NOT_FOUND"
-    assert vworld["calls"] == 3   # 올해·지난해·지지난해까지 찾아봄
+    assert vworld["calls"] == 2   # 올해·지난해
+    client.get("/api/official-price", params={"pnu": PNU})
+    assert vworld["calls"] == 4   # 없음은 기억하지 않는다 (키·서비스 주소를 고친 뒤 바로 다시 찾게)
+
+
+def test_api_price_key_error_is_not_not_found(client, vworld):
+    vworld["handler"] = lambda r: httpx.Response(200, json={"response": {"status": "ERROR", "error": {
+        "code": "INCORRECT_KEY", "text": "인증키 정보가 올바르지 않습니다"}}})
+    r = client.get("/api/official-price", params={"pnu": PNU})
+    assert r.status_code == 502 and r.json()["detail"]["code"] == "OFFICIAL_PRICE_API_ERROR"
 
 
 def test_api_errors_do_not_leak_key(client, vworld, caplog):
@@ -213,6 +250,8 @@ def test_api_errors_do_not_leak_key(client, vworld, caplog):
     assert KEY not in caplog.text
 
     assert client.get("/api/official-price", params={"pnu": "123"}).status_code == 422
+    r = client.get("/api/official-price/search", params={"address": "      "})   # 공백만
+    assert r.status_code == 422 and r.json()["detail"]["fields"][0]["field"] == "address"
 
 
 def test_api_without_key(client, monkeypatch):

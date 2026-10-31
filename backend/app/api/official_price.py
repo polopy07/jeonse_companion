@@ -10,6 +10,7 @@ import time
 
 import httpx
 from fastapi import APIRouter, Depends, Query
+from fastapi.exceptions import RequestValidationError
 
 from app.api.admin import get_http_client
 from app.clock import real_today
@@ -47,6 +48,9 @@ def search(address: str = Query(min_length=2, max_length=200, description="도�
            http: httpx.Client = Depends(get_http_client)):
     """주소 → 필지 후보 (PNU). 도로명·지번 아무거나 받는다."""
     query = re.sub(r"\s+", " ", address).strip()
+    if len(query) < 2:   # 공백만 넣으면 min_length를 통과하므로 정리한 뒤 다시 본다
+        raise RequestValidationError([{"type": "string_too_short", "loc": ("query", "address"), "input": address,
+                                       "msg": "String should have at least 2 characters", "ctx": {"min_length": 2}}])
     try:
         parcels = search_parcels(http, _key(), query)
     except OfficialPriceApiError as e:
@@ -65,6 +69,8 @@ def _prices(http: httpx.Client, key: str, pnu: str, this_year: int) -> list[Unit
         if hit and now - hit[0] < CACHE_SECONDS:
             return hit[1]
     units = latest_prices(http, key, vworld_domain(), pnu, this_year)
+    if not units:   # 없음은 기억하지 않는다 (키·서비스 주소를 고친 뒤 바로 다시 찾을 수 있게)
+        return units
     with _cache_lock:
         if len(_cache) >= CACHE_MAX:
             _cache.pop(min(_cache, key=lambda k: _cache[k][0]))
