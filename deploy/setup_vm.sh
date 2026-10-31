@@ -45,6 +45,8 @@ EMAIL_BACKEND=console
 # APP_LINK_BASE=
 # 공공데이터포털 키 (실거래가를 새로 받을 때만, 시연은 저장본이라 필요 없음)
 DATA_GO_KR_SERVICE_KEY=
+# 브이월드 인증키 (주소로 공시가격 찾기, 비우면 직접 입력). 서비스 주소는 PUBLIC_BASE_URL
+# VWORLD_API_KEY=
 CORS_ORIGINS=
 EOF
     chmod 600 "$ENV_FILE"
