@@ -29,7 +29,8 @@ const kindOf: Record<ApiTimelineEvent['kind'], TimelineKind> = {
   alert: 'alert',
   todo: 'todo',
   return: 'end',
-  move: 'end',
+  // 갈아타기는 계획한 일이라 경고(빨강)가 아니라 계약 묶음으로
+  move: 'contract',
   cancel: 'end',
 };
 
