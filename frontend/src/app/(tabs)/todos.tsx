@@ -3,6 +3,7 @@ import { Fragment, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
+import { EmptyTab } from '@/components/empty';
 import { Icon } from '@/components/Icon';
 import { Button, Disclaimer, Screen } from '@/components/layout';
 import { TermEffectCard } from '@/components/term';
@@ -25,6 +26,7 @@ import {
 import { pickEvidence, type EvidenceSource } from '@/lib/evidence';
 import { exportIcs, icsEventCount } from '@/lib/ics';
 import { useReleasedPayment } from '@/lib/payment';
+import { useDemoMode } from '@/lib/demo-mode';
 
 /** 할 일 하나에 대한 동작 (계약이 있을 때만) */
 type TodoActions = {
@@ -62,6 +64,7 @@ export default function TodosScreen() {
   const other = useOtherHouse();
   const [switching, setSwitching] = useState(false);
   const [switchError, setSwitchError] = useState<string | null>(null);
+  const demo = useDemoMode();
 
   // 갈아타기 중 두 집 오가기 (지금 집 9번 반환 확인은 지금 집에서, 다음 집 할 일은 다음 집에서)
   const toggleHouse = async () => {
@@ -146,6 +149,15 @@ export default function TodosScreen() {
       confirmMoveIn: failed?.todoId === id ? failed.retry : null,
     };
   };
+
+  if (!contract && !demo) {
+    return (
+      <EmptyTab
+        title="할 일"
+        lines={['계약 날짜(계약일·잔금일·만기일)로 2년 동안 할 일 9종이 기한 순서대로 생겨요', '계약 당일 체크에서 날짜를 넣고 패키지를 시작하면 여기에 보여요']}
+      />
+    );
+  }
 
   return (
     <Screen inTabs>

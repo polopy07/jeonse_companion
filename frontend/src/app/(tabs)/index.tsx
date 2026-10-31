@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { Icon } from '@/components/Icon';
-import { Card, Disclaimer, Screen, SectionLabel } from '@/components/layout';
+import { Button, Card, Disclaimer, Screen, SectionLabel } from '@/components/layout';
 import { ratioBand } from '@/components/verdict';
 import { Colors, Radius, Touch } from '@/constants/theme';
 import { checkResult, house, recordDocs, today } from '@/data/demo';
@@ -11,7 +11,9 @@ import type { ApiContract } from '@/lib/api';
 import { useLatestCheck } from '@/lib/check';
 import { dottedDate, parseDateKey, useVirtualToday } from '@/lib/clock';
 import { todoViews, useLatestContract } from '@/lib/contract';
+import { setDemoMode, useDemoMode } from '@/lib/demo-mode';
 import { formatWon } from '@/lib/format';
+import { confirmAction, resetLocalData, RESET_MESSAGE } from '@/lib/reset';
 
 const stages = ['계약 전', '계약 당일', '입주 준비', '거주', '만기'];
 
@@ -80,11 +82,91 @@ function homeFromContract(contract: ApiContract, houseLabel: string | null, rati
   };
 }
 
+/** 처음부터 다시하기: 확인 창 → 이 휴대폰의 저장 값을 지우고 시작 화면으로 */
+async function startOver() {
+  if (await confirmAction('처음부터 다시할까요?', RESET_MESSAGE, '지우고 다시하기')) {
+    resetLocalData();
+    router.replace('/');
+  }
+}
+
+const features = [
+  { title: '맞춤 할 일', text: '계약 날짜로 2년 동안 할 일 9종을 기한 순서대로 챙겨요' },
+  { title: '전세 기록함', text: '증빙 사진 한 장으로 끝내고, 사고가 나면 청구 서류함이 돼요' },
+  { title: '역전세 경보', text: '내 보증금 비율을 계약 기간 내내 다시 계산해 알려요' },
+];
+
+/** 계약이 없을 때 첫 화면: 계약 전 확인 시작(무료), 내 계약 불러오기, 시연 집으로 둘러보기 */
+function StartHome({ hasCheck }: { hasCheck: boolean }) {
+  return (
+    <Screen inTabs>
+      <AppText size={20} weight="bold" style={{ marginTop: 20 }}>
+        전동기
+      </AppText>
+      <AppText size={26} weight="bold" leading={1.35} style={{ marginTop: 18 }}>
+        전세 계약,{'\n'}계약 전 확인부터 만기까지
+      </AppText>
+      <AppText size={14} color={Colors.textSub} leading={1.6} style={{ marginTop: 8 }}>
+        이 집 보증금이 안전한지 먼저 무료로 확인하고, 계약하면 2년 동안 할 일·기록·경보를 이어서 챙겨요.
+      </AppText>
+
+      <Button label="계약 전 확인 시작하기 (무료)" href="/precheck" style={{ marginTop: 20 }} />
+      {hasCheck ? (
+        <Button variant="outline" height={Touch.min} label="지난 확인 결과 보기" href="/check" style={{ marginTop: 8 }} />
+      ) : null}
+
+      <Card style={{ marginTop: 20, gap: 14 }}>
+        {features.map((f, i) => (
+          <View key={f.title} style={{ flexDirection: 'row', gap: 12 }}>
+            <View style={styles.featureNo}>
+              <AppText size={12} weight="bold" color={Colors.primary}>
+                {i + 1}
+              </AppText>
+            </View>
+            <View style={{ flex: 1 }}>
+              <AppText size={14} weight="semibold">
+                {f.title}
+              </AppText>
+              <AppText size={13} color={Colors.textSub} leading={1.55} style={{ marginTop: 2 }}>
+                {f.text}
+              </AppText>
+            </View>
+          </View>
+        ))}
+      </Card>
+
+      <View style={{ marginTop: 12 }}>
+        <Link href="/load-contract" style={styles.textLink}>
+          <AppText size={13} weight="semibold" color={Colors.primary}>
+            이미 계약했어요 · 내 계약 불러오기 →
+          </AppText>
+        </Link>
+        <Pressable accessibilityRole="button" onPress={() => setDemoMode(true)} style={styles.textLink}>
+          <AppText size={13} weight="semibold" color={Colors.textSub}>
+            시연 집으로 둘러보기 →
+          </AppText>
+        </Pressable>
+        <Link href="/consent" style={styles.textLink}>
+          <AppText size={12} color={Colors.textHint}>
+            서비스 안내·개인정보 수집·이용
+          </AppText>
+        </Link>
+      </View>
+
+      <View style={{ flex: 1 }} />
+      <Disclaimer>정보 제공이며 보증하지 않습니다</Disclaimer>
+    </Screen>
+  );
+}
+
 /** 홈: "지금 할 일" 1개만 크게, 보증금 비율과 기록함 현황은 작은 카드로 */
 export default function HomeScreen() {
   const contract = useLatestContract();
   const virtualDay = useVirtualToday();
   const check = useLatestCheck();
+  const demo = useDemoMode();
+  // 계약이 없으면 시작 화면 (시연 데이터를 내 계약처럼 보여 주지 않는다). "시연 집으로 둘러보기"를 고르면 시연 홈
+  if (!contract && !demo) return <StartHome hasCheck={!!check} />;
   // 계약은 판정 1건으로 만든다. 저장한 판정이 이 계약의 판정이 아니면 집 이름·비율은 쓰지 않는다
   const sameCheck = check && contract && check.id === contract.check_id ? check : null;
   const h = contract
@@ -125,6 +207,14 @@ export default function HomeScreen() {
           </Pressable>
         </View>
       </View>
+
+      {!contract ? (
+        <Pressable accessibilityRole="button" onPress={() => setDemoMode(false)} style={styles.demoBanner}>
+          <AppText size={12} weight="semibold" color={Colors.primarySoftText}>
+            시연 데이터로 둘러보는 중이에요 · 시작 화면으로 →
+          </AppText>
+        </Pressable>
+      ) : null}
 
       <AppText size={13} color={Colors.textSub} style={{ marginTop: 8 }}>
         {h.houseLine}
@@ -254,11 +344,20 @@ export default function HomeScreen() {
         </Link>
       </View>
 
-      <Link href="/consent" style={[styles.textLink, { marginTop: 4 }]}>
-        <AppText size={12} color={Colors.textHint}>
-          서비스 안내·개인정보 수집·이용
-        </AppText>
-      </Link>
+      <View style={{ flexDirection: 'row', gap: 16, marginTop: 4 }}>
+        <Link href="/consent" style={styles.textLink}>
+          <AppText size={12} color={Colors.textHint}>
+            서비스 안내·개인정보 수집·이용
+          </AppText>
+        </Link>
+        {contract ? (
+          <Pressable accessibilityRole="button" onPress={startOver} style={styles.textLink}>
+            <AppText size={12} color={Colors.textHint}>
+              처음부터 다시하기
+            </AppText>
+          </Pressable>
+        ) : null}
+      </View>
 
       <View style={{ flex: 1 }} />
       <Disclaimer>정보 제공이며 보증하지 않습니다 · 조회 {h.checkedAt}</Disclaimer>
@@ -299,4 +398,21 @@ const styles = StyleSheet.create({
   barFill: { height: 6, borderRadius: 3 },
   segment: { flex: 1, height: 6, borderRadius: 3 },
   textLink: { paddingVertical: 12 },
+  demoBanner: {
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: Radius.input,
+    backgroundColor: Colors.primarySoft,
+    minHeight: Touch.min,
+    justifyContent: 'center',
+  },
+  featureNo: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

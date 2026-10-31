@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Image, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
+import { EmptyTab } from '@/components/empty';
 import { Icon } from '@/components/Icon';
 import { Button, Disclaimer, Screen } from '@/components/layout';
 import { Colors, Gutter, MaxAppWidth, Radius } from '@/constants/theme';
@@ -25,6 +26,7 @@ import { contractToken, setLatestContract, useLatestContract } from '@/lib/contr
 import { pickEvidence, type EvidenceSource } from '@/lib/evidence';
 import { siteCheckItems, useSiteCheck } from '@/lib/site-check';
 import { specialTermRules, useSpecialTermResults, type SpecialTermResult } from '@/lib/special-terms';
+import { useDemoMode } from '@/lib/demo-mode';
 
 /**
  * 기록함 칸 하나. todo가 있으면 그 할 일의 증빙, document가 있으면 첫 계약 서류(서버)라 눌러서 보고·올리고·지운다
@@ -124,6 +126,17 @@ export default function RecordsScreen() {
   // 열어 본 칸 (key). 올리거나 지워 계약이 바뀌어도 같은 칸을 다시 찾아 그린다
   const [openKey, setOpenKey] = useState<string | null>(null);
   const opened = docs.find((d) => d.key === openKey && (d.todo || d.document)) ?? null;
+  const demo = useDemoMode();
+
+  // 계약도, 계약 당일 특약 기록도 없으면 빈 화면 (시연 집으로 둘러보기를 고르면 시연 서류함)
+  if (!contract && !demo && !Object.keys(localTerms).length) {
+    return (
+      <EmptyTab
+        title="전세 기록함"
+        lines={['계약 당일 서류와 할 일을 끝낼 때 남긴 증빙 사진이 여기 쌓여요', '보증금을 못 돌려받으면 반환보증 청구·임차권등기에 낼 서류함이 돼요']}
+      />
+    );
+  }
 
   return (
     <Screen inTabs>
