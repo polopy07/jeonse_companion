@@ -129,7 +129,7 @@ flowchart LR
 | 영역 | 기술 |
 | --- | --- |
 | 프론트엔드 | Expo(React Native) 한 코드로 안드로이드·iOS 앱, MVP 시연은 휴대폰 앱(Expo Go). 웹은 개발 편의용 |
-| 백엔드 | Python FastAPI, SQLAlchemy (PostgreSQL 기본, 시연까지 SQLite) |
+| 백엔드 | Python FastAPI, SQLAlchemy (MVP는 SQLite 파일 하나, 사용자가 많아지면 PostgreSQL) |
 | 등기부 처리 | pdfplumber + 등기부 요약("부동산정보요약"·"주요 등기사항 요약") 페이지 규칙 기반 파서 |
 | 할 일 엔진 | 규칙 기반 (기한 계산은 LLM이 아닌 규칙으로 처리) |
 | 알림 | 이메일(Gmail SMTP, 관리자 알림 실행 API로 보냄), 앱 안 기한표, ICS 내보내기·캘린더 구독 |

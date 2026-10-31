@@ -164,11 +164,11 @@ Software Requirements Specification (SRS)
 
 - **Frontend:** Expo(React Native, Expo Router). 한 코드로 안드로이드·iOS 앱을 내고, MVP는 휴대폰 앱(Expo Go)으로 시연. 웹은 개발 편의용
 
-- **Server:** Linux / Docker, Python FastAPI, APScheduler(알림·재계산 스케줄러)
+- **Server:** Linux(동아 클라우드 VM, systemd 자동 실행), Python FastAPI. 알림·경보 재계산은 MVP에서 관리자 API로 실행하고, 정기 실행 스케줄러는 출시 때 붙임
 
-- **External AI/API:** LLM API (모델 미정), 이메일 발송(SMTP)
+- **External AI/API:** LLM API (모델 미정, 키가 없으면 템플릿 설명), 이메일 발송(SMTP), 공공데이터포털 실거래가 API, 브이월드 주소 검색·공동주택가격 API
 
-- **Database:** PostgreSQL (사용자·계약·할 일·판정·경보 이력), 객체 스토리지 (증빙 사진, 암호화 저장). 벡터 DB는 사용하지 않음
+- **Database:** MVP는 SQLite 파일 하나(계약·할 일·판정·경보 이력), 사용자가 많아지면 PostgreSQL(SQLAlchemy라 연결 주소만 바꿈). 증빙 사진은 MVP에서 서버 폴더에 두고 출시 때 객체 스토리지에 암호화 저장. 벡터 DB는 사용하지 않음
 
 - **문서 처리:** pdfplumber (등기부 PDF 텍스트 추출)
 
