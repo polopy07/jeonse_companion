@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import Svg, { Circle, Line, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 
 import { AppText } from '@/components/AppText';
+import { EmptyTab } from '@/components/empty';
 import { Card, DashedBox, Disclaimer, Screen, SectionLabel } from '@/components/layout';
 import { Colors, Font, Radius } from '@/constants/theme';
 import { alertReport } from '@/data/demo';
@@ -12,6 +13,7 @@ import { alertLevelOf, estimateFromOfficial, useLatestCheck, type AlertLevel, ty
 import { useVirtualToday } from '@/lib/clock';
 import { contractToken, useLatestContract } from '@/lib/contract';
 import { formatWon } from '@/lib/format';
+import { useDemoMode } from '@/lib/demo-mode';
 
 type NearbyRow = { value: string; note: string; below: boolean | null };
 
@@ -239,6 +241,16 @@ export default function AlertScreen() {
   // 마지막 판정으로 만든 계약만 (계약 뒤 다른 집을 새로 확인했으면 그 판정을 보여 준다)
   const contract = latest && (!view || latest.check_id === view.id) ? latest : null;
   const remote = useAlertReport(contract);
+  const demo = useDemoMode();
+  // 계약 전 확인도 계약도 없으면 빈 화면 (계약 전 확인만 해도 그 판정으로 경보를 보여 준다)
+  if (!view && !contract && !demo) {
+    return (
+      <EmptyTab
+        title="역전세 경보"
+        lines={['계약 전 확인을 하면 내 보증금 비율로 경보 단계를 무료로 보여 줘요', '계약하면 공시가격 발표·주변 거래가 생길 때 다시 계산해 알려요']}
+      />
+    );
+  }
   if (remote?.notApplicable) return <NoRatio />;
   const fromServer = remote?.report && contract ? reportFromApi(remote.report, contract.deposit) : null;
   // 서버 경보를 받기 전·못 받았을 때: 계약이 있으면 서버가 정한 계약 시작 단계, 없으면 판정 값으로 같은 기준 계산
