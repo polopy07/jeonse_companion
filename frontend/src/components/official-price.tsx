@@ -35,7 +35,12 @@ export function splitUnit(address: string): { query: string; dong: string; ho: s
   return { query: address.trim(), dong: '', ho: '' };
 }
 
-const unitLabel = (u: ApiUnitPrice) => [u.dong, u.ho].filter(Boolean).join(' ');
+/** 숫자만 온 동·호에 "동"·"호"를 붙인다 (빌라는 동 이름에 건물 이름이 온다: "제이제이") */
+const withSuffix = (v: string, suffix: string) => (/^\d+$/.test(v) ? `${v}${suffix}` : v);
+
+/** "101동 1203호". complex를 주면 동 이름이 단지 이름과 같을 때(빌라) 동을 뺀다 */
+const unitLabel = (u: ApiUnitPrice, complex?: string) =>
+  [u.dong && u.dong !== complex ? withSuffix(u.dong, '동') : '', withSuffix(u.ho, '호')].filter(Boolean).join(' ');
 
 /**
  * 주소로 공동주택 공시가격 찾기 (FR-001 확장, GET /api/official-price). 주소 → 필지 → 동·호 → 공시가격.
@@ -66,7 +71,7 @@ export function OfficialPriceFinder({ address, onFound }: { address: string; onF
     onFound({
       price: u.official_price,
       area: u.exclusive_area,
-      label: [d.complex_name, unitLabel(u)].filter(Boolean).join(' '),
+      label: [d.complex_name, unitLabel(u, d.complex_name)].filter(Boolean).join(' '),
       source: d.source,
     });
   };
@@ -179,7 +184,7 @@ export function OfficialPriceFinder({ address, onFound }: { address: string; onF
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   {on ? <Icon name="check" size={14} color={Colors.ok} strokeWidth={2.2} /> : null}
                   <AppText size={13} weight="semibold" color={on ? Colors.primary : Colors.text}>
-                    {unitLabel(u) || '세대'}
+                    {unitLabel(u, data.complex_name) || '세대'}
                   </AppText>
                   {u.exclusive_area ? (
                     <AppText size={11} color={Colors.textHint}>
