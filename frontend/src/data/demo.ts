@@ -245,7 +245,7 @@ export const recordDocs: RecordDoc[] = [
   { name: '반환 요청 기록', meta: '만기 때', filled: false, needForClaim: true },
 ];
 
-export type TimelineKind = 'contract' | 'todo' | 'alert';
+export type TimelineKind = 'contract' | 'todo' | 'alert' | 'end';
 
 export type TimelineEvent = {
   year: string;

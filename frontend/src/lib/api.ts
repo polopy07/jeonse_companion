@@ -699,6 +699,34 @@ export function getMove(contractId: number, token: string | null) {
   return request<ApiMove>(`/api/contracts/${contractId}/move`, { method: 'GET', headers: contractHeaders(token) });
 }
 
+// ---- GET /api/contracts/{id}/timeline ----
+
+export type ApiTimelineEvent = {
+  date: string;
+  /** check 계약 전 확인 / contract 계약 당일 체크 / registry 등기부 재비교 / special_term 특약 / document 첫 계약 서류 /
+   * todo 끝낸 할 일 / alert 경보 재계산 / return 반환 대응 시작 / move 갈아타기 시작 / cancel 계약 무산 */
+  kind: 'check' | 'contract' | 'registry' | 'special_term' | 'document' | 'todo' | 'alert' | 'return' | 'move' | 'cancel';
+  /** 화면에 그대로 보여 줄 제목 */
+  title: string;
+  /** 한 줄 설명 (비율, 특약 결과 안내, 증빙 등) */
+  detail: string | null;
+  rule_id: string | null;
+  todo_id: number | null;
+  evidence_uploaded: boolean | null;
+  level: string | null;
+};
+
+/**
+ * 계약 2년 기록을 날짜순으로 (FR-032): 오늘(가상 날짜)까지의 계약 전 확인·계약 당일·등기부 재비교·특약·첫 계약 서류·
+ * 끝낸 할 일·경보 재계산·반환 대응·갈아타기·무산. 같은 날은 서버가 정한 순서. 무산된 계약도 볼 수 있다
+ */
+export function getTimeline(contractId: number, token: string | null) {
+  return request<{ contract_id: number; today: string; events: ApiTimelineEvent[] }>(
+    `/api/contracts/${contractId}/timeline`,
+    { method: 'GET', headers: contractHeaders(token) },
+  );
+}
+
 // ---- POST·DELETE /api/contracts/{id}/return-response, GET .../return-guide ----
 
 export type ApiLink = { label: string; url: string };
