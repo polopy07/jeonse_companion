@@ -115,6 +115,16 @@ def test_fetch_prices_pages_and_sends_domain():
     assert pages == [1, 2] and [u.ho for u in units] == ["101호", "201호"]
 
 
+def test_fetch_prices_drops_repeated_rows():
+    # 실제 응답: 같은 호가 같은 값으로 두 번씩 온다. 빌라는 동 이름에 건물 이름이 들어온다
+    rows = [_field("제이제이", "201", "116000000", area="30.03"), _field("제이제이", "201", "116000000", area="30.03"),
+            _field("제이제이", "202", "122000000", area="31.5")]
+    with _transport(lambda r: httpx.Response(200, json=_prices(*rows))) as c:
+        units = fetch_prices(c, KEY, "", PNU, 2026)
+    assert [(u.dong, u.ho, u.price) for u in units] == [("제이제이", "201", 116_000_000), ("제이제이", "202", 122_000_000)]
+    assert [u.ho for u in match_units(units, None, "201호")] == ["201"]   # 동 칸을 비우고 호만
+
+
 def test_latest_prices_falls_back_to_last_year():
     # 4월 말 공시 전에는 올해 값이 없다
     def handler(request):

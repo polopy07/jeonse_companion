@@ -146,7 +146,11 @@ def parse_prices(body: dict) -> tuple[list[UnitPrice], int]:
 
 
 def fetch_prices(client: httpx.Client, key: str, domain: str, pnu: str, year: int) -> list[UnitPrice]:
-    """한 필지·한 기준연도의 호별 공동주택가격을 모든 페이지에 걸쳐 받는다."""
+    """한 필지·한 기준연도의 호별 공동주택가격을 모든 페이지에 걸쳐 받는다.
+
+    브이월드는 같은 호를 같은 값으로 두 번씩 보내기도 해서(실제 응답: 부산 해운대 상록 1,000세대가 2,000줄)
+    동·호·전용면적·가격이 모두 같은 줄은 한 번만 남긴다.
+    """
     units: list[UnitPrice] = []
     for page in range(1, MAX_PAGES + 1):
         params = {"pnu": pnu, "stdrYear": year, "format": "json", "numOfRows": PAGE_SIZE, "pageNo": page, "key": key}
@@ -156,7 +160,7 @@ def fetch_prices(client: httpx.Client, key: str, domain: str, pnu: str, year: in
         units.extend(batch)
         if not batch or page * PAGE_SIZE >= total:
             break
-    return units
+    return list(dict.fromkeys(units))   # UnitPrice는 frozen dataclass라 같은 값이면 같은 키, 순서는 처음 나온 대로
 
 
 def latest_prices(client: httpx.Client, key: str, domain: str, pnu: str, this_year: int,
