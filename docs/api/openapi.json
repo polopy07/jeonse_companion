@@ -316,6 +316,197 @@
         }
       }
     },
+    "/api/official-price/search": {
+      "get": {
+        "tags": [
+          "계약 전 확인"
+        ],
+        "summary": "Search",
+        "description": "주소 → 필지 후보 (PNU). 도로명·지번 아무거나 받는다.",
+        "operationId": "search_api_official_price_search_get",
+        "parameters": [
+          {
+            "name": "address",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 200,
+              "description": "도로명 또는 지번 주소",
+              "title": "Address"
+            },
+            "description": "도로명 또는 지번 주소"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParcelSearchOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/api/official-price": {
+      "get": {
+        "tags": [
+          "계약 전 확인"
+        ],
+        "summary": "Official Price",
+        "description": "필지의 공동주택 공시가격. dong·ho를 주면 그 호만, 안 주면 모든 호 (동·호 고르기 목록).",
+        "operationId": "official_price_api_official_price_get",
+        "parameters": [
+          {
+            "name": "pnu",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{19}$",
+              "description": "GET /api/official-price/search의 필지 고유번호",
+              "title": "Pnu"
+            },
+            "description": "GET /api/official-price/search의 필지 고유번호"
+          },
+          {
+            "name": "dong",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "동 (예: 101동, 101). 동이 없는 빌라는 비움",
+              "title": "Dong"
+            },
+            "description": "동 (예: 101동, 101). 동이 없는 빌라는 비움"
+          },
+          {
+            "name": "ho",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "호 (예: 1203호, 1203)",
+              "title": "Ho"
+            },
+            "description": "호 (예: 1203호, 1203)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfficialPriceOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
     "/api/contracts": {
       "post": {
         "tags": [
@@ -5763,6 +5954,103 @@
         ],
         "title": "NotificationRunResult"
       },
+      "OfficialPriceOut": {
+        "properties": {
+          "pnu": {
+            "type": "string",
+            "title": "Pnu"
+          },
+          "stdr_year": {
+            "type": "integer",
+            "title": "Stdr Year",
+            "description": "공시 기준연도 (그해 1월 1일 기준, 4월 말 발표). 올해 값이 아직 없으면 지난해"
+          },
+          "complex_name": {
+            "type": "string",
+            "title": "Complex Name",
+            "description": "단지 이름 (공동주택가격의 이름. 실거래가 단지 이름과 다를 수 있다)"
+          },
+          "units": {
+            "items": {
+              "$ref": "#/components/schemas/UnitPriceOut"
+            },
+            "type": "array",
+            "title": "Units",
+            "description": "호별 가격. dong·ho를 주면 맞는 호만 (동 → 호 순)"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "출처 표시 문구, 화면에 그대로"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pnu",
+          "stdr_year",
+          "complex_name",
+          "units",
+          "source"
+        ],
+        "title": "OfficialPriceOut",
+        "description": "공동주택 공시가격 (브이월드 국가중점데이터 공동주택가격, FR-001 확장). 계약 전 확인 공시가격·전용면적 칸을 채운다."
+      },
+      "ParcelOut": {
+        "properties": {
+          "pnu": {
+            "type": "string",
+            "title": "Pnu",
+            "description": "필지 고유번호 19자리. GET /api/official-price의 pnu로 보낸다"
+          },
+          "address": {
+            "type": "string",
+            "title": "Address",
+            "description": "지번 주소"
+          },
+          "road_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Road Address",
+            "description": "도로명 주소 (있을 때)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pnu",
+          "address",
+          "road_address"
+        ],
+        "title": "ParcelOut"
+      },
+      "ParcelSearchOut": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "parcels": {
+            "items": {
+              "$ref": "#/components/schemas/ParcelOut"
+            },
+            "type": "array",
+            "title": "Parcels",
+            "description": "필지 후보 (최대 5개). 사용자가 고른다"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "parcels"
+        ],
+        "title": "ParcelSearchOut",
+        "description": "주소 검색 결과 (브이월드 검색 API, FR-001 확장)."
+      },
       "PaymentOut": {
         "properties": {
           "payment_id": {
@@ -7511,6 +7799,57 @@
           "label"
         ],
         "title": "UncheckedItemOut"
+      },
+      "UnitPriceOut": {
+        "properties": {
+          "dong": {
+            "type": "string",
+            "title": "Dong",
+            "description": "동 이름 그대로 (동이 없는 빌라는 빈 문자열)"
+          },
+          "ho": {
+            "type": "string",
+            "title": "Ho",
+            "description": "호 이름 그대로"
+          },
+          "floor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor"
+          },
+          "exclusive_area": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclusive Area",
+            "description": "전용면적 (㎡)"
+          },
+          "official_price": {
+            "type": "integer",
+            "title": "Official Price",
+            "description": "공동주택 공시가격 (원)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dong",
+          "ho",
+          "floor",
+          "exclusive_area",
+          "official_price"
+        ],
+        "title": "UnitPriceOut"
       },
       "ValidationError": {
         "properties": {

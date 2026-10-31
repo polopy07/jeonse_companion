@@ -88,6 +88,8 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 | `app/registry/parser.py` | 요약 글자 → 소유자, 근저당 채권최고액, 압류 등, 신탁 (규칙 파서) |
 | `app/api/registry.py` | `POST /api/registry/parse`, `POST /api/registry/explain` |
 | `app/explain.py` | 등기 항목 쉬운 말 설명: Claude API 호출, 금지 표현·숫자 검사, 템플릿 대체 (rules/explain.yaml) |
+| `app/official_price/client.py` | 브이월드 주소 검색(주소 → 필지 고유번호)·공동주택가격 속성 조회 호출과 응답 해석 |
+| `app/api/official_price.py` | `GET /api/official-price/search`, `GET /api/official-price` 주소로 공시가격 찾기 (하루 동안 기억) |
 | `app/api/demo.py` | `GET /api/demo-houses` 시연 집 2채 (`docs/validation/demo_houses.yaml`) |
 | `load_demo_trades.py` | 시연 집 정답표의 실거래 저장본을 DB에 넣기 |
 | `reset_demo_db.py` | 시연 전 DB 초기화 (모든 표를 다시 만들고 실거래 저장본 넣기) |
@@ -305,6 +307,19 @@ PR을 열거나 main에 푸시하면 GitHub Actions(`.github/workflows/test.yml`
 - 기준일은 오늘, `X-Virtual-Today` 헤더가 있으면 그날. 응답 `as_of`에 남는다
 - 연립다세대는 같은 이름이 많아 지번(`jibun`)이 필요하다
 - `complex`는 아파트·연립다세대만 받는다. 오피스텔·다가구·단독이면 422 (수집하는 실거래 자료가 없음)
+
+### `GET /api/official-price` 주소로 공시가격 찾기 (FR-001 확장)
+
+계약 전 확인 2단계에서 공시가격·전용면적 칸을 채운다. 저장하지 않고, 사용자가 고른 값을 `POST /api/checks`로 보낸다.
+
+1. `GET /api/official-price/search?address=수영구 광안동 212-1` → 필지 후보 `parcels[].pnu` (도로명·지번 아무거나)
+2. `GET /api/official-price?pnu=...` → 호별 목록(동·호 고르기), `&dong=101&ho=1203`이면 그 호만
+
+- 브이월드 인증키 `VWORLD_API_KEY`(국가중점·검색 API)가 있어야 켜진다. 없으면 503 `VWORLD_KEY_MISSING`이고 화면은 직접 입력
+- 서비스 주소(`domain`)는 `VWORLD_DOMAIN`, 비우면 `PUBLIC_BASE_URL`
+- 기준연도는 올해(한국 시간), 4월 말 공시 전이라 없으면 지난해·지지난해까지 찾는다
+- 같은 필지는 하루 동안 기억해 다시 부르지 않는다 (서버를 다시 켜면 비워짐)
+- 시연 집 2채는 이 API가 아니라 `GET /api/demo-houses`의 미리 넣은 값을 쓴다
 
 ### `GET /api/demo-houses` 시연 집 2채 (FR-001·046)
 

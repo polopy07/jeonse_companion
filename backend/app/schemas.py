@@ -837,3 +837,34 @@ class AlertRecalcItem(BaseModel):
 class AlertRecalcResult(BaseModel):
     date: date_
     results: list[AlertRecalcItem] = Field(description="다시 계산한 계약 (공시가격이 없는 계약·무산된 계약은 빠짐)")
+
+
+class ParcelOut(BaseModel):
+    pnu: str = Field(description="필지 고유번호 19자리. GET /api/official-price의 pnu로 보낸다")
+    address: str = Field(description="지번 주소")
+    road_address: str | None = Field(description="도로명 주소 (있을 때)")
+
+
+class ParcelSearchOut(BaseModel):
+    """주소 검색 결과 (브이월드 검색 API, FR-001 확장)."""
+
+    query: str
+    parcels: list[ParcelOut] = Field(description="필지 후보 (최대 5개). 사용자가 고른다")
+
+
+class UnitPriceOut(BaseModel):
+    dong: str = Field(description="동 이름 그대로 (동이 없는 빌라는 빈 문자열)")
+    ho: str = Field(description="호 이름 그대로")
+    floor: str | None
+    exclusive_area: float | None = Field(description="전용면적 (㎡)")
+    official_price: int = Field(description="공동주택 공시가격 (원)")
+
+
+class OfficialPriceOut(BaseModel):
+    """공동주택 공시가격 (브이월드 국가중점데이터 공동주택가격, FR-001 확장). 계약 전 확인 공시가격·전용면적 칸을 채운다."""
+
+    pnu: str
+    stdr_year: int = Field(description="공시 기준연도 (그해 1월 1일 기준, 4월 말 발표). 올해 값이 아직 없으면 지난해")
+    complex_name: str = Field(description="단지 이름 (공동주택가격의 이름. 실거래가 단지 이름과 다를 수 있다)")
+    units: list[UnitPriceOut] = Field(description="호별 가격. dong·ho를 주면 맞는 호만 (동 → 호 순)")
+    source: str = Field(description="출처 표시 문구, 화면에 그대로")

@@ -84,3 +84,13 @@ def data_go_kr_service_key() -> str:
     """
     key = os.environ.get("DATA_GO_KR_SERVICE_KEY", "").strip()
     return unquote(key) if "%" in key else key
+
+
+def vworld_api_key() -> str:
+    """브이월드(공간정보 오픈플랫폼) 인증키. 주소 검색·공동주택가격 조회에 쓴다. 없으면 빈 문자열이고 공시가격 조회는 꺼진다."""
+    return os.environ.get("VWORLD_API_KEY", "").strip()
+
+
+def vworld_domain() -> str:
+    """인증키를 신청할 때 등록한 서비스 주소 (요청의 domain). 비우면 PUBLIC_BASE_URL을 쓴다."""
+    return os.environ.get("VWORLD_DOMAIN", "").strip().rstrip("/") or public_base_url()
