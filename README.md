@@ -148,9 +148,9 @@ flowchart LR
 
 | 문서 | 최신 버전 | 위치 |
 | --- | --- | --- |
-| 서비스 기획안 | v4.35 | [`docs/plan/`](docs/plan/) |
-| 요구사항 명세서(SRS) | v0.5 (기획안 v4.35 기준) | [`docs/srs/`](docs/srs/) |
-| Use Case Diagram | SRS v0.5 5.1절 | [`docs/srs/usecase_전동기.puml`](docs/srs/usecase_전동기.puml) |
+| 서비스 기획안 | v4.36 | [`docs/plan/`](docs/plan/) |
+| 요구사항 명세서(SRS) | v0.6 (기획안 v4.36 기준) | [`docs/srs/`](docs/srs/) |
+| Use Case Diagram | SRS v0.6 5.1절 | [`docs/srs/usecase_전동기.puml`](docs/srs/usecase_전동기.puml) |
 | 4주 개발 계획 | 기획안 v4.35 기준 주차·담당별 상세 | [`docs/plan/4주_개발계획.md`](docs/plan/4주_개발계획.md) |
 | 규칙 설정 파일 | v1.1 (todos.yaml v1.5·alert.yaml v1.2·fields.yaml v1.1). 판정·경보·연동 규칙·특약·할 일 9종·보증기관 (YAML) | [`rules/`](rules/) (`python3 rules/check_rules.py`로 검사) |
 | 백엔드 | FastAPI·SQLAlchemy. 실행·테스트 방법 | [`backend/`](backend/) |
