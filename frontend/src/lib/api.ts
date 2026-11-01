@@ -429,6 +429,18 @@ export function postContract(input: ApiContractInput) {
   });
 }
 
+/**
+ * 접근 링크 다시 받기 (POST /api/contracts/access-link, 휴대폰을 바꾸거나 처음부터 다시했을 때).
+ * 그 이메일로 만든 계약마다 계약 번호와 접근 코드를 메일로 보낸다. 이메일이 없어도 같은 안내 문구(202)
+ */
+export function postAccessLink(email: string) {
+  return request<{ message: string }>('/api/contracts/access-link', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+}
+
 /** 계약 정보와 할 일 목록 (앱을 다시 켰을 때 이어 보기). token은 계약을 만들 때 받은 access_token */
 export function getContract(contractId: number, token: string | null) {
   return request<ApiContract>(`/api/contracts/${contractId}`, { method: 'GET', headers: contractHeaders(token) });
