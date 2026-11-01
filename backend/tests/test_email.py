@@ -184,3 +184,17 @@ def test_access_link_mail_failure_keeps_no_token(client, monkeypatch):
 
 def test_access_link_bad_email(client):
     assert client.post("/api/contracts/access-link", json={"email": "not-an-email"}).status_code == 422
+
+
+def test_console_mail_is_logged(caplog, monkeypatch):
+    """EMAIL_BACKEND=console이면 보내지 않고 서버 로그(INFO)에 찍는다 (배포 서버 journalctl에서 보이게)."""
+    import logging
+
+    from app.main import setup_logging
+
+    monkeypatch.setenv("EMAIL_BACKEND", "console")
+    setup_logging()
+    setup_logging()   # 여러 번 불러도 처리기는 하나
+    assert len([h for h in logging.getLogger("app").handlers if getattr(h, "_jeonse", False)]) == 1
+    mailer.send(mailer.Mail("me@example.com", "[전동기] 시험", "본문 한 줄"))
+    assert "subject=[전동기] 시험" in caplog.text and "본문 한 줄" in caplog.text

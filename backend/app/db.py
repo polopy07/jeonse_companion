@@ -1,7 +1,8 @@
-"""DB 연결. DATABASE_URL만 바꾸면 PostgreSQL / SQLite 어느 쪽이든 동작한다."""
+"""DB 연결. 기본은 SQLite 파일(backend/data/jeonse.db), DATABASE_URL로 PostgreSQL도 동작한다."""
 from functools import lru_cache
+from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, inspect, make_url, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.config import database_url
@@ -14,7 +15,12 @@ class Base(DeclarativeBase):
 @lru_cache
 def get_engine():
     url = database_url()
-    connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}
+    connect_args = {}
+    if url.startswith("sqlite"):
+        connect_args = {"check_same_thread": False}
+        path = make_url(url).database
+        if path and path != ":memory:":
+            Path(path).parent.mkdir(parents=True, exist_ok=True)   # 처음 띄울 때 backend/data/가 없어도 되게
     return create_engine(url, connect_args=connect_args)
 
 
