@@ -5,11 +5,13 @@ from urllib.parse import unquote
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-DEFAULT_DATABASE_URL = "postgresql+psycopg://jeonse:jeonse@localhost:5432/jeonse"
+# MVP 기본 DB는 SQLite 파일 하나 (backend/data/, git 제외). 시연·배포 서버(동아 클라우드 VM)·테스트 모두 SQLite.
+# 사용자가 많아지면(출시) DATABASE_URL로 PostgreSQL을 쓴다 (예: postgresql+psycopg://jeonse:jeonse@localhost:5432/jeonse)
+DEFAULT_DATABASE_URL = f"sqlite:///{REPO_ROOT / 'backend' / 'data' / 'jeonse.db'}"
 
 
 def database_url() -> str:
-    return os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL)
+    return os.environ.get("DATABASE_URL", "").strip() or DEFAULT_DATABASE_URL
 
 
 def rules_dir() -> Path:
