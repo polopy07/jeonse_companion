@@ -119,14 +119,16 @@ export default function RecordsScreen() {
   const latest = useLatestContract();
   const contract = apiEnabled ? latest : null;
   const localTerms = useSpecialTermResults();
+  const demo = useDemoMode();
+  // 시연 서류 칸·시연 현장 확인은 계약 없이 "시연 집으로 둘러보기"를 골랐을 때만 (내 기록과 섞지 않는다)
+  const showDemo = !contract && demo;
   const docs: Slot[] = contract
     ? [...documentSlots(contract), ...slotsFromContract(contract)]
-    : [...recordDocs.map((d) => ({ ...d, key: d.name })), ...termSlots(localTerms)];
+    : [...(showDemo ? recordDocs.map((d) => ({ ...d, key: d.name })) : []), ...termSlots(localTerms)];
   const missing = docs.filter((d) => d.needForClaim && !d.filled).length;
   // 열어 본 칸 (key). 올리거나 지워 계약이 바뀌어도 같은 칸을 다시 찾아 그린다
   const [openKey, setOpenKey] = useState<string | null>(null);
   const opened = docs.find((d) => d.key === openKey && (d.todo || d.document)) ?? null;
-  const demo = useDemoMode();
 
   // 계약도, 계약 당일 특약 기록도 없으면 빈 화면 (시연 집으로 둘러보기를 고르면 시연 서류함)
   if (!contract && !demo && !Object.keys(localTerms).length) {
@@ -163,7 +165,7 @@ export default function RecordsScreen() {
         </Pressable>
       ) : null}
 
-      {!emergency ? <SiteCheckRecord /> : null}
+      {!emergency ? <SiteCheckRecord demo={showDemo} /> : null}
 
       <View style={styles.grid}>
         {docs.map((d) => (
@@ -186,9 +188,15 @@ export default function RecordsScreen() {
   );
 }
 
-/** 계약 당일 현장 확인 기록 (FR-047). 체크하지 않은 항목은 "확인 안 함"으로 남긴다 */
-function SiteCheckRecord() {
-  const items = siteCheckItems(useSiteCheck() ?? siteCheckDemo);
+/**
+ * 계약 당일 현장 확인 기록 (FR-047). 체크하지 않은 항목은 "확인 안 함"으로 남긴다.
+ * 이 휴대폰에 현장 확인 기록이 없으면 시연 모드에서만 시연 값을 보여 주고, 아니면 칸을 그리지 않는다
+ */
+function SiteCheckRecord({ demo }: { demo: boolean }) {
+  const saved = useSiteCheck();
+  const check = saved ?? (demo ? siteCheckDemo : null);
+  if (!check) return null;
+  const items = siteCheckItems(check);
   const missed = items.filter((i) => !i.checked);
   return (
     <View style={styles.siteCheck}>
