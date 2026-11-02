@@ -371,6 +371,7 @@ function StepCard({
             {s.evidence ? (
               <View style={styles.subActions}>
                 <TextAction label="앨범에서 고르기" onPress={() => onComplete('library')} />
+                <TextAction label="파일(PDF)에서" onPress={() => onComplete('file')} />
                 {onSkip ? <TextAction label="나중에 올리기" onPress={onSkip} /> : null}
               </View>
             ) : null}
@@ -427,7 +428,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     justifyContent: 'center',
   },
-  subActions: { flexDirection: 'row', gap: 16, marginTop: 6 },
+  subActions: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 16, marginTop: 6 },
   progress: { height: 8, borderRadius: 4, backgroundColor: Colors.track, marginTop: 10, overflow: 'hidden' },
   links: {
     backgroundColor: Colors.card,

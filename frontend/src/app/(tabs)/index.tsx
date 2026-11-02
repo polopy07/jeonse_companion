@@ -6,7 +6,7 @@ import { Icon } from '@/components/Icon';
 import { Button, Card, Disclaimer, Screen, SectionLabel } from '@/components/layout';
 import { ratioBand } from '@/components/verdict';
 import { Colors, Radius, Touch } from '@/constants/theme';
-import { checkResult, house, recordDocs, today } from '@/data/demo';
+import { checkResult, house, today } from '@/data/demo';
 import { useAlertReport } from '@/lib/alert';
 import type { ApiContract } from '@/lib/api';
 import { useLatestCheck } from '@/lib/check';
@@ -14,7 +14,9 @@ import { dottedDate, parseDateKey, useVirtualToday } from '@/lib/clock';
 import { todoViews, useLatestContract } from '@/lib/contract';
 import { setDemoMode, useDemoMode } from '@/lib/demo-mode';
 import { formatWon } from '@/lib/format';
+import { recordSlots } from '@/lib/records';
 import { confirmAction, resetLocalData, RESET_MESSAGE } from '@/lib/reset';
+import { useSpecialTermResults } from '@/lib/special-terms';
 
 const stages = ['계약 전', '계약 당일', '입주 준비', '거주', '만기'];
 
@@ -167,6 +169,7 @@ export default function HomeScreen() {
   const check = useLatestCheck();
   const demo = useDemoMode();
   const remote = useAlertReport(contract);
+  const localTerms = useSpecialTermResults();
   // 계약이 없으면 시작 화면 (시연 데이터를 내 계약처럼 보여 주지 않는다). "시연 집으로 둘러보기"를 고르면 시연 홈
   if (!contract && !demo) return <StartHome hasCheck={!!check} />;
   // 계약은 판정 1건으로 만든다. 저장한 판정이 이 계약의 판정이 아니면 집 이름은 쓰지 않는다
@@ -187,7 +190,9 @@ export default function HomeScreen() {
   // 비율이 80% 미만이어도 주변 전세가 내 보증금보다 낮으면 경보는 주의 (alert.yaml)
   const belowDeposit = report ? report.basis.nearby_jeonse?.below_deposit : sameCheck?.nearbyJeonse?.below_deposit;
   const lowNearby = ratio < 0.8 && belowDeposit === true;
-  const filled = recordDocs.filter((d) => d.filled).length;
+  // 기록함 탭과 같은 칸: 계약이 있으면 올린 첫 계약 서류·할 일 증빙, 계약 없이 시연 집으로 둘러볼 때만 시연 서류
+  const docs = recordSlots(contract, localTerms, !contract && demo);
+  const filled = docs.filter((d) => d.filled).length;
   const currentStage = h.stage;
 
   return (
@@ -313,7 +318,7 @@ export default function HomeScreen() {
                 ? remote?.notApplicable
                   ? '경보 대상 아님'
                   : '계산한 판정 없음'
-                :`${band.label}${lowNearby ? ' · 주변 전세 낮음' : ''} · ${h.ratioAt}`}
+                : `${band.label}${lowNearby ? ' · 주변 전세 낮음' : ''} · ${h.ratioAt}`}
             </AppText>
           </Card>
         </Pressable>
@@ -326,16 +331,16 @@ export default function HomeScreen() {
               {filled}
               <AppText size={15} weight="medium" color={Colors.textSub}>
                 {' '}
-                / {recordDocs.length}장
+                / {docs.length}장
               </AppText>
             </AppText>
             <View style={{ flexDirection: 'row', gap: 4, marginTop: 8 }}>
-              {recordDocs.map((d) => (
-                <View key={d.name} style={[styles.segment, { backgroundColor: d.filled ? Colors.primary : Colors.track }]} />
+              {docs.map((d) => (
+                <View key={d.key} style={[styles.segment, { backgroundColor: d.filled ? Colors.primary : Colors.track }]} />
               ))}
             </View>
             <AppText size={12} color={Colors.textSub} style={{ marginTop: 8 }}>
-              빈 서류 {recordDocs.length - filled}개
+              빈 서류 {docs.length - filled}개
             </AppText>
           </Card>
         </Pressable>
