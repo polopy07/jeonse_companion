@@ -7,7 +7,7 @@ import { Button } from '@/components/layout';
 import { Colors, Gutter, MaxAppWidth, Radius } from '@/constants/theme';
 import { ApiError, apiEnabled, getCheck, getContract, postPayment } from '@/lib/api';
 import { contractToken, setLatestContract } from '@/lib/contract';
-import { formatWon } from '@/lib/format';
+import { formatPrice } from '@/lib/format';
 import { products, releasedFor, setLatestPayment, useLatestPayment, useReleasedPayment } from '@/lib/payment';
 
 type Props = {
@@ -84,7 +84,7 @@ export function PaymentSheet({ visible, product, checkId, onClose, onPaid }: Pro
         </AppText>
         <View style={styles.amountRow}>
           <AppText size={28} weight="bold">
-            {formatWon(amount)}
+            {formatPrice(amount)}
           </AppText>
           <AppText size={16} weight="semibold">
             원
@@ -122,7 +122,7 @@ export function PaymentSheet({ visible, product, checkId, onClose, onPaid }: Pro
                 ? '결제했어요 · 계속하기'
                 : reuse
                   ? '앞 계약 결제로 계속하기'
-                  : `${formatWon(amount)}원 결제 확인`
+                  : `${formatPrice(amount)}원 결제 확인`
           }
           onPress={confirm}
           style={{ marginTop: 16, opacity: paying ? 0.6 : 1 }}

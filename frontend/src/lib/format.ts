@@ -10,6 +10,11 @@ export function formatWon(won: number): string {
   return parts.join(' ') || '0원';
 }
 
+/** 9900 → "9,900". 만 원 단위로 반올림하지 않는다 (패키지 가격처럼 만 원보다 작은 금액) */
+export function formatPrice(won: number): string {
+  return won.toLocaleString('en-US');
+}
+
 /** 입력칸의 "14000"(만 원) → 140000000(원). 숫자가 아니면 null */
 export function parseManwon(text: string): number | null {
   const digits = text.replace(/[^0-9]/g, '');
