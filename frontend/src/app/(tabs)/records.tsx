@@ -6,7 +6,7 @@ import { AppText } from '@/components/AppText';
 import { EmptyTab } from '@/components/empty';
 import { Icon } from '@/components/Icon';
 import { Button, Disclaimer, Screen } from '@/components/layout';
-import { Colors, Gutter, MaxAppWidth, Radius } from '@/constants/theme';
+import { Colors, Gutter, MaxAppWidth, Radius, Touch } from '@/constants/theme';
 import { siteCheckDemo, type RecordDoc } from '@/data/demo';
 import {
   ApiError,
@@ -21,7 +21,7 @@ import {
   type PickedFile,
 } from '@/lib/api';
 import { contractToken, setLatestContract, useLatestContract } from '@/lib/contract';
-import { pickEvidence, type EvidenceSource } from '@/lib/evidence';
+import { openEvidenceFile, pickEvidence, type EvidenceSource } from '@/lib/evidence';
 import { recordSlots, termDocNames, type Slot } from '@/lib/records';
 import { siteCheckItems, useSiteCheck } from '@/lib/site-check';
 import { useSpecialTermResults } from '@/lib/special-terms';
@@ -172,7 +172,7 @@ function targetOf(contract: ApiContract, slot: Slot): SheetTarget {
       emptyText: doc.detail ?? '아직 올린 서류가 없어요',
       // 할 일과 별개라 올려도 끝나는 할 일은 없다. 특약을 넣었으면 그 서류도 이 사진으로 남긴다
       uploadNote: [
-        doc.uploaded ? '다시 올리면 앞 사진을 바꿔요.' : '할 일과 별개로 기록함에만 남아요. 반환보증 청구 때도 이 서류를 써요.',
+        doc.uploaded ? '다시 올리면 앞 파일을 바꿔요.' :'할 일과 별개로 기록함에만 남아요. 반환보증 청구 때도 이 서류를 써요.',
         terms.length ? `넣은 특약의 ${terms.join(', ')}도 이 사진으로 남겨요.` : null,
       ]
         .filter(Boolean)
@@ -193,7 +193,7 @@ function targetOf(contract: ApiContract, slot: Slot): SheetTarget {
     stamp: todo.done_date ?? '',
     emptyText: todo.status === 'skipped' ? '나중에 올리기로 끝낸 할 일이에요' : '아직 올린 증빙이 없어요',
     uploadNote: todo.evidence_uploaded
-      ? '다시 올리면 앞 사진을 바꿔요.'
+      ? '다시 올리면 앞 파일을 바꿔요.'
       : todo.status === 'skipped'
         ? `올리면 나중에 올리기로 끝낸 ${which}의 기록함이 채워져요.`
         : `올리면 ${which}${todo.rule_id.startsWith('T') ? '이' : '가'} 끝나요. 할 일 탭에서 끝내는 것과 같아요.`,
@@ -306,22 +306,30 @@ function EvidenceSheet({
           </AppText>
         ) : null}
         {active ? (
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-            <Button
-              label={
-                phase === 'picking'
-                  ? '사진 고르는 중…'
-                  : phase === 'uploading'
-                    ? '올리는 중…'
-                    : target.uploaded
-                      ? '다시 찍기'
-                      : '사진 찍기'
-              }
-              onPress={() => upload('camera')}
-              style={{ flex: 1, opacity: busy ? 0.6 : 1 }}
-            />
-            <Button label="앨범에서 고르기" variant="outline" onPress={() => upload('library')} style={{ flex: 1 }} />
-          </View>
+          <>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+              <Button
+                label={
+                  phase === 'picking'
+                    ? '고르는 중…'
+                    : phase === 'uploading'
+                      ? '올리는 중…'
+                      : target.uploaded
+                        ? '다시 찍기'
+                        : '사진 찍기'
+                }
+                onPress={() => upload('camera')}
+                style={{ flex: 1, opacity: busy ? 0.6 : 1 }}
+              />
+              <Button label="앨범에서 고르기" variant="outline" onPress={() => upload('library')} style={{ flex: 1 }} />
+            </View>
+            {/* 등기부 열람본·신고필증·보증서·이체 확인증처럼 PDF로 받는 서류 (DATA-06) */}
+            <Pressable accessibilityRole="button" onPress={() => upload('file')} style={styles.textButton}>
+              <AppText size={14} weight="semibold" color={Colors.primary}>
+                파일(PDF)에서 고르기
+              </AppText>
+            </Pressable>
+          </>
         ) : (
           <AppText size={13} color={Colors.textSub} style={{ marginTop: 16 }}>
             무산된 계약이라 새로 올릴 수 없어요. 지우기는 할 수 있어요.
@@ -346,7 +354,7 @@ function EvidenceSheet({
 
 /**
  * 올린 증빙·서류 사진. 휴대폰은 Image source에 계약 토큰 헤더를 붙이고, 웹(개발 편의용)은 Image에 헤더를 붙일 수 없어
- * fetch로 받아 blob 주소로 보여 준다. 사진이 아닌 파일(PDF 등)은 미리 보지 못한다고 안내. imageKey는 칸·버전마다 다른 값
+ * fetch로 받아 blob 주소로 보여 준다. 사진이 아닌 파일(PDF 등)은 미리 보지 못하니 "파일 열기"로 연다. imageKey는 칸·버전마다 다른 값
  */
 function EvidenceImage({ source, imageKey }: { source: ReturnType<typeof evidenceSource>; imageKey: string }) {
   const [web, setWeb] = useState<{ key: string; uri: string } | null>(null);
@@ -379,8 +387,9 @@ function EvidenceImage({ source, imageKey }: { source: ReturnType<typeof evidenc
     return (
       <View style={[styles.preview, styles.previewEmpty]}>
         <AppText size={13} color={Colors.textSub} leading={1.6} style={{ textAlign: 'center', paddingHorizontal: 16 }}>
-          올린 파일이 있지만 앱에서 미리 볼 수 없는 파일이에요
+          {source ? '사진이 아닌 파일(PDF 등)은 여기서 미리 볼 수 없어요' : '올린 파일이 있지만 앱에서 미리 볼 수 없는 파일이에요'}
         </AppText>
+        {source ? <OpenFileButton source={source} /> : null}
       </View>
     );
   }
@@ -397,6 +406,36 @@ function EvidenceImage({ source, imageKey }: { source: ReturnType<typeof evidenc
         />
       ) : null}
     </View>
+  );
+}
+
+/** 미리 볼 수 없는 파일 열기: 웹은 새 탭, 휴대폰은 공유 창(PDF 보기·파일에 저장) */
+function OpenFileButton({ source }: { source: NonNullable<ReturnType<typeof evidenceSource>> }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const open = () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    openEvidenceFile(source)
+      .catch((e) => setError(e instanceof Error && e.message ? e.message : '파일을 열지 못했어요'))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <>
+      <Button
+        label={busy ? '여는 중…' : '파일 열기'}
+        variant="outline"
+        height={Touch.min}
+        onPress={open}
+        style={{ marginTop: 12, paddingHorizontal: 24, opacity: busy ? 0.6 : 1 }}
+      />
+      {error ? (
+        <AppText size={12} color={Colors.danger} style={{ marginTop: 8 }}>
+          {error}
+        </AppText>
+      ) : null}
+    </>
   );
 }
 

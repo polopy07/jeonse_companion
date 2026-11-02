@@ -356,9 +356,10 @@ function TodoItem({
             style={{ marginTop: 12, opacity: actions?.busy ? 0.6 : 1 }}
           />
           {actions && todo.evidence ? (
-            // FR-029·030: 찍기 어려우면 앨범에서, 지금 증빙이 없으면 나중에 올리기
+            // FR-029·030: 찍기 어려우면 앨범·파일(PDF)에서, 지금 증빙이 없으면 나중에 올리기
             <View style={styles.subActions}>
               <TextAction label="앨범에서 고르기" onPress={() => actions.complete('library')} />
+              <TextAction label="파일(PDF)에서" onPress={() => actions.complete('file')} />
               <TextAction label="나중에 올리기" onPress={actions.skip} />
             </View>
           ) : null}
@@ -372,7 +373,10 @@ function TodoItem({
       {isDone && actions ? (
         <View style={styles.subActions}>
           {todo.skipped && todo.evidence ? (
-            <TextAction label="증빙 올리기" onPress={() => actions.complete('library')} />
+            <>
+              <TextAction label="증빙 올리기" onPress={() => actions.complete('library')} />
+              <TextAction label="파일(PDF)에서" onPress={() => actions.complete('file')} />
+            </>
           ) : null}
           {/* 계약 조건이 바뀌어 기록으로만 남은 할 일은 되돌리면 서버가 409 TODO_NOT_PLANNED (#135) */}
           {todo.archived ? (
@@ -477,7 +481,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#9C968A',
   },
-  subActions: { flexDirection: 'row', gap: 16, marginTop: 8 },
+  subActions: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 16, marginTop: 8 },
   textAction: { minHeight: 32, justifyContent: 'center' },
   badge: {
     alignSelf: 'flex-start',
