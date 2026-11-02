@@ -1,5 +1,3 @@
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Circle, Line, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 
@@ -8,10 +6,10 @@ import { EmptyTab } from '@/components/empty';
 import { Card, DashedBox, Disclaimer, Screen, SectionLabel } from '@/components/layout';
 import { Colors, Font, Radius } from '@/constants/theme';
 import { alertReport } from '@/data/demo';
-import { ApiError, apiEnabled, getAlertReport, type ApiAlertReport, type ApiCheckResult, type ApiContract } from '@/lib/api';
+import { useAlertReport } from '@/lib/alert';
+import { type ApiAlertReport, type ApiCheckResult } from '@/lib/api';
 import { alertLevelOf, estimateFromOfficial, useLatestCheck, type AlertLevel, type CheckView } from '@/lib/check';
-import { useVirtualToday } from '@/lib/clock';
-import { contractToken, useLatestContract } from '@/lib/contract';
+import { useLatestContract } from '@/lib/contract';
 import { formatWon } from '@/lib/format';
 import { useDemoMode } from '@/lib/demo-mode';
 
@@ -187,39 +185,6 @@ function reportFromApi(a: ApiAlertReport, deposit: number): AlertReport {
     dataLimits: a.data_limits.length ? a.data_limits : null,
     disclaimer: `기준일 ${dotDate(b.as_of)} · 정보 제공이며 보증하지 않습니다.`,
   };
-}
-
-type RemoteAlert = { contractId: number; report: ApiAlertReport | null; notApplicable: boolean; error: string | null };
-
-/**
- * 계약의 최근 경보를 서버에서 받는다. 탭을 열 때마다 다시 받아 관리자 재계산(공시가격 발표)·가상 날짜를 바로 반영한다.
- * 서버 주소가 없거나 계약이 없으면 null
- */
-function useAlertReport(contract: ApiContract | null): RemoteAlert | null {
-  const [remote, setRemote] = useState<RemoteAlert | null>(null);
-  const day = useVirtualToday();
-  const id = contract?.id ?? null;
-  useFocusEffect(
-    useCallback(() => {
-      if (!apiEnabled || id === null) return;
-      let alive = true;
-      getAlertReport(id, contractToken(id))
-        .then((report) => alive && setRemote({ contractId: id, report, notApplicable: false, error: null }))
-        .catch((e) => {
-          if (!alive) return;
-          // 404 = 다가구·단독 등 경보를 계산하지 않는 계약 (토큰이 틀린 계약은 할 일 탭에서 먼저 안내)
-          const notApplicable = e instanceof ApiError && e.status === 404;
-          const error = notApplicable ? null : e instanceof ApiError ? e.message : '경보를 받지 못했어요';
-          setRemote({ contractId: id, report: null, notApplicable, error });
-        });
-      return () => {
-        alive = false;
-      };
-      // contract가 바뀌면(보증금 수정·다시 불러오기) 다시 받는다
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [id, day, contract]),
-  );
-  return remote?.contractId === id ? remote : null;
 }
 
 const demoReport: AlertReport = {

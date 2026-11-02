@@ -7,6 +7,7 @@ import { Button, Card, Disclaimer, Screen, SectionLabel } from '@/components/lay
 import { ratioBand } from '@/components/verdict';
 import { Colors, Radius, Touch } from '@/constants/theme';
 import { checkResult, house, recordDocs, today } from '@/data/demo';
+import { useAlertReport } from '@/lib/alert';
 import type { ApiContract } from '@/lib/api';
 import { useLatestCheck } from '@/lib/check';
 import { dottedDate, parseDateKey, useVirtualToday } from '@/lib/clock';
@@ -165,22 +166,27 @@ export default function HomeScreen() {
   const virtualDay = useVirtualToday();
   const check = useLatestCheck();
   const demo = useDemoMode();
+  const remote = useAlertReport(contract);
   // 계약이 없으면 시작 화면 (시연 데이터를 내 계약처럼 보여 주지 않는다). "시연 집으로 둘러보기"를 고르면 시연 홈
   if (!contract && !demo) return <StartHome hasCheck={!!check} />;
-  // 계약은 판정 1건으로 만든다. 저장한 판정이 이 계약의 판정이 아니면 집 이름·비율은 쓰지 않는다
+  // 계약은 판정 1건으로 만든다. 저장한 판정이 이 계약의 판정이 아니면 집 이름은 쓰지 않는다
   const sameCheck = check && contract && check.id === contract.check_id ? check : null;
+  // 비율은 경보 탭과 같은 서버의 최근 경보(계약 중 재계산 포함). 받기 전·못 받았으면 이 계약의 판정 값.
+  // 불러온 계약·갈아타기 중 다른 집처럼 휴대폰에 그 판정이 없어도 서버 값으로 보인다
+  const report = remote?.report ?? null;
   const h = contract
     ? homeFromContract(
         contract,
         sameCheck?.houseLabel ?? null,
-        sameCheck?.deposit_ratio ?? null,
-        sameCheck ? `${shortDate(sameCheck.checkedAt)} 기준` : '',
+        report?.deposit_ratio ?? sameCheck?.deposit_ratio ?? null,
+        report ? `${shortDate(dotted(report.as_of))} 기준` : sameCheck ? `${shortDate(sameCheck.checkedAt)} 기준` : '',
       )
     : demoHome;
   const ratio = h.ratio ?? 0;
   const band = ratioBand(ratio);
   // 비율이 80% 미만이어도 주변 전세가 내 보증금보다 낮으면 경보는 주의 (alert.yaml)
-  const lowNearby = ratio < 0.8 && sameCheck?.nearbyJeonse?.below_deposit === true;
+  const belowDeposit = report ? report.basis.nearby_jeonse?.below_deposit : sameCheck?.nearbyJeonse?.below_deposit;
+  const lowNearby = ratio < 0.8 && belowDeposit === true;
   const filled = recordDocs.filter((d) => d.filled).length;
   const currentStage = h.stage;
 
@@ -303,7 +309,11 @@ export default function HomeScreen() {
               <View style={[styles.barFill, { width: `${Math.min(ratio, 1) * 100}%`, backgroundColor: band.color }]} />
             </View>
             <AppText size={12} color={Colors.textSub} style={{ marginTop: 8 }}>
-              {h.ratio === null ? '계산한 판정 없음' : `${band.label}${lowNearby ? ' · 주변 전세 낮음' : ''} · ${h.ratioAt}`}
+              {h.ratio === null
+                ? remote?.notApplicable
+                  ? '경보 대상 아님'
+                  : '계산한 판정 없음'
+                :`${band.label}${lowNearby ? ' · 주변 전세 낮음' : ''} · ${h.ratioAt}`}
             </AppText>
           </Card>
         </Pressable>
