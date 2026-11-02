@@ -57,10 +57,10 @@ houses:
       matched: [C-1, C-2]
       linkages: [L-MORTGAGE, L-RATIO90]
       alert_level: warning                # 비율 90% 이상
-    contract_day:                         # 시연 장면 (S7 날짜). 할 일 순서는 deadline_scenarios.yaml 기준과 같은 엔진
-      dates: {contract_date: "2026-10-14", balance_date: "2026-11-25", end_date: "2028-11-24"}
+    contract_day:                         # 시연 장면 (잔금·만기는 S7 날짜, 계약일은 최종 시연일 11/3). 할 일 순서는 deadline_scenarios.yaml 기준과 같은 엔진
+      dates: {contract_date: "2026-11-03", balance_date: "2026-11-25", end_date: "2028-11-24"}
       special_term_result: {S-NO-MORTGAGE: rejected, S-GUARANTEE-CANCEL: inserted}
       expected:
         top: T4                           # 담보 설정 금지 거절 → 4번 전입신고 맨 위
-        T2_due: "2026-10-14"              # L-RATIO90: 보증기관 상담을 계약일까지
+        T2_due: "2026-11-03"              # L-RATIO90: 보증기관 상담을 계약일까지
         T3_required_check: 근저당 금액 변동 비교 (필수)
