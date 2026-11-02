@@ -130,7 +130,7 @@ def test_demo_flow_villa(client):
     assert [(d["kind"], d["uploaded"]) for d in documents] == [("contract", True), ("down_payment", True)]
 
     # 5. 계약 후 30일 안 임대차 신고(1번) → 잔금일 아침 등기부 재비교(3번)·전입신고(4번)
-    phone.day = "2026-10-20"
+    phone.day = "2026-11-05"
     phone.upload("T1")
     phone.day = scene["balance_date"]
     t3 = phone.todo("T3")

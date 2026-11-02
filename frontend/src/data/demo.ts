@@ -21,8 +21,8 @@ export const house = {
   deposit: 140_000_000,
   mortgage: 14_400_000,
   officialPrice: 116_000_000,
-  /** 계약 당일 시연 장면 날짜 (demo_houses.yaml contract_day, 기한 정답표 S7) */
-  contractDate: '2026.10.14',
+  /** 계약 당일 시연 장면 날짜 (demo_houses.yaml contract_day: 계약일은 최종 시연일, 잔금·만기는 기한 정답표 S7) */
+  contractDate: '2026.11.03',
   balanceDate: '2026.11.25',
   endDate: '2028.11.24',
 };
@@ -91,7 +91,7 @@ export const demoHouses: DemoHouse[] = [
       source: ['5 근저당권설정 채권최고액 금14,400,000원 근저당권자 주식회사가상은행 한가상 2026년6월2일 제00000호'],
       warnings: [],
     },
-    contractDay: { contract_date: '2026-10-14', balance_date: '2026-11-25', end_date: '2028-11-24' },
+    contractDay: { contract_date: '2026-11-03', balance_date: '2026-11-25', end_date: '2028-11-24' },
   },
   {
     id: 'demo-apartment',
@@ -206,8 +206,8 @@ export type Todo = {
 
 export const todos: Todo[] = [
   // 비율 90% 이상(L-RATIO90) → 보증기관 상담 기한이 계약일
-  { id: 'T2', title: '보증 가입 여부 확정', when: '10.14 완료 · 상담 기록', status: 'done' },
-  { id: 'T1', title: '임대차 신고', when: '10.20 완료 · 증빙 1장', status: 'done' },
+  { id: 'T2', title: '보증 가입 여부 확정', when: '11.03 완료 · 상담 기록', status: 'done' },
+  { id: 'T1', title: '임대차 신고', when: '11.05 완료 · 증빙 1장', status: 'done' },
   // 담보 설정 금지 특약 "거절당함" → 전입신고를 맨 위로 (special_terms.yaml S-NO-MORTGAGE on_rejected, AC-016)
   {
     id: 'T4',
@@ -234,10 +234,10 @@ export const todos: Todo[] = [
 export type RecordDoc = { name: string; meta: string; filled: boolean; needForClaim: boolean };
 
 export const recordDocs: RecordDoc[] = [
-  { name: '계약서 (계약 당일 사진)', meta: '10.14', filled: true, needForClaim: true },
-  { name: '계약금 이체 내역', meta: '10.14', filled: true, needForClaim: true },
-  { name: '계약 당일 등기부', meta: '10.14', filled: true, needForClaim: false },
-  { name: '임대차 신고 확인', meta: '10.20', filled: true, needForClaim: true },
+  { name: '계약서 (계약 당일 사진)', meta: '11.03', filled: true, needForClaim: true },
+  { name: '계약금 이체 내역', meta: '11.03', filled: true, needForClaim: true },
+  { name: '계약 당일 등기부', meta: '11.03', filled: true, needForClaim: false },
+  { name: '임대차 신고 확인', meta: '11.05', filled: true, needForClaim: true },
   { name: '잔금일 등기부', meta: '11.25 예정', filled: false, needForClaim: false },
   { name: '잔금 이체 내역', meta: '11.25 예정', filled: false, needForClaim: true },
   { name: '전입신고 확인', meta: '11.25 예정', filled: false, needForClaim: true },
@@ -259,11 +259,11 @@ export type TimelineEvent = {
 /** 시연 계약 (빌라, 담보 설정 금지 거절·보증 거절 시 해제 넣음)의 2년. 2027년 공시가격 하락은 시연용 가상 값 */
 export const timeline: TimelineEvent[] = [
   { year: '2026', md: '10.13', kind: 'contract', title: '계약 전 확인', sub: '확인 필요 · 근저당 있음, 비율 95%', photo: false },
-  { year: '2026', md: '10.14', kind: 'contract', title: '계약 당일 현장 확인', sub: '소유자·계좌 명의 확인', photo: true },
-  { year: '2026', md: '10.14', kind: 'alert', title: '특약 거절당함', sub: '담보 설정 금지 → 전입신고 맨 위로', photo: false },
-  { year: '2026', md: '10.14', kind: 'contract', title: '특약 넣음', sub: '보증 거절 시 계약 해제', photo: false },
-  { year: '2026', md: '10.14', kind: 'todo', title: '보증 가입 여부 확정', sub: '보증기관 상담 기록', photo: true },
-  { year: '2026', md: '10.20', kind: 'todo', title: '임대차 신고', sub: '임대차 신고필증', photo: true },
+  { year: '2026', md: '11.03', kind: 'contract', title: '계약 당일 현장 확인', sub: '소유자·계좌 명의 확인', photo: true },
+  { year: '2026', md: '11.03', kind: 'alert', title: '특약 거절당함', sub: '담보 설정 금지 → 전입신고 맨 위로', photo: false },
+  { year: '2026', md: '11.03', kind: 'contract', title: '특약 넣음', sub: '보증 거절 시 계약 해제', photo: false },
+  { year: '2026', md: '11.03', kind: 'todo', title: '보증 가입 여부 확정', sub: '보증기관 상담 기록', photo: true },
+  { year: '2026', md: '11.05', kind: 'todo', title: '임대차 신고', sub: '임대차 신고필증', photo: true },
   { year: '2026', md: '11.25', kind: 'todo', title: '잔금일 등기부 재비교', sub: '근저당 금액 변동 없음', photo: true },
   { year: '2026', md: '11.25', kind: 'todo', title: '전입신고', sub: '잔금 당일 완료', photo: true },
   { year: '2027', md: '04.29', kind: 'alert', title: '경보 재계산', sub: '95% → 98% · 공시가격 하락', photo: false },
